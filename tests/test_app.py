@@ -18,27 +18,29 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     response = client.get("/")
     assert response.status_code == 200
     assert "YOUR PERSONAL ENGLISH COACH" in response.text
-    assert "Speak naturally." in response.text
-    assert "Start practice" in response.text
+    assert "Talk freely." in response.text
+    assert "Start talking" in response.text
     assert "Live personal English coach" in response.text
-    assert "Tell me about a project you built" in response.text
+    assert "How did I sound?" in response.text
+    assert "What did you notice?" in response.text
+    assert "Practice a phrase" in response.text
+    assert "Session log" in response.text
     assert "tavus-coach-preview.png" not in response.text
-    assert "Your coach is ready" in response.text
+    assert "Your video coach will appear here" in response.text
     assert "id=\"tavus-video\"" in response.text
     assert "/static/daily-0.91.0.js" in response.text
     assert "/static/og-personal-coach.png" in response.text
     assert "unpkg.com" not in response.text
-    assert "Hear the model" in response.text
-    assert "Match the rhythm" in response.text
-    assert "Say it from memory" in response.text
-    assert "Put it in context" in response.text
+    assert "Hear the model" not in response.text
+    assert "Match the rhythm" not in response.text
+    assert "Say it from memory" not in response.text
+    assert "Put it in context" not in response.text
     assert "Tavus interview English" not in response.text
     assert "digital face" not in response.text
     assert ">TAVUS<" not in response.text
     assert not re.search(r"[\u4e00-\u9fff]", response.text)
     assert "Pace" not in response.text
     assert "Fillers" not in response.text
-    assert "Perception" not in response.text
     assert "Kai" not in response.text
     assert "/static/live.js" in response.text
 
@@ -58,30 +60,35 @@ def test_unconfigured_status_requires_real_tavus(monkeypatch):
     assert response.json()["experience_mode"] == "tavus_required"
 
 
-def test_language_lesson_greeting_is_personal_and_vendor_free():
+def test_conversation_greeting_is_personal_and_vendor_free():
     greeting = app_module._tavus_greeting(
-        {"name": "Alex"}, "language_lesson", "talking about a project you built"
+        {"name": "Alex"}, "conversation", "products built from zero to one"
     )
-    assert greeting.startswith("Hi, I'm your personal English coach.")
-    assert "talking about a project you built" in greeting
-    assert "Let me tell you about a project I'm proud of." in greeting
+    assert greeting.startswith("Hey Alex — I'm your personal English coach.")
+    assert "products built from zero to one" in greeting
+    assert "ask how you sound" in greeting
     assert "Tavus" not in greeting
 
 
-def test_browser_practice_uses_real_input_not_fixed_sample():
+def test_browser_publishes_daily_audio_and_supports_conversational_tools():
     response = client.get("/static/live.js")
     assert response.status_code == 200
-    assert "SpeechRecognition" in response.text
-    assert "getUserMedia" in response.text
-    assert "localStorage" in response.text
+    assert "SpeechRecognition" not in response.text
+    assert "getUserMedia" not in response.text
     assert "conversation.echo" in response.text
+    assert "conversation.respond" in response.text
+    assert "conversation.utterance" in response.text
     assert "createCallObject" in response.text
     assert "persistentTrack" in response.text
-    assert 'state.step = "repeat";\n      renderStep();\n      beginCapture();' in response.text
+    assert "startAudioOff: false" in response.text
+    assert "startVideoOff: true" in response.text
+    assert "setLocalAudio" in response.text
+    assert "setLocalVideo" in response.text
+    assert "audioSource: false" not in response.text
+    assert "videoSource: false" not in response.text
     assert "createFrame" not in response.text
-    assert "Listen, Repeat, Fix, Recall, and Use" not in response.text  # copy lives in the PAL prompt
-    assert "Let me tell you about a project I'm proud of." in response.text
-    assert "pace" not in response.text.lower()
+    assert "Listen, Repeat, Fix, Recall, and Use" not in response.text
+    assert "observable signals" in response.text
     assert "fillers" not in response.text.lower()
     assert "const SAMPLE" not in response.text
     assert "guided preview" not in response.text.lower()

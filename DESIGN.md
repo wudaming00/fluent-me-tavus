@@ -2,55 +2,47 @@
 
 ## Product promise
 
-The learner should always be able to answer two questions without guessing:
-
-- **Who am I talking to?** My personal English coach, or an explicit connection error.
-- **What do I do now?** One action in a five-step language-learning loop.
-
-The face is not decoration. It models phrasing, timing, and conversational presence. Fluent Me turns that embodied interface into a repeatable learning sequence.
-
-## Core interaction
+Fluent Me should feel like talking to a responsive person, with English coaching available whenever the learner asks for it. It is one continuous conversation, not a state machine dressed up as video.
 
 ```text
-Connect real Tavus video
-        ↓
-Listen → Repeat → Fix one thing → Recall without English → Use in an answer
-        ↓
-Next sentence (3 total) → review tomorrow
+Start talking → open conversation ───────────────→ keep talking
+                         │
+                         ├─ ask for English feedback
+                         ├─ ask about delivery signals
+                         ├─ request a natural recast
+                         └─ practice one exact phrase
 ```
-
-Every state has one dominant CTA. Metrics such as WPM, filler counts, hiring signals, and a generic “perception” panel are deliberately absent from the lesson screen.
 
 ## Screen contract
 
-- The Tavus video is the largest surface on desktop.
-- On mobile, the video and compact step progress stay visible while the task scrolls.
-- The Daily call-object surface remains transparent until a non-local Tavus video track is playable; no black frame covers the waiting state.
-- The UI may say **Coach is ready** only after that playable remote track exists.
-- Every user-visible interface string is English.
-- The current prototype uses Nathan – Bookshelf, a male Tavus Phoenix-4 stock Face verified in this account, unless `TAVUS_FACE_ID` explicitly selects another Face.
-- The visual system uses the original near-black, violet, and mint Fluent Me palette; mint is reserved for live and successful states.
-- A missing or rejected server key produces an error, never a static human presented as live.
-- The browser joins Daily with local camera and audio off. Fluent Me requests microphone access only when the learner explicitly starts a speaking attempt.
+- Tavus video is the largest surface on desktop.
+- The microphone is published to the Daily room after the learner explicitly clicks **Start talking**.
+- Camera is off by default and has a clear **Share camera** opt-in with a visible self-view.
+- The UI shows only understandable live states: connecting, listening, thinking, coach speaking, and your turn.
+- All user-visible interface strings are English.
+- A missing or rejected server key produces an explicit error, never a fake human presented as live.
+- The near-black, violet, mint, and pale-cyan visual system stays consistent with Fluent Me.
 
-## Teaching contract
+## Coaching contract
 
-| Step | Coach | Learner | UI result |
-|---|---|---|---|
-| Listen | Models the full phrase | Watches and listens | Meaning and phrase chunks |
-| Repeat | Waits | Reads the phrase aloud | Captured transcript |
-| Fix | Models one chunk | Repeats that chunk | One concrete adjustment |
-| Recall | Waits | Reconstructs from an English meaning cue | Retrieval evidence |
-| Use | Asks a relevant question | Answers with personal content | Phrase used in context |
+| Request | Coach behavior |
+|---|---|
+| Open conversation | Respond to meaning first; ask at most one natural follow-up. |
+| How did I sound? | Give one specific English note and one natural recast. |
+| Say it naturally | Speak a concise improved version, then invite a retry. |
+| What did you notice? | Cite only observable cues, preserve uncertainty, and ask whether the impression matches. |
+| Practice a phrase | Model the exact supplied phrase once; let the learner repeat it in the same conversation. |
 
-Keyboard entry is a first-class accessibility path, not an error state. When it is selected, recording actions disappear and the text submission becomes the primary CTA.
+These are callable abilities, not locked modes. Direct spoken questions must behave the same as buttons.
 
 ## Tavus boundary
 
-Tavus provides the face and live room through a full PAL pipeline. The managed PAL uses Phoenix, Raven-1, and Sparrow-1. Fluent Me passes the selected `face_id` on every conversation, so a cached PAL cannot override the visible coach. Raven observations are uncertain context only and must never become ability, personality, protected-trait, emotion, or hiring judgments.
+Tavus provides the full conversational video pipeline: Phoenix Face, Raven-1 perception, Sparrow-1 turn-taking, STT, LLM, and spoken response. Native speech uses the full pipeline. Typed user requests use `conversation.respond`. Only exact phrase modeling uses `conversation.echo`.
 
-Fluent Me sends exact model sentences with `conversation.echo`; it does not expose `TAVUS_API_KEY` to the browser. Private conversations use authentication, two-participant limits, finite call duration, and short participant timeouts. Every failure or exit attempts to end the remote Tavus conversation.
+Raven is configured with `emotion_recognition: limited` for an education product. Feedback may mention words, pace, pauses, clarity, tone, background audio, and visible delivery cues when a camera is shared. It must not claim to know an inner emotion or infer ability, personality, protected traits, mental health, or hiring suitability.
 
-## Honest degradation
+## Logging and privacy
 
-There is no visual fallback that imitates a connected coach. The non-live visual is an abstract **HELLO / CONNECTING** canvas. A learner can retry the connection; a valid Tavus room is required for the video lesson.
+The `Session log` reconstructs turns from live `conversation.utterance` events and de-duplicates replica/PAL aliases by inference and content. Optional `user_audio_analysis` and `user_visual_analysis` appear as expandable observable signals when Tavus provides them.
+
+The hosted Worker records room creation/end lifecycle events but does not create an extra server-side speech log. Fluent Me does not save raw audio or video. A future durable learning-memory feature requires a separate retention choice and explicit user-facing privacy design.

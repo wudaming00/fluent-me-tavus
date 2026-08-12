@@ -20,29 +20,22 @@ const DAILY_JS = ${JSON.stringify(dailyJs)};
 const OG_BASE64 = ${JSON.stringify(og)};
 const TAVUS_BASE = "https://tavusapi.com/v2";
 const DEFAULT_FACE_ID = "r987f6e6f73c"; // Nathan - Bookshelf, account-available Phoenix-4 stock Face
-const PAL_NAME = "Fluent Me Language Coach v3";
+const PAL_NAME = "Fluent Me Conversation Coach v4";
 
-const PAL_PROMPT = ${JSON.stringify(`You are the visible English coach inside Fluent Me, a five-step speaking lesson.
+const PAL_PROMPT = ${JSON.stringify(`You are the visible personal English coach inside Fluent Me. This is a live, learner-led conversation, not a scripted lesson. Respond to what the learner means first. Keep most replies to one to three natural spoken sentences and ask at most one useful follow-up. The learner may change topics, interrupt, or ask a direct question at any time. Never wait for an app-controlled step and never force a curriculum sequence.
 
-The Fluent Me interface owns the lesson sequence: Listen, Repeat, Fix, Recall, and Use. Never advance the lesson yourself and never give numeric scores. The app may send exact model sentences through conversation.echo. Speak those sentences exactly and naturally.
+When the learner asks "How did I sound?", give exactly one specific English observation and one more natural version of their last completed thought. Do not give a numeric score or a wall of metrics. When they ask you to say something naturally, speak the improved version clearly and invite them to try it. Exact model phrases may arrive through conversation.echo; say those exactly.
 
-When the learner repeats or recalls a sentence, acknowledge its meaning in at most one short sentence, then wait. Do not interrupt. During the Use step, ask or answer one natural follow-up so the new expression enters a real conversation. Keep every turn short, warm, spoken-first, and appropriate for an intermediate English learner.
+When the learner asks about emotion, presence, or how they are coming across, use only observable signals that were actually available in the current turn: words, pace, pauses, clarity, vocal tone, and visible delivery cues only when camera input exists. Cite the cue, state uncertainty, and ask whether the impression matches their experience. Never claim to know an inner emotion, diagnose a mental state, or infer ability, personality, or protected traits. If evidence is weak or a modality is unavailable, say so plainly.
 
-Raven observations are uncertain context only. Never infer ability, personality, protected traits, or mental state from perception. You are an AI English coach, not a human and not an examiner.`)};
+Be warm, direct, curious, and appropriate for an intermediate English learner. You are an AI English coach, not a human, therapist, examiner, or hiring evaluator.`)};
 
-const LESSON_CONTEXT = ${JSON.stringify(`You are the learner's personal English coach for a short lesson about describing a project they built.
-
-Today's three target phrases are:
-1. Let me tell you about a project I'm proud of.
-2. I built it from the ground up to solve a real problem.
-3. The biggest lesson was to test assumptions early.
-
-The app controls exact demonstrations and the learner's current step. Say each model phrase exactly when asked. Keep spontaneous replies brief, warm, and focused on helping the learner speak naturally.`)};
+const CONVERSATION_CONTEXT = ${JSON.stringify(`You are meeting an intermediate English learner in an open, face-to-face conversation. The learner controls the topic and may speak naturally, ask for feedback on the last turn, ask how their delivery came across, or request an exact phrase model at any point. Respond to the current request rather than following a lesson sequence. Keep coaching specific, brief, and immediately usable.`)};
 
 const SECURITY_HEADERS = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "no-referrer",
-  "permissions-policy": "camera=(), microphone=(self), geolocation=()",
+  "permissions-policy": "camera=(self), microphone=(self), geolocation=()",
 };
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {
@@ -78,7 +71,9 @@ async function tavusRequest(env, path, options = {}) {
 }
 
 async function ensurePal(env) {
-  const configured = String(env.TAVUS_PAL_ID || "").trim();
+  // Only a dedicated v4 override may skip creation. An older scripted PAL
+  // must not silently replace this conversation-first behavior.
+  const configured = String(env.TAVUS_CONVERSATION_PAL_ID || "").trim();
   if (configured) return configured;
 
   const listed = await tavusRequest(env, "/pals?limit=100");
@@ -101,13 +96,22 @@ async function ensurePal(env) {
         perception: {
           perception_model: "raven-1",
           emotion_recognition: "limited",
-          visual_awareness_queries: ["What visible object or screen content is directly relevant to this language practice?"],
-          audio_awareness_queries: ["Is background noise making the learner difficult to hear? Describe only observable audio conditions."],
+          visual_awareness_queries: [
+            "Describe only observable delivery cues relevant to this turn, such as gaze direction, posture, gesture, or visible expression changes. Do not label an inner emotion.",
+            "What visible object, screen, or activity is directly relevant to what the learner is saying?",
+          ],
+          audio_awareness_queries: [
+            "Describe only observable vocal delivery in this turn: pace, pauses, clarity, energy, volume changes, and background noise. Do not diagnose an inner emotion.",
+          ],
+          perception_analysis_queries: [
+            "Summarize observable delivery changes across the session, cite evidence, and preserve uncertainty without inferring emotion or ability.",
+          ],
         },
         conversational_flow: {
           turn_detection_model: "sparrow-1",
-          turn_taking_patience: "high",
+          turn_taking_patience: "medium",
           pal_interruptibility: "high",
+          voice_isolation: "near",
         },
       },
     },
@@ -129,9 +133,9 @@ async function createConversation(request, env) {
         pal_id: palId,
         // Explicitly override an older PAL's default Face for every room.
         face_id: faceId,
-        conversation_name: "Fluent Me · Personal English coaching",
-        conversational_context: LESSON_CONTEXT,
-        custom_greeting: "Hi, I'm your personal English coach. Let's practice talking about a project you built. First, listen: Let me tell you about a project I'm proud of.",
+        conversation_name: "Fluent Me · Open English conversation",
+        conversational_context: CONVERSATION_CONTEXT,
+        custom_greeting: "Hey, I'm your personal English coach. What do you feel like talking about today? You can also ask how you sound or ask me to model any phrase.",
         require_auth: true,
         max_participants: 2,
         audio_only: false,
@@ -144,6 +148,7 @@ async function createConversation(request, env) {
     });
     const required = ["conversation_id", "conversation_url", "meeting_token"];
     if (required.some(key => !result[key])) throw Object.assign(new Error("Tavus returned an incomplete private room."), { status: 502 });
+    console.log(JSON.stringify({ event: "conversation.created", conversation_id: result.conversation_id }));
     return json({
       conversation_id: result.conversation_id,
       conversation_url: result.conversation_url,
@@ -155,7 +160,7 @@ async function createConversation(request, env) {
     const safeStatus = status >= 400 && status < 600 ? status : 502;
     const message = safeStatus === 429
       ? "Your coach is busy right now. Try again shortly."
-      : "I couldn't bring your coach into the lesson. Try again.";
+      : "I couldn't bring your coach into the conversation. Try again.";
     return json({ error: message, reason: "tavus" }, safeStatus);
   }
 }
@@ -164,6 +169,7 @@ async function endConversation(conversationId, env) {
   if (!String(env.TAVUS_API_KEY || "").trim()) return json({ status: "not_configured" });
   try {
     await tavusRequest(env, "/conversations/" + encodeURIComponent(conversationId) + "/end", { method: "POST" });
+    console.log(JSON.stringify({ event: "conversation.ended", conversation_id: conversationId }));
     return json({ status: "ended" });
   } catch (error) {
     return json({ error: error.message || "Could not end the Tavus room." }, Number(error.status) || 502);
@@ -193,8 +199,8 @@ export default {
         has_key: configured,
         mode: configured ? "tavus_live" : "tavus_required",
         experience_mode: configured ? "tavus_live" : "tavus_required",
-        pal_ready: Boolean(String(env.TAVUS_PAL_ID || "").trim()),
-        capabilities: { face: "Phoenix", perception: "Raven-1", turn_taking: "Sparrow-1" },
+        pal_ready: Boolean(String(env.TAVUS_CONVERSATION_PAL_ID || "").trim()),
+        capabilities: { face: "Phoenix", perception: "Raven-1", turn_taking: "Sparrow-1", emotion_recognition: "limited" },
       });
     }
     if (url.pathname === "/api/tavus/conversations" && request.method === "POST") {
@@ -220,4 +226,4 @@ try {
   // The first build may run before Sites assigns this project an id.
 }
 
-console.log("Built Fluent Me face-to-face language lesson.");
+console.log("Built Fluent Me open conversation coach.");

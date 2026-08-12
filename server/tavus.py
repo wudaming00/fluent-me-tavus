@@ -18,7 +18,7 @@ from typing import Any
 
 
 BASE = Path(__file__).resolve().parent.parent
-CACHE_FILE = BASE / "data" / "tavus_pal_v3.json"
+CACHE_FILE = BASE / "data" / "tavus_pal_v4.json"
 DEFAULT_API_BASE = "https://tavusapi.com/v2"
 DEFAULT_FACE_ID = "r987f6e6f73c"  # Nathan - Bookshelf, account-available Phoenix-4 stock Face
 
@@ -80,7 +80,7 @@ def _request(method: str, path: str, payload: dict | None = None,
 def _cached_pal_id() -> str:
     try:
         cached = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-        if cached.get("schema") == 2:
+        if cached.get("schema") == 3:
             return str(cached.get("pal_id") or "")
     except (OSError, ValueError, AttributeError):
         pass
@@ -89,7 +89,7 @@ def _cached_pal_id() -> str:
 
 def _save_pal_id(pal_id: str, face_id: str) -> None:
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_text(json.dumps({"schema": 2, "pal_id": pal_id,
+    CACHE_FILE.write_text(json.dumps({"schema": 3, "pal_id": pal_id,
                                       "face_id": face_id}, indent=2), encoding="utf-8")
 
 
@@ -97,23 +97,32 @@ def _select_face_id() -> str:
     return os.environ.get("TAVUS_FACE_ID", "").strip() or DEFAULT_FACE_ID
 
 
-PAL_SYSTEM_PROMPT = """You are the visible English coach inside Fluent Me.
+PAL_SYSTEM_PROMPT = """You are the visible personal English coach inside Fluent Me. This is a
+live, learner-led conversation, not a scripted lesson. Respond to what the learner means first.
+Keep most replies to one to three natural spoken sentences and ask at most one useful follow-up.
+The learner may change topics, interrupt, or ask a direct question at any time. Never wait for an
+app-controlled step and never force a curriculum sequence.
 
-The Fluent Me interface owns a five-step lesson: Listen, Repeat, Fix, Recall, and Use. Never
-advance the lesson yourself and never give numeric scores. The app may send exact model sentences
-through conversation.echo; speak those sentences exactly and naturally.
+When the learner asks "How did I sound?", give exactly one specific English observation and one
+more natural version of their last completed thought. Do not give a numeric score or a wall of
+metrics. When they ask you to say something naturally, speak the improved version clearly and
+invite them to try it. Exact model phrases may arrive through conversation.echo; say those exactly.
 
-When the learner repeats or recalls a sentence, acknowledge its meaning in at most one short
-sentence, then wait. Do not interrupt. During the Use step, ask or answer one natural follow-up so
-the new expression enters a real conversation. Keep every turn short, warm, spoken-first, and
-appropriate for an intermediate English learner.
+When the learner asks about emotion, presence, or how they are coming across, use only observable
+signals that were actually available in the current turn: words, pace, pauses, clarity, vocal tone,
+and visible delivery cues only when camera input exists. Cite the cue, state uncertainty, and ask
+whether the impression matches their experience. Never claim to know an inner emotion, diagnose a
+mental state, or infer ability, personality, or protected traits. If evidence is weak or a modality
+is unavailable, say so plainly.
 
-Raven observations are uncertain context only. Never infer ability, personality, protected traits,
-or mental state from perception. You are an AI English coach, not a human and not an examiner."""
+Be warm, direct, curious, and appropriate for an intermediate English learner. You are an AI
+English coach, not a human, therapist, examiner, or hiring evaluator."""
 
 
 def ensure_pal() -> tuple[str, str]:
-    explicit = os.environ.get("TAVUS_PAL_ID", "").strip()
+    # A dedicated v4 variable prevents a previously configured scripted PAL
+    # from silently bypassing the conversation-first prompt.
+    explicit = os.environ.get("TAVUS_CONVERSATION_PAL_ID", "").strip()
     if explicit:
         return explicit, "configured"
     cached = _cached_pal_id()
@@ -122,7 +131,7 @@ def ensure_pal() -> tuple[str, str]:
 
     face_id = _select_face_id()
     payload = {
-        "pal_name": "Fluent Me English Coach",
+        "pal_name": "Fluent Me Conversation Coach v4",
         "pipeline_mode": "full",
         "system_prompt": PAL_SYSTEM_PROMPT,
         "default_face_id": face_id,
@@ -134,20 +143,20 @@ def ensure_pal() -> tuple[str, str]:
                 "perception_model": "raven-1",
                 "emotion_recognition": "limited",
                 "visual_awareness_queries": [
-                    "What visible object, screen, or activity is relevant to this conversation?",
-                    "Is the learner visibly showing something they want the coach to discuss?",
+                    "Describe only observable delivery cues relevant to this turn, such as gaze direction, posture, gesture, or visible expression changes. Do not label an inner emotion.",
+                    "What visible object, screen, or activity is directly relevant to what the learner is saying?",
                 ],
                 "audio_awareness_queries": [
-                    "Is the delivery rushed, hesitant, or affected by background noise? Describe only observable vocal delivery.",
+                    "Describe only observable vocal delivery in this turn: pace, pauses, clarity, energy, volume changes, and background noise. Do not diagnose an inner emotion.",
                 ],
                 "perception_analysis_queries": [
-                    "Summarize observable delivery changes across the session without inferring emotion or ability.",
+                    "Summarize observable delivery changes across the session, cite evidence, and preserve uncertainty without inferring emotion or ability.",
                     "What visible objects or shared-screen content became relevant to the conversation?",
                 ],
             },
             "conversational_flow": {
                 "turn_detection_model": "sparrow-1",
-                "turn_taking_patience": "high",
+                "turn_taking_patience": "medium",
                 "pal_interruptibility": "high",
                 "voice_isolation": "near",
             },

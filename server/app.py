@@ -80,7 +80,8 @@ def _to_wav(upload_bytes: bytes, tag: str, max_sec: int = 45) -> Path:
 def _page(name: str):
     # no-store: 今晚频繁热更, 浏览器缓存旧 UI 是 demo 隐形杀手
     return FileResponse(str(PAGES / name), media_type="text/html",
-                        headers={"Cache-Control": "no-store"})
+                        headers={"Cache-Control": "no-store",
+                                 "Permissions-Policy": "camera=(self), microphone=(self)"})
 
 
 @app.get("/")
@@ -158,7 +159,7 @@ TAVUS_FOCUS = {
     "conversation": "everyday conversation",
     "interview": "a concise job-interview answer",
     "story": "telling a clear story about a recent experience",
-    "language_lesson": "a structured Listen, Repeat, Fix, Recall, and Use English lesson",
+    "language_lesson": "on-demand phrase practice inside an open English conversation",
 }
 
 
@@ -189,25 +190,23 @@ def _tavus_context(briefing: dict, focus: str, topic: str = "") -> str:
 def _tavus_greeting(briefing: dict, focus: str, topic: str = "") -> str:
     name = str(briefing.get("name") or "there")[:40]
     prompts = {
-        "conversation": "What have you been working on lately?",
+        "conversation": "What do you feel like talking about today?",
         "interview": "Let's begin: tell me about yourself and what you want to build next.",
         "story": "Tell me about something memorable that happened recently.",
-        "language_lesson": ("Hi, I'm your personal English coach. First, listen to the model "
-                            "phrase. Then the screen will tell you when it's your turn."),
+        "language_lesson": ("What phrase would you like to practice, or what do you feel like "
+                            "talking about today?"),
     }
     if topic:
-        if focus == "language_lesson":
-            return (f"Hi, I'm your personal English coach. Let's practice {topic[:220]}. "
-                    "First, listen: Let me tell you about a project I'm proud of.")
-        return (f"Hey {name} — good to see you. Let's work on this: {topic[:220]}. "
-                "Give me your answer as if we were already in the conversation.")
-    return f"Hey {name} — good to see you. {prompts[focus]}"
+        return (f"Hey {name} — I'm your personal English coach. We can talk naturally about "
+                f"{topic[:220]}, or you can ask how you sound at any point. Where should we start?")
+    return (f"Hey {name} — I'm your personal English coach. {prompts[focus]} "
+            "You can also ask how you sound or ask me to model any phrase.")
 
 
 def _safe_tavus_error(exc: tavus.TavusAPIError):
     status = exc.status if 400 <= exc.status < 600 else 502
     message = ("Your coach is busy right now. Try again shortly." if status == 429
-               else "I couldn't bring your coach into the lesson. Try again.")
+               else "I couldn't bring your coach into the conversation. Try again.")
     return JSONResponse({"error": message, "reason": "tavus"}, status_code=status)
 
 
@@ -235,7 +234,7 @@ def _report_snapshot(session: dict) -> dict:
 
 @app.get("/api/tavus/status")
 def tavus_status():
-    cache_ready = bool(os.environ.get("TAVUS_PAL_ID")) or (BASE / "data" / "tavus_pal_v2.json").exists()
+    cache_ready = bool(os.environ.get("TAVUS_CONVERSATION_PAL_ID")) or (BASE / "data" / "tavus_pal_v4.json").exists()
     return {
         "configured": tavus.configured(),
         "mode": "live" if tavus.configured() else "tavus_required",

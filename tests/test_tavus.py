@@ -40,7 +40,7 @@ def test_status_requires_server_key(monkeypatch):
 
 def test_create_conversation_is_private_and_does_not_expose_key(monkeypatch, tmp_path):
     monkeypatch.setenv("TAVUS_API_KEY", "server-secret")
-    monkeypatch.setenv("TAVUS_PAL_ID", "pal-existing")
+    monkeypatch.setenv("TAVUS_CONVERSATION_PAL_ID", "pal-existing")
     monkeypatch.delenv("TAVUS_FACE_ID", raising=False)
     seen = {}
 
@@ -70,7 +70,7 @@ def test_create_conversation_is_private_and_does_not_expose_key(monkeypatch, tmp
 
 def test_auto_pal_uses_raven_sparrow_and_limited_emotion(monkeypatch, tmp_path):
     monkeypatch.setenv("TAVUS_API_KEY", "server-secret")
-    monkeypatch.delenv("TAVUS_PAL_ID", raising=False)
+    monkeypatch.delenv("TAVUS_CONVERSATION_PAL_ID", raising=False)
     monkeypatch.delenv("TAVUS_FACE_ID", raising=False)
     monkeypatch.setattr(tavus, "CACHE_FILE", tmp_path / "tavus_pal.json")
     requests = []
@@ -90,6 +90,9 @@ def test_auto_pal_uses_raven_sparrow_and_limited_emotion(monkeypatch, tmp_path):
     assert pal_payload["layers"]["perception"]["perception_model"] == "raven-1"
     assert pal_payload["layers"]["perception"]["emotion_recognition"] == "limited"
     assert pal_payload["layers"]["conversational_flow"]["turn_detection_model"] == "sparrow-1"
+    assert pal_payload["pal_name"] == "Fluent Me Conversation Coach v4"
+    assert "live, learner-led conversation" in pal_payload["system_prompt"]
+    assert "inner emotion" in pal_payload["system_prompt"]
     assert "tts" not in pal_payload["layers"]
     assert "Kai" not in pal_payload["pal_name"]
     assert "Kai" not in pal_payload["system_prompt"]
@@ -97,7 +100,7 @@ def test_auto_pal_uses_raven_sparrow_and_limited_emotion(monkeypatch, tmp_path):
 
 def test_face_override_applies_to_existing_pal(monkeypatch):
     monkeypatch.setenv("TAVUS_API_KEY", "server-secret")
-    monkeypatch.setenv("TAVUS_PAL_ID", "pal-existing")
+    monkeypatch.setenv("TAVUS_CONVERSATION_PAL_ID", "pal-existing")
     monkeypatch.setenv("TAVUS_FACE_ID", "face-custom-male")
     seen = {}
 
@@ -118,11 +121,11 @@ def test_face_override_applies_to_existing_pal(monkeypatch):
 
 def test_default_male_face_overrides_cached_pal(monkeypatch, tmp_path):
     monkeypatch.setenv("TAVUS_API_KEY", "server-secret")
-    monkeypatch.delenv("TAVUS_PAL_ID", raising=False)
+    monkeypatch.delenv("TAVUS_CONVERSATION_PAL_ID", raising=False)
     monkeypatch.delenv("TAVUS_FACE_ID", raising=False)
     cache_file = tmp_path / "tavus_pal.json"
     cache_file.write_text(json.dumps({
-        "schema": 2,
+        "schema": 3,
         "pal_id": "pal-with-old-female-default",
         "face_id": "old-female-face",
     }), encoding="utf-8")

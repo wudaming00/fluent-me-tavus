@@ -1,107 +1,33 @@
 (() => {
   "use strict";
 
-  const LESSON = [
-    {
-      target: "Let me tell you about a project I'm proud of.",
-      translation: "Meaning: A natural way to introduce a project story.",
-      chunks: ["Let me tell you about", "a project I'm proud of"],
-      fixChunk: "a project I'm proud of",
-      fixTitle: "Connect “proud of”",
-      fixCopy: "Keep “proud of” together as one thought. Let the final word land clearly.",
-      recallCue: "Say this idea in English from memory: introduce a project that makes you proud.",
-      useQuestion: "What project are you most proud of?"
-    },
-    {
-      target: "I built it from the ground up to solve a real problem.",
-      translation: "Meaning: I created it from the beginning.",
-      chunks: ["I built it", "from the ground up", "to solve a real problem"],
-      fixChunk: "from the ground up",
-      fixTitle: "Stress “ground up”",
-      fixCopy: "Give “ground up” one smooth beat so the expression sounds natural.",
-      recallCue: "Say this idea in English from memory: you created it from the beginning to solve a real problem.",
-      useQuestion: "What problem were you trying to solve?"
-    },
-    {
-      target: "The biggest lesson was to test assumptions early.",
-      translation: "Meaning: I learned to validate ideas before investing too much.",
-      chunks: ["The biggest lesson", "was to test assumptions", "early"],
-      fixChunk: "test assumptions early",
-      fixTitle: "Make the lesson sound decisive",
-      fixCopy: "Stress “test” and “early” so the takeaway is easy to hear.",
-      recallCue: "Say this idea in English from memory: you learned to validate ideas before investing too much.",
-      useQuestion: "What did you learn from building it?"
-    }
-  ];
-
-  const STEPS = ["listen", "repeat", "fix", "recall", "use"];
-  const STEP_COPY = {
-    listen: {
-      index: "Step 1 of 5 · LISTEN",
-      title: "Listen first. You do not need to speak yet.",
-      instruction: "Watch your coach and notice the natural thought groups.",
-      primary: "My turn",
-      secondary: "Hear it again",
-      help: "Tap “Hear it again” whenever you want your coach to model the phrase."
-    },
-    repeat: {
-      index: "Step 2 of 5 · REPEAT",
-      title: "Repeat the full sentence. It does not need to be perfect.",
-      instruction: "Keep the rhythm and say the complete idea first.",
-      primary: "Start repeating",
-      secondary: "Type instead",
-      help: "Press to speak. Pause when you finish, or press “Done.”"
-    },
-    fix: {
-      index: "Step 3 of 5 · FIX ONE THING",
-      title: "Practice only this short phrase.",
-      instruction: "One focused change is more useful than a wall of scores.",
-      primary: "Practice this phrase",
-      secondary: "Hear this phrase",
-      help: "Listen once, then match your coach’s rhythm."
-    },
-    recall: {
-      index: "Step 4 of 5 · RECALL",
-      title: "Now hide the sentence and express the same idea.",
-      instruction: "The wording can change. Retrieve the idea from memory.",
-      primary: "Speak from memory",
-      secondary: "Give me a hint",
-      help: "The model sentence is hidden; use the meaning cue."
-    },
-    use: {
-      index: "Step 5 of 5 · USE",
-      title: "Use the new phrase in your answer.",
-      instruction: "Your coach will ask a real question. Answer with your own ideas.",
-      primary: "Answer the coach",
-      secondary: "Hear the question",
-      help: "Try to use the new phrase, but make the answer your own."
-    }
+  const $ = id => document.getElementById(id);
+  const setText = (id, value) => {
+    const node = $(id);
+    if (node) node.textContent = value ?? "";
   };
 
-  const $ = id => document.getElementById(id);
-  const setText = (id, value) => { const node = $(id); if (node) node.textContent = value ?? ""; };
+  const COACH_REQUESTS = {
+    sound: "How did my last spoken answer sound? Give me one specific English note and one more natural version. Keep it brief and useful.",
+    natural: "Please restate the idea from my last spoken turn in natural English. Say the improved version clearly, then ask whether I want to try it.",
+    signals: "Based only on observable signals from my most recent turn, how am I coming across? Mention specific pace, pauses, clarity, tone, and any visible cues you actually received. Be tentative, say when evidence is missing, and do not claim to know my inner emotion."
+  };
 
   const state = {
-    sentenceIndex: 0,
-    step: "listen",
-    stepComplete: false,
     configured: false,
-    baseMode: "offline",
     call: null,
     conversationId: null,
     connecting: null,
-    recognition: null,
-    transcript: "",
-    mediaRecorder: null,
-    mediaStream: null,
-    audioChunks: [],
-    currentAudioUrl: null,
-    silenceTimer: null,
-    recording: false,
-    records: LESSON.map(() => ({})),
-    pendingCoachText: "",
-    coachRestoreTimer: null,
-    failureInProgress: false
+    baseMode: "offline",
+    micLive: false,
+    cameraLive: false,
+    ending: false,
+    failureInProgress: false,
+    seenEvents: new Set(),
+    turns: [],
+    timer: null,
+    startedAt: 0,
+    remoteReady: false
   };
 
   async function fetchJSON(url, options = {}) {
@@ -110,37 +36,66 @@
       headers: { "content-type": "application/json", ...(options.headers || {}) }
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || payload.message || `Request failed (${response.status})`);
+    if (!response.ok) {
+      throw new Error(payload.error || payload.message || `Request failed (${response.status})`);
+    }
     return payload;
   }
 
   function setView(view) {
     document.body.dataset.view = view;
     $("welcome").hidden = view !== "welcome";
-    $("lesson").hidden = view !== "lesson";
-    $("complete").hidden = view !== "complete";
-    $("lesson-progress").hidden = view !== "lesson";
-    $("exit-button").hidden = view !== "lesson";
+    $("conversation").hidden = view !== "conversation";
+    $("session-status").hidden = view !== "conversation";
+    $("end-session").hidden = view !== "conversation";
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function setCoachVisual(mode, label) {
+  function setCoachState(mode, label) {
     document.body.dataset.coachMode = mode;
     setText("coach-state-label", label);
+    setText("session-status-label", label);
   }
 
-  function restoreCoachState() {
-    if (state.baseMode === "tavus-live") {
-      setCoachVisual("tavus-live", "Coach is ready");
-    } else {
-      setCoachVisual("offline", "Waiting for your coach");
-    }
+  function setCaption(role, text) {
+    setText("caption-speaker", role === "user" ? "You" : "Coach");
+    setText("caption-text", text);
   }
 
   function setWelcomeStatus(mode, title, detail) {
     document.body.dataset.coachMode = mode;
     setText("welcome-status", title);
     setText("welcome-status-detail", detail);
+    setText("preview-badge", title);
+  }
+
+  function setControlsEnabled(enabled) {
+    document.querySelectorAll(".coach-tool").forEach(button => { button.disabled = !enabled; });
+    $("mic-toggle").disabled = !enabled;
+    $("camera-toggle").disabled = !enabled;
+    $("chat-input").disabled = !enabled;
+    $("chat-form").querySelector("button").disabled = !enabled;
+    $("phrase-input").disabled = !enabled;
+    $("phrase-lab").querySelector("button").disabled = !enabled;
+  }
+
+  function updateMediaControls() {
+    $("mic-toggle").setAttribute("aria-pressed", String(state.micLive));
+    $("camera-toggle").setAttribute("aria-pressed", String(state.cameraLive));
+    $("mic-toggle").querySelector("b").textContent = state.micLive ? "Mute mic" : "Turn mic on";
+    $("camera-toggle").querySelector("b").textContent = state.cameraLive ? "Stop camera" : "Share camera";
+    setText(
+      "signal-scope",
+      state.cameraLive
+        ? "Your words, pacing, pauses, tone, and visible delivery cues."
+        : state.micLive
+          ? "Your words, pacing, pauses, and tone. Camera is off."
+          : "Microphone and camera are off. You can still type to your coach."
+    );
+    if (!state.cameraLive) {
+      $("self-video").hidden = true;
+      $("self-video").srcObject = null;
+    }
   }
 
   async function checkCapability() {
@@ -148,294 +103,95 @@
       const status = await fetchJSON("/api/tavus/status", { headers: {} });
       state.configured = Boolean(status.configured);
       if (state.configured) {
-        setWelcomeStatus("tavus-ready", "Ready to practice", "Video and voice begin when you start.");
+        setWelcomeStatus("available", "Coach available", "Video and microphone begin when you start.");
       } else if (status.has_key) {
-        setWelcomeStatus("unavailable", "Your coach is unavailable", status.error || "Please try again in a moment.");
+        setWelcomeStatus("unavailable", "Coach unavailable", status.error || "Please try again in a moment.");
       } else {
-        setWelcomeStatus("offline", "Your coach is unavailable", "Live coaching has not been configured yet.");
+        setWelcomeStatus("unavailable", "Coach unavailable", "Live coaching has not been configured yet.");
       }
     } catch {
       state.configured = false;
       setWelcomeStatus("unavailable", "Could not reach your coach", "Please try again in a moment.");
     }
+    $("start-conversation").disabled = !state.configured;
   }
 
-  function currentLesson() { return LESSON[state.sentenceIndex]; }
-
-  function updateStepper() {
-    const current = STEPS.indexOf(state.step);
-    document.querySelectorAll(".stepper li").forEach((item, index) => {
-      item.classList.toggle("active", index === current);
-      item.classList.toggle("done", index < current);
-      const number = item.querySelector(":scope > span");
-      if (number) number.textContent = index < current ? "✓" : String(index + 1);
-    });
+  function showTab(name) {
+    const tools = name === "tools";
+    $("tools-panel").hidden = !tools;
+    $("log-panel").hidden = tools;
+    $("tools-tab").classList.toggle("active", tools);
+    $("log-tab").classList.toggle("active", !tools);
+    $("tools-tab").setAttribute("aria-selected", String(tools));
+    $("log-tab").setAttribute("aria-selected", String(!tools));
   }
 
-  function renderChunks(chunks) {
-    const root = $("chunks");
-    root.replaceChildren();
-    chunks.forEach(chunk => {
-      const chip = document.createElement("span");
-      chip.textContent = chunk;
-      root.appendChild(chip);
-    });
-  }
-
-  function resetCaptureUI() {
-    $("capture-result").hidden = true;
-    $("text-entry").hidden = true;
-    $("task-note").hidden = true;
-    $("typed-answer").value = "";
-    $("play-recording").hidden = true;
-    $("primary-action").hidden = false;
-    $("secondary-action").hidden = false;
-    state.stepComplete = false;
-    state.transcript = "";
-    if (state.currentAudioUrl) {
-      URL.revokeObjectURL(state.currentAudioUrl);
-      state.currentAudioUrl = null;
+  function readableTime(raw) {
+    const number = Number(raw);
+    let date = new Date();
+    if (Number.isFinite(number) && number > 0) {
+      date = new Date(number < 1e12 ? number * 1000 : number);
     }
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   }
 
-  function renderStep({ announce = false } = {}) {
-    const lesson = currentLesson();
-    const copy = STEP_COPY[state.step];
-    document.body.dataset.lessonStep = state.step;
-    setText("sentence-count", `Sentence ${state.sentenceIndex + 1} of ${LESSON.length}`);
-    setText("task-index", copy.index);
-    setText("task-title", copy.title);
-    setText("task-instruction", state.step === "recall" ? lesson.recallCue : copy.instruction);
-    const visiblePhrase = state.step === "recall"
-      ? "Phrase hidden · Say it from memory"
-      : state.step === "use"
-        ? `Try to use: “${lesson.target}”`
-        : lesson.target;
-    setText("target-phrase", visiblePhrase);
-    setText("translation", lesson.translation);
-    renderChunks(lesson.chunks);
-    setText("primary-action", copy.primary);
-    $("primary-action").innerHTML = `<span>${copy.primary}</span><i aria-hidden="true">→</i>`;
-    setText("secondary-action", copy.secondary);
-    setText("action-help", copy.help);
-    resetCaptureUI();
-    $("type-instead").hidden = ["listen", "repeat"].includes(state.step);
-
-    if (state.step === "fix") {
-      $("task-note").hidden = false;
-      setText("task-note-label", "One thing to fix");
-      setText("task-note-title", lesson.fixTitle);
-      setText("task-note-copy", lesson.fixCopy);
-    }
-    if (state.step === "use") {
-      setText("task-instruction", `Coach asks: ${lesson.useQuestion}`);
-    }
-    updateStepper();
-
-    if (announce) {
-      if (state.step === "listen") speakCoach(lesson.target);
-      if (state.step === "fix") speakCoach(lesson.fixChunk);
-      if (state.step === "use") speakCoach(lesson.useQuestion);
-    }
+  function analysisText(value) {
+    if (!value) return "";
+    if (typeof value === "string") return value.trim();
+    try { return JSON.stringify(value); }
+    catch { return String(value); }
   }
 
-  function updateAfterCapture(text) {
-    state.stepComplete = true;
-    $("capture-result").hidden = false;
-    setText("capture-label", state.step === "use" ? "Your answer" : "I heard");
-    setText("capture-text", text);
-    $("text-entry").hidden = true;
-    $("type-instead").hidden = true;
-    $("primary-action").hidden = false;
-    $("secondary-action").hidden = false;
-    $("play-recording").hidden = !state.currentAudioUrl;
+  function appendTurn({ role, text, timestamp, audioAnalysis, visualAnalysis }) {
+    const speech = String(text || "").trim();
+    if (!speech) return;
+    $("empty-log").hidden = true;
+    const article = document.createElement("article");
+    article.className = `log-turn ${role}`;
 
-    const nextLabels = {
-      repeat: "See what to fix",
-      fix: "Now say it from memory",
-      recall: "Use it in conversation",
-      use: state.sentenceIndex < LESSON.length - 1 ? "Next sentence" : "Finish lesson"
-    };
-    const label = nextLabels[state.step] || "Continue";
-    $("primary-action").innerHTML = `<span>${label}</span><i aria-hidden="true">→</i>`;
-    setText("action-help", state.step === "use" ? "Done — you used the phrase in a real answer." : "Got it. Continue to make the phrase stick.");
+    const header = document.createElement("header");
+    const who = document.createElement("b");
+    who.textContent = role === "user" ? "You" : "Coach";
+    const time = document.createElement("time");
+    time.textContent = readableTime(timestamp);
+    header.append(who, time);
 
-    if (state.step === "repeat") {
-      const missing = findMissingChunk(text, currentLesson().chunks);
-      $("task-note").hidden = false;
-      setText("task-note-label", missing ? "Practice this next" : "Tune one detail next");
-      setText("task-note-title", missing ? `Practice again: ${missing}` : currentLesson().fixTitle);
-      setText("task-note-copy", missing ? "The transcript did not capture this whole thought group. No score yet — say this part clearly in the next step." : currentLesson().fixCopy);
-    }
-  }
+    const body = document.createElement("p");
+    body.textContent = speech;
+    article.append(header, body);
 
-  function normalizedWords(text) {
-    return String(text || "").toLowerCase().replace(/[^a-z0-9'\s]/g, " ").split(/\s+/).filter(Boolean);
-  }
-
-  function findMissingChunk(text, chunks) {
-    const heard = new Set(normalizedWords(text));
-    return chunks.find(chunk => normalizedWords(chunk).some(word => !heard.has(word))) || "";
-  }
-
-  function finishCapturedText(rawText) {
-    const text = String(rawText || "").trim().replace(/\s+/g, " ");
-    if (!text) {
-      showTextEntry("I did not catch that attempt. Try again, or type what you said.");
-      return;
-    }
-    state.records[state.sentenceIndex][state.step] = {
-      text,
-      at: Date.now(),
-      audioUrl: state.currentAudioUrl || ""
-    };
-    updateAfterCapture(text);
-  }
-
-  function showTextEntry(message = "If you cannot use the microphone, type your English answer and continue the same lesson.") {
-    $("text-entry").hidden = false;
-    $("capture-result").hidden = true;
-    $("type-instead").hidden = true;
-    $("primary-action").hidden = true;
-    $("secondary-action").hidden = true;
-    setText("action-help", message);
-    setTimeout(() => $("typed-answer").focus(), 0);
-  }
-
-  function getRecognition() {
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Recognition) return null;
-    const recognition = new Recognition();
-    recognition.lang = "en-US";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    return recognition;
-  }
-
-  async function beginCapture() {
-    if (state.recording) return;
-    state.stepComplete = false;
-    state.transcript = "";
-    state.audioChunks = [];
-    $("capture-result").hidden = true;
-    $("text-entry").hidden = true;
-
-    let stream = null;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    } catch {
-      showTextEntry("The microphone is unavailable. Allow microphone access, or type your English answer.");
-      return;
-    }
-
-    state.mediaStream = stream;
-    state.recording = true;
-    $("recording-toast").hidden = false;
-    setText("recording-hint", state.step === "use" ? "Press “Done” after your full answer" : "Pause when you finish, or press “Done”");
-    setCoachVisual("listening", "Your turn · Listening");
-    setText("caption-speaker", "You");
-    setText("caption-text", "Start speaking. I’ll show the words I hear.");
-
-    if (window.MediaRecorder) {
-      try {
-        const recorder = new MediaRecorder(stream);
-        state.mediaRecorder = recorder;
-        recorder.ondataavailable = event => { if (event.data?.size) state.audioChunks.push(event.data); };
-        recorder.onstop = () => {
-          if (!state.audioChunks.length) return;
-          const blob = new Blob(state.audioChunks, { type: recorder.mimeType || "audio/webm" });
-          if (state.currentAudioUrl) URL.revokeObjectURL(state.currentAudioUrl);
-          state.currentAudioUrl = URL.createObjectURL(blob);
-          $("play-recording").hidden = $("capture-result").hidden;
-          const record = state.records[state.sentenceIndex]?.[state.step];
-          if (record) record.audioUrl = state.currentAudioUrl;
-        };
-        recorder.start();
-      } catch {
-        state.mediaRecorder = null;
+    const audio = analysisText(audioAnalysis);
+    const visual = analysisText(visualAnalysis);
+    if (audio || visual) {
+      const details = document.createElement("details");
+      details.className = "turn-signals";
+      const summary = document.createElement("summary");
+      summary.textContent = "Observable delivery signals";
+      details.appendChild(summary);
+      if (audio) {
+        const line = document.createElement("p");
+        line.textContent = `Audio: ${audio}`;
+        details.appendChild(line);
       }
+      if (visual) {
+        const line = document.createElement("p");
+        line.textContent = `Visual: ${visual}`;
+        details.appendChild(line);
+      }
+      article.appendChild(details);
     }
 
-    const recognition = getRecognition();
-    state.recognition = recognition;
-    if (!recognition) {
-      setText("recording-hint", "Recording — press “Done,” then confirm the transcript");
-      return;
-    }
-
-    let finalText = "";
-    recognition.onresult = event => {
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const chunk = event.results[i][0]?.transcript || "";
-        if (event.results[i].isFinal) finalText += `${chunk} `;
-        else interim += chunk;
-      }
-      state.transcript = `${finalText}${interim}`.trim();
-      setText("caption-text", state.transcript || "Listening…");
-      clearTimeout(state.silenceTimer);
-      if (finalText.trim()) state.silenceTimer = setTimeout(() => stopCapture(), 1500);
-    };
-    recognition.onerror = event => {
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        stopCapture({ showFallback: true });
-      }
-    };
-    recognition.onend = () => {
-      if (state.recording && state.transcript) stopCapture();
-    };
-    try { recognition.start(); }
-    catch { setText("recording-hint", "Recording — press “Done,” then confirm the transcript"); }
+    $("event-log").appendChild(article);
+    state.turns.push({ role, text: speech });
+    setText("log-count", String(state.turns.length));
+    article.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 
-  function stopCapture({ showFallback = false } = {}) {
-    if (!state.recording) {
-      if (showFallback) showTextEntry();
-      return;
-    }
-    state.recording = false;
-    clearTimeout(state.silenceTimer);
-    state.silenceTimer = null;
-    $("recording-toast").hidden = true;
-    try { state.recognition?.stop(); } catch {}
-    state.recognition = null;
-    try {
-      if (state.mediaRecorder?.state !== "inactive") state.mediaRecorder?.stop();
-    } catch {}
-    state.mediaRecorder = null;
-    state.mediaStream?.getTracks().forEach(track => track.stop());
-    state.mediaStream = null;
-    restoreCoachState();
-    if (showFallback || !state.transcript.trim()) showTextEntry();
-    else finishCapturedText(state.transcript);
-  }
-
-  async function speakCoach(text) {
-    const phrase = String(text || "").trim();
-    if (!phrase) return;
-    state.pendingCoachText = phrase;
-    setText("caption-speaker", "Coach");
-    setText("caption-text", phrase);
-    setCoachVisual("speaking", "Coach is speaking");
-
-    if (state.baseMode === "tavus-live" && state.call && state.conversationId) {
-      try {
-        await state.call.sendAppMessage({
-          message_type: "conversation",
-          event_type: "conversation.echo",
-          conversation_id: state.conversationId,
-          properties: { modality: "text", text: phrase, done: true }
-        }, "*");
-        clearTimeout(state.coachRestoreTimer);
-        state.coachRestoreTimer = setTimeout(restoreCoachState, Math.max(5000, phrase.split(/\s+/).length * 520 + 2500));
-        return;
-      } catch {
-        state.baseMode = "audio";
-      }
-    }
-
-    showConnectionFailure("Reconnect your coach before asking to hear a model.");
+  function clearLogView() {
+    $("event-log").querySelectorAll(".log-turn").forEach(node => node.remove());
+    state.turns = [];
+    $("empty-log").hidden = false;
+    setText("log-count", "0");
   }
 
   function normalizeRole(role) {
@@ -445,100 +201,175 @@
     return value;
   }
 
+  function roleForMessage(message) {
+    const direct = normalizeRole(message.properties?.role);
+    if (direct) return direct;
+    const type = String(message.event_type || "");
+    if (type.includes(".replica.") || type.includes(".pal.")) return "coach";
+    if (type.includes(".user.")) return "user";
+    return "";
+  }
+
   function handleTavusMessage(event) {
     const message = event?.data || event;
     if (!message || typeof message !== "object") return;
     if (message.conversation_id && message.conversation_id !== state.conversationId) return;
-    const role = normalizeRole(message.properties?.role);
-    const speech = message.properties?.speech || message.properties?.text || message.properties?.transcript || "";
 
-    if (message.event_type === "conversation.started_speaking") {
-      if (role === "coach") setCoachVisual("speaking", "Coach is speaking");
-      return;
-    }
-    if (message.event_type === "conversation.stopped_speaking") {
-      clearTimeout(state.coachRestoreTimer);
-      restoreCoachState();
-      return;
-    }
-    if (message.event_type !== "conversation.utterance" || !speech) return;
+    const type = String(message.event_type || "");
+    const role = roleForMessage(message);
+    const properties = message.properties || {};
+    const speech = String(properties.speech || properties.text || properties.transcript || "").trim();
 
-    if (role === "coach") {
-      setText("caption-speaker", "Coach");
-      setText("caption-text", speech);
+    if (type.includes("started_speaking")) {
+      if (role === "coach") setCoachState("speaking", "Coach is speaking");
+      if (role === "user") setCoachState("listening", "Listening to you");
       return;
     }
-    if (role === "user") {
-      setText("caption-speaker", "You");
-      setText("caption-text", speech);
-      if (state.recording) {
-        state.transcript = speech;
-        clearTimeout(state.silenceTimer);
-        state.silenceTimer = setTimeout(() => stopCapture(), 350);
-      }
+
+    if (type.includes("stopped_speaking")) {
+      if (role === "user") setCoachState("thinking", "Thinking…");
+      if (role === "coach") setCoachState("ready", "Your turn");
+      return;
     }
+
+    if (type === "conversation.utterance.streaming") {
+      if (speech) setCaption(role || "coach", speech);
+      return;
+    }
+
+    if (type !== "conversation.utterance" || !speech) return;
+    const inference = String(message.inference_id || "");
+    const key = `${inference || message.seq || "no-id"}|${role}|${speech}`;
+    if (state.seenEvents.has(key)) return;
+    state.seenEvents.add(key);
+
+    const safeRole = role === "user" ? "user" : "coach";
+    setCaption(safeRole, speech);
+    appendTurn({
+      role: safeRole,
+      text: speech,
+      timestamp: message.timestamp,
+      audioAnalysis: properties.user_audio_analysis,
+      visualAnalysis: properties.user_visual_analysis
+    });
+  }
+
+  function remoteTracks(participant) {
+    const video = participant?.tracks?.video?.persistentTrack || participant?.videoTrack || null;
+    const audio = participant?.tracks?.audio?.persistentTrack || participant?.audioTrack || null;
+    return { video, audio };
   }
 
   function attachRemoteMedia(participant) {
     if (!participant || participant.local) return false;
-    const videoTrack = participant.tracks?.video?.persistentTrack || participant.videoTrack || null;
-    const audioTrack = participant.tracks?.audio?.persistentTrack || participant.audioTrack || null;
-    const videoReady = participant.tracks?.video?.state === "playable" || Boolean(videoTrack);
-    if (!videoReady || !videoTrack) return false;
+    const { video, audio } = remoteTracks(participant);
+    const videoReady = participant.tracks?.video?.state === "playable" || Boolean(video);
+    if (!videoReady || !video) return false;
 
-    const tracks = [videoTrack, audioTrack].filter(Boolean);
-    const stream = new MediaStream(tracks);
+    const stream = new MediaStream([video, audio].filter(Boolean));
     const player = $("tavus-video");
     player.srcObject = stream;
     player.muted = false;
     player.play().catch(() => {
       player.muted = true;
       player.play().catch(() => {});
-      setText("caption-speaker", "Coach");
-      setText("caption-text", "Video connected. Your browser blocked autoplay with sound; click the video to continue.");
+      setCaption("coach", "Video is connected. Tap the video once to turn on sound.");
     });
     return true;
   }
 
-  async function connectTavus() {
-    if (state.baseMode === "tavus-live" && state.call) return true;
+  function attachLocalMedia(participant) {
+    if (!participant?.local || !state.cameraLive) return;
+    const video = participant.tracks?.video?.persistentTrack || participant.videoTrack || null;
+    if (!video) return;
+    const preview = $("self-video");
+    preview.srcObject = new MediaStream([video]);
+    preview.hidden = false;
+    preview.play().catch(() => {});
+  }
+
+  function stopTimer() {
+    clearInterval(state.timer);
+    state.timer = null;
+  }
+
+  function startTimer() {
+    stopTimer();
+    state.startedAt = Date.now();
+    const tick = () => {
+      const total = Math.max(0, Math.floor((Date.now() - state.startedAt) / 1000));
+      const minutes = String(Math.floor(total / 60)).padStart(2, "0");
+      const seconds = String(total % 60).padStart(2, "0");
+      setText("session-timer", `${minutes}:${seconds}`);
+    };
+    tick();
+    state.timer = setInterval(tick, 1000);
+  }
+
+  async function connectCoach() {
+    if (state.baseMode === "live" && state.call) return true;
     if (state.connecting) return state.connecting;
+
     state.connecting = (async () => {
       $("connection-card").hidden = true;
-      setCoachVisual("connecting", "Inviting your video coach");
-      setText("preview-ribbon", "BRINGING YOUR COACH IN…");
+      $("daily-stage").hidden = true;
+      $("coach-still").hidden = false;
+      state.remoteReady = false;
+      setCoachState("connecting", "Connecting…");
+      setControlsEnabled(false);
+
       try {
-        if (!window.Daily) throw new Error("Daily video client did not load.");
+        if (!window.Daily) throw new Error("The secure video client did not load.");
         const room = await fetchJSON("/api/tavus/conversations", {
           method: "POST",
-          body: JSON.stringify({ topic: "talking about a project you built", focus: "language_lesson" })
+          body: JSON.stringify({ focus: "conversation", topic: "an open English conversation led by the learner" })
         });
         state.conversationId = room.conversation_id;
+
         const call = window.Daily.createCallObject({
-          audioSource: false,
-          videoSource: false,
           subscribeToTracksAutomatically: true
         });
         state.call = call;
         call.on("app-message", handleTavusMessage);
-        call.on("error", () => { void failConnection("The video connection failed. Your lesson progress is saved."); });
+        call.on("error", event => {
+          const detail = event?.errorMsg || event?.error?.msg || "The video connection failed.";
+          void failConnection(detail);
+        });
         call.on("left-meeting", () => {
-          if (document.body.dataset.view === "lesson") void failConnection("The video connection ended. Your progress is saved; reconnect to continue.");
+          if (!state.ending && document.body.dataset.view === "conversation") {
+            void failConnection("The video room ended. Try reconnecting to continue.");
+          }
         });
 
-        let acceptRemote;
+        let resolveRemote;
+        let rejectRemote;
         const remoteJoined = new Promise((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error("Your coach did not appear in time. Please reconnect.")), 25000);
-          acceptRemote = participant => {
-            if (!attachRemoteMedia(participant)) return;
-            clearTimeout(timer);
-            resolve(true);
-          };
+          resolveRemote = resolve;
+          rejectRemote = reject;
         });
-        call.on("participant-joined", event => acceptRemote(event?.participant));
-        call.on("participant-updated", event => acceptRemote(event?.participant));
+        // If join itself fails before we await the remote participant, the
+        // timeout rejection is still handled instead of becoming global noise.
+        remoteJoined.catch(() => {});
+        const timeout = setTimeout(() => rejectRemote(new Error("Your coach did not appear in time. Try again.")), 30000);
+        const acceptParticipant = participant => {
+          if (participant?.local) {
+            attachLocalMedia(participant);
+            return;
+          }
+          if (!attachRemoteMedia(participant)) return;
+          if (!state.remoteReady) {
+            state.remoteReady = true;
+            clearTimeout(timeout);
+            resolveRemote(true);
+          }
+        };
+
+        call.on("participant-joined", event => acceptParticipant(event?.participant));
+        call.on("participant-updated", event => acceptParticipant(event?.participant));
         call.on("participant-left", event => {
-          if (event?.participant && !event.participant.local) void failConnection("Your coach left the room. Reconnect to continue.");
+          if (!state.ending && event?.participant && !event.participant.local) {
+            void failConnection("Your coach left the room. Try reconnecting to continue.");
+          }
         });
 
         $("daily-stage").hidden = false;
@@ -548,24 +379,29 @@
           token: room.meeting_token,
           userName: "Fluent Me learner",
           startVideoOff: true,
-          startAudioOff: true
+          startAudioOff: false
         });
-        Object.values(call.participants?.() || {}).forEach(acceptRemote);
+        state.micLive = true;
+        state.cameraLive = false;
+        updateMediaControls();
+        Object.values(call.participants?.() || {}).forEach(acceptParticipant);
         await remoteJoined;
 
-        state.baseMode = "tavus-live";
+        state.baseMode = "live";
         $("daily-stage").classList.remove("pending");
         $("coach-still").hidden = true;
-        $("preview-ribbon").hidden = true;
-        setCoachVisual("tavus-live", "Coach is ready");
+        setCoachState("ready", "Your turn");
+        setControlsEnabled(true);
+        startTimer();
         return true;
       } catch (error) {
-        await failConnection(error.message || "The video coach did not join.");
+        await failConnection(error.message || "Your coach could not join.");
         return false;
       } finally {
         state.connecting = null;
       }
     })();
+
     return state.connecting;
   }
 
@@ -573,19 +409,17 @@
     state.baseMode = "offline";
     $("daily-stage").hidden = true;
     $("coach-still").hidden = false;
-    $("preview-ribbon").hidden = false;
-    setText("preview-ribbon", "BRINGING YOUR COACH IN…");
-    setCoachVisual("unavailable", "Video coach is not connected");
     $("connection-card").hidden = false;
-    setText("connection-copy", detail || "Reconnect to continue practicing with your coach.");
+    setText("connection-copy", detail || "Check microphone access and try again.");
+    setCoachState("unavailable", "Not connected");
+    setControlsEnabled(false);
   }
 
   async function failConnection(detail) {
-    if (state.failureInProgress) return;
+    if (state.failureInProgress || state.ending) return;
     state.failureInProgress = true;
     try {
       await destroyCall(true);
-      state.baseMode = "offline";
       showConnectionFailure(detail);
     } finally {
       state.failureInProgress = false;
@@ -597,161 +431,186 @@
     const conversationId = state.conversationId;
     state.call = null;
     state.conversationId = null;
-    const player = $("tavus-video");
-    if (player) {
-      player.pause();
-      player.srcObject = null;
-    }
+    state.baseMode = "offline";
+    state.remoteReady = false;
+    state.micLive = false;
+    state.cameraLive = false;
+    stopTimer();
+    updateMediaControls();
+
+    const remote = $("tavus-video");
+    remote.pause();
+    remote.srcObject = null;
+    const local = $("self-video");
+    local.pause();
+    local.srcObject = null;
+    local.hidden = true;
+
     if (call) {
       try { await call.leave(); } catch {}
       try { await call.destroy(); } catch {}
     }
     if (endRemote && conversationId) {
       try {
-        await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(conversationId)}/end`, { method: "POST", body: "{}" });
+        await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(conversationId)}/end`, {
+          method: "POST",
+          body: "{}"
+        });
       } catch {}
     }
   }
 
-  async function startLesson() {
-    state.sentenceIndex = 0;
-    state.step = "listen";
-    state.records = LESSON.map(() => ({}));
-    setView("lesson");
-    renderStep();
-    if (state.configured) {
-      await connectTavus();
-    } else {
-      showConnectionFailure("Live coaching is unavailable right now. Please try again later.");
+  async function sendInteraction(eventType, text) {
+    const message = String(text || "").trim();
+    if (!message || state.baseMode !== "live" || !state.call || !state.conversationId) {
+      setCaption("coach", "Connect your coach first, or try again in a moment.");
+      return false;
+    }
+    try {
+      await state.call.sendAppMessage({
+        message_type: "conversation",
+        event_type: eventType,
+        conversation_id: state.conversationId,
+        properties: eventType === "conversation.echo"
+          ? { modality: "text", text: message, done: true }
+          : { text: message }
+      }, "*");
+      return true;
+    } catch {
+      setCaption("coach", "That request did not go through. Please say it out loud or try again.");
+      return false;
     }
   }
 
-  function advanceAfterCapture() {
-    if (state.step === "repeat") state.step = "fix";
-    else if (state.step === "fix") state.step = "recall";
-    else if (state.step === "recall") state.step = "use";
-    else if (state.step === "use") {
-      if (state.sentenceIndex >= LESSON.length - 1) {
-        completeLesson();
-        return;
+  async function askCoach(text, visibleText = text) {
+    setCaption("user", visibleText);
+    setCoachState("thinking", "Thinking…");
+    await sendInteraction("conversation.respond", text);
+  }
+
+  async function modelPhrase(text) {
+    setCaption("coach", text);
+    setCoachState("speaking", "Coach is speaking");
+    await sendInteraction("conversation.echo", text);
+  }
+
+  async function toggleMicrophone() {
+    if (!state.call || state.baseMode !== "live") return;
+    const next = !state.micLive;
+    try {
+      await Promise.resolve(state.call.setLocalAudio(next));
+      state.micLive = next;
+      updateMediaControls();
+      setCoachState(next ? "ready" : "thinking", next ? "Your turn" : "Mic is off");
+    } catch {
+      setCaption("coach", "Microphone access was blocked. Allow it in your browser or type below.");
+    }
+  }
+
+  async function toggleCamera() {
+    if (!state.call || state.baseMode !== "live") return;
+    const next = !state.cameraLive;
+    try {
+      await Promise.resolve(state.call.setLocalVideo(next));
+      state.cameraLive = next;
+      updateMediaControls();
+      if (next) {
+        const local = state.call.participants?.()?.local;
+        attachLocalMedia(local);
+        setCaption("coach", "Camera is on. I can now use visible delivery cues too.");
+      } else {
+        setCaption("coach", "Camera is off. I can still hear your words, pace, pauses, and tone.");
       }
-      state.sentenceIndex += 1;
-      state.step = "listen";
+    } catch {
+      state.cameraLive = false;
+      updateMediaControls();
+      setCaption("coach", "Camera access was blocked. You can keep talking with audio only.");
     }
-    renderStep({ announce: state.step === "fix" || state.step === "use" || state.step === "listen" });
   }
 
-  function handlePrimary() {
-    if (state.step === "listen") {
-      state.step = "repeat";
-      renderStep();
-      beginCapture();
-      return;
-    }
-    if (state.stepComplete) {
-      advanceAfterCapture();
-      return;
-    }
-    beginCapture();
+  async function startConversation() {
+    if (!state.configured) return;
+    state.ending = false;
+    state.seenEvents.clear();
+    clearLogView();
+    showTab("tools");
+    setView("conversation");
+    setCaption("coach", "Your coach will start with one question. Then the conversation is yours.");
+    await connectCoach();
   }
 
-  function handleSecondary() {
-    const lesson = currentLesson();
-    if (state.step === "listen") speakCoach(lesson.target);
-    else if (state.step === "repeat") showTextEntry();
-    else if (state.step === "fix") speakCoach(lesson.fixChunk);
-    else if (state.step === "recall") {
-      $("task-note").hidden = false;
-      setText("task-note-label", "A small hint");
-      setText("task-note-title", lesson.chunks[0]);
-      setText("task-note-copy", "Use only the opening words, then retrieve the rest from memory.");
-    } else if (state.step === "use") speakCoach(lesson.useQuestion);
-  }
-
-  async function completeLesson() {
-    stopCapture();
-    const completedAt = new Date().toISOString();
-    const review = {
-      completedAt,
-      dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      phrases: LESSON.map((lesson, index) => ({
-        target: lesson.target,
-        translation: lesson.translation,
-        recall: state.records[index].recall?.text || "",
-        use: state.records[index].use?.text || ""
-      }))
-    };
-    try { localStorage.setItem("fluent-me:latest-lesson", JSON.stringify(review)); } catch {}
-
-    const root = $("learned-list");
-    root.replaceChildren();
-    review.phrases.forEach((phrase, index) => {
-      const card = document.createElement("article");
-      card.className = "learned-item";
-      const number = document.createElement("span");
-      number.textContent = `0${index + 1} · LEARNED`;
-      const target = document.createElement("p");
-      target.textContent = phrase.target;
-      const detail = document.createElement("small");
-      detail.textContent = phrase.use ? `You said in conversation: ${phrase.use}` : phrase.translation;
-      card.append(number, target, detail);
-      root.appendChild(card);
-    });
-    setView("complete");
-    window.speechSynthesis?.cancel();
+  async function endSession() {
+    if (state.ending) return;
+    state.ending = true;
+    setCoachState("thinking", "Ending session…");
     await destroyCall(true);
-  }
-
-  async function exitLesson() {
-    stopCapture();
-    window.speechSynthesis?.cancel();
-    await destroyCall(true);
-    state.baseMode = "offline";
     $("daily-stage").hidden = true;
     $("coach-still").hidden = false;
-    $("preview-ribbon").hidden = false;
     $("connection-card").hidden = true;
+    setText("session-timer", "00:00");
     setView("welcome");
-    checkCapability();
+    state.ending = false;
+    await checkCapability();
   }
 
-  $("start-lesson").addEventListener("click", startLesson);
-  $("primary-action").addEventListener("click", handlePrimary);
-  $("secondary-action").addEventListener("click", handleSecondary);
-  $("type-instead").addEventListener("click", () => showTextEntry("Type your English answer to continue the full lesson."));
-  $("stop-recording").addEventListener("click", () => stopCapture());
-  $("submit-text").addEventListener("click", () => finishCapturedText($("typed-answer").value));
-  $("edit-transcript").addEventListener("click", () => {
-    $("typed-answer").value = $("capture-text").textContent || "";
-    showTextEntry("Edit the transcript, then press “Use this answer.”");
+  $("start-conversation").addEventListener("click", startConversation);
+  $("end-session").addEventListener("click", endSession);
+  $("retry-connection").addEventListener("click", connectCoach);
+  $("mic-toggle").addEventListener("click", toggleMicrophone);
+  $("camera-toggle").addEventListener("click", toggleCamera);
+  $("tools-tab").addEventListener("click", () => showTab("tools"));
+  $("log-tab").addEventListener("click", () => showTab("log"));
+  $("clear-log").addEventListener("click", clearLogView);
+  $("open-phrase-lab").addEventListener("click", () => {
+    $("phrase-lab").hidden = !$("phrase-lab").hidden;
+    if (!$("phrase-lab").hidden) $("phrase-input").focus();
   });
-  $("play-recording").addEventListener("click", () => {
-    if (!state.currentAudioUrl) return;
-    window.speechSynthesis?.cancel();
-    new Audio(state.currentAudioUrl).play().catch(() => {});
+
+  document.querySelectorAll("[data-coach-request]").forEach(button => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.coachRequest;
+      const visible = button.querySelector("b")?.textContent || "Coach request";
+      void askCoach(COACH_REQUESTS[key], visible);
+    });
   });
-  $("retry-tavus").addEventListener("click", async () => {
-    $("connection-card").hidden = true;
-    const connected = await connectTavus();
-    if (connected) {
-      const lesson = currentLesson();
-      if (state.step === "fix") speakCoach(lesson.fixChunk);
-      else if (state.step === "use") speakCoach(lesson.useQuestion);
+
+  $("phrase-lab").addEventListener("submit", event => {
+    event.preventDefault();
+    const phrase = $("phrase-input").value.trim();
+    if (!phrase) {
+      $("phrase-input").focus();
+      return;
+    }
+    void modelPhrase(phrase);
+  });
+
+  $("chat-form").addEventListener("submit", event => {
+    event.preventDefault();
+    const text = $("chat-input").value.trim();
+    if (!text) return;
+    $("chat-input").value = "";
+    void askCoach(text);
+  });
+
+  $("tavus-video").addEventListener("click", () => {
+    const video = $("tavus-video");
+    if (video.muted) {
+      video.muted = false;
+      video.play().catch(() => {});
     }
   });
-  $("exit-button").addEventListener("click", exitLesson);
-  $("practice-again").addEventListener("click", startLesson);
-  $("back-home").addEventListener("click", () => { setView("welcome"); checkCapability(); });
 
   window.addEventListener("beforeunload", () => {
-    state.mediaStream?.getTracks().forEach(track => track.stop());
-    if (state.conversationId) {
-      fetch(`/api/tavus/conversations/${encodeURIComponent(state.conversationId)}/end`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: "{}", keepalive: true
-      }).catch(() => {});
-    }
+    if (!state.conversationId) return;
+    fetch(`/api/tavus/conversations/${encodeURIComponent(state.conversationId)}/end`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+      keepalive: true
+    }).catch(() => {});
   });
 
-  if (window.speechSynthesis) window.speechSynthesis.getVoices();
+  setControlsEnabled(false);
+  updateMediaControls();
   checkCapability();
 })();
