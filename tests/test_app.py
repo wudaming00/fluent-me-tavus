@@ -21,6 +21,8 @@ def test_home_is_a_clear_language_lesson_with_visible_tavus_stage():
     assert "Tavus 视频教练" in response.text
     assert "tavus-coach-preview.png" not in response.text
     assert "等待连接真实 Tavus 视频" in response.text
+    assert "/static/daily-0.91.0.js" in response.text
+    assert "unpkg.com" not in response.text
     assert "先听" in response.text
     assert "跟读" in response.text
     assert "脱稿" in response.text
@@ -30,6 +32,12 @@ def test_home_is_a_clear_language_lesson_with_visible_tavus_stage():
     assert "Perception" not in response.text
     assert "Kai" not in response.text
     assert "/static/live.js" in response.text
+
+
+def test_daily_sdk_is_served_from_the_same_origin():
+    response = client.get("/static/daily-0.91.0.js")
+    assert response.status_code == 200
+    assert "DailyIframe" in response.text
 
 
 def test_unconfigured_status_requires_real_tavus(monkeypatch):

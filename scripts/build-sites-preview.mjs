@@ -9,12 +9,14 @@ const read = relative => readFile(join(root, relative));
 const html = (await read("server/pages/live.html")).toString("utf8");
 const css = (await read("server/static/live.css")).toString("utf8");
 const js = (await read("server/static/live.js")).toString("utf8");
+const dailyJs = (await read("server/static/daily-0.91.0.js")).toString("utf8");
 const og = (await read("server/static/og-language-lesson.png")).toString("base64");
 
 const worker = `
 const HTML = ${JSON.stringify(html)};
 const CSS = ${JSON.stringify(css)};
 const JS = ${JSON.stringify(js)};
+const DAILY_JS = ${JSON.stringify(dailyJs)};
 const OG_BASE64 = ${JSON.stringify(og)};
 const TAVUS_BASE = "https://tavusapi.com/v2";
 const DEFAULT_FACE_ID = "r90bbd427f71";
@@ -175,30 +177,20 @@ export default {
     if (url.pathname === "/static/live.js") {
       return new Response(JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=3600" } });
     }
+    if (url.pathname === "/static/daily-0.91.0.js") {
+      return new Response(DAILY_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=31536000, immutable" } });
+    }
     if (url.pathname === "/static/og-language-lesson.png") return imageResponse(OG_BASE64);
     if (url.pathname === "/api/tavus/status") {
-      const hasKey = Boolean(String(env.TAVUS_API_KEY || "").trim());
-      if (!hasKey) return json({ configured: false, has_key: false, reason: "not_configured" });
-      try {
-        await tavusRequest(env, "/pals?limit=1");
-        return json({
-          configured: true,
-          has_key: true,
-          validated: true,
-          mode: "tavus_live",
-          experience_mode: "tavus_live",
-          pal_ready: Boolean(String(env.TAVUS_PAL_ID || "").trim()),
-          capabilities: { face: "Phoenix", perception: "Raven-1", turn_taking: "Sparrow-1" },
-        });
-      } catch (error) {
-        return json({
-          configured: false,
-          has_key: true,
-          validated: false,
-          reason: "credential_rejected",
-          error: error.status === 401 || error.status === 403 ? "Tavus rejected the server credential." : "Tavus could not be reached.",
-        });
-      }
+      const configured = Boolean(String(env.TAVUS_API_KEY || "").trim());
+      return json({
+        configured,
+        has_key: configured,
+        mode: configured ? "tavus_live" : "tavus_required",
+        experience_mode: configured ? "tavus_live" : "tavus_required",
+        pal_ready: Boolean(String(env.TAVUS_PAL_ID || "").trim()),
+        capabilities: { face: "Phoenix", perception: "Raven-1", turn_taking: "Sparrow-1" },
+      });
     }
     if (url.pathname === "/api/tavus/conversations" && request.method === "POST") {
       return createConversation(request, env);
