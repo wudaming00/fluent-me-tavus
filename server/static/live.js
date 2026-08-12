@@ -479,6 +479,27 @@
     }
   }
 
+  function attachRemoteMedia(participant) {
+    if (!participant || participant.local) return false;
+    const videoTrack = participant.tracks?.video?.persistentTrack || participant.videoTrack || null;
+    const audioTrack = participant.tracks?.audio?.persistentTrack || participant.audioTrack || null;
+    const videoReady = participant.tracks?.video?.state === "playable" || Boolean(videoTrack);
+    if (!videoReady || !videoTrack) return false;
+
+    const tracks = [videoTrack, audioTrack].filter(Boolean);
+    const stream = new MediaStream(tracks);
+    const player = $("tavus-video");
+    player.srcObject = stream;
+    player.muted = false;
+    player.play().catch(() => {
+      player.muted = true;
+      player.play().catch(() => {});
+      setText("caption-speaker", "Tavus");
+      setText("caption-text", "视频已连接。浏览器阻止了自动声音，请点一下视频后继续。");
+    });
+    return true;
+  }
+
   async function connectTavus() {
     if (state.baseMode === "tavus-live" && state.call) return true;
     if (state.connecting) return state.connecting;
@@ -493,30 +514,31 @@
           body: JSON.stringify({ topic: "Tavus interview English", focus: "language_lesson" })
         });
         state.conversationId = room.conversation_id;
-        const call = window.Daily.createFrame($("daily-stage"), {
-          showLeaveButton: false,
-          showFullscreenButton: false,
-          showLocalVideo: true,
-          iframeStyle: { width: "100%", height: "100%", border: "0" }
+        const call = window.Daily.createCallObject({
+          audioSource: false,
+          videoSource: false,
+          subscribeToTracksAutomatically: true
         });
         state.call = call;
         call.on("app-message", handleTavusMessage);
         call.on("error", () => { void failConnection("视频连接发生错误。学习进度已经保留。"); });
         call.on("left-meeting", () => {
-          if (document.body.dataset.view === "lesson") void failConnection("视频连接已经结束。学习进度还在，你可以重连或继续语音练习。");
+          if (document.body.dataset.view === "lesson") void failConnection("视频连接已经结束。学习进度还在，你可以重新连接。");
         });
 
+        let acceptRemote;
         const remoteJoined = new Promise((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error("The coach did not join in time.")), 20000);
-          const accept = participant => {
-            const videoReady = participant?.video || participant?.tracks?.video?.state === "playable";
-            if (participant && !participant.local && videoReady) {
-              clearTimeout(timer);
-              resolve(true);
-            }
+          const timer = setTimeout(() => reject(new Error("The Tavus video track did not become playable in time.")), 25000);
+          acceptRemote = participant => {
+            if (!attachRemoteMedia(participant)) return;
+            clearTimeout(timer);
+            resolve(true);
           };
-          call.on("participant-joined", event => accept(event?.participant));
-          call.on("participant-updated", event => accept(event?.participant));
+        });
+        call.on("participant-joined", event => acceptRemote(event?.participant));
+        call.on("participant-updated", event => acceptRemote(event?.participant));
+        call.on("participant-left", event => {
+          if (event?.participant && !event.participant.local) void failConnection("Tavus 视频教练已经离开房间，请重新连接。");
         });
 
         $("daily-stage").hidden = false;
@@ -524,9 +546,11 @@
         await call.join({
           url: room.conversation_url,
           token: room.meeting_token,
+          userName: "Fluent Me learner",
           startVideoOff: true,
           startAudioOff: true
         });
+        Object.values(call.participants?.() || {}).forEach(acceptRemote);
         await remoteJoined;
 
         state.baseMode = "tavus-live";
@@ -573,6 +597,11 @@
     const conversationId = state.conversationId;
     state.call = null;
     state.conversationId = null;
+    const player = $("tavus-video");
+    if (player) {
+      player.pause();
+      player.srcObject = null;
+    }
     if (call) {
       try { await call.leave(); } catch {}
       try { await call.destroy(); } catch {}

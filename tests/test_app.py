@@ -21,6 +21,7 @@ def test_home_is_a_clear_language_lesson_with_visible_tavus_stage():
     assert "Tavus 视频教练" in response.text
     assert "tavus-coach-preview.png" not in response.text
     assert "等待连接真实 Tavus 视频" in response.text
+    assert "id=\"tavus-video\"" in response.text
     assert "/static/daily-0.91.0.js" in response.text
     assert "unpkg.com" not in response.text
     assert "先听" in response.text
@@ -56,6 +57,9 @@ def test_browser_practice_uses_real_input_not_fixed_sample():
     assert "getUserMedia" in response.text
     assert "localStorage" in response.text
     assert "conversation.echo" in response.text
+    assert "createCallObject" in response.text
+    assert "persistentTrack" in response.text
+    assert "createFrame" not in response.text
     assert "Listen, Repeat, Fix, Recall, and Use" not in response.text  # copy lives in the PAL prompt
     assert "Tavus is more than a digital face." in response.text
     assert "pace" not in response.text.lower()

@@ -10,7 +10,7 @@
   <meta property="og:image" content="/static/og-language-lesson.png">
   <meta name="twitter:card" content="summary_large_image">
   <title>Fluent Me — learn it, then use it</title>
-  <link rel="stylesheet" href="/static/live.css?v=5">
+  <link rel="stylesheet" href="/static/live.css?v=6">
   <script src="/static/daily-0.91.0.js"></script>
 </head>
 <body data-view="welcome" data-lesson-step="listen" data-coach-mode="checking">
@@ -81,7 +81,9 @@
             <div class="coach-still tavus-waiting-canvas" id="coach-still" aria-label="等待连接真实 Tavus 视频">
               <span>TAVUS</span><i></i><b>CONNECTING</b>
             </div>
-            <div class="daily-stage" id="daily-stage" hidden></div>
+            <div class="daily-stage" id="daily-stage" hidden>
+              <video id="tavus-video" autoplay playsinline aria-label="实时 Tavus 视频教练"></video>
+            </div>
 
             <div class="coach-state" id="coach-state">
               <span class="coach-state-dot"></span>
@@ -171,6 +173,6 @@
     <button id="stop-recording" type="button">完成</button>
   </div>
 
-  <script src="/static/live.js?v=5" defer></script>
+  <script src="/static/live.js?v=6" defer></script>
 </body>
 </html>
