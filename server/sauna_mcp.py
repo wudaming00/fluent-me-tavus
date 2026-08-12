@@ -4,9 +4,9 @@
 # 公网:  cloudflared tunnel --url http://localhost:8902  (Sauna 是云端产品, 本地要隧道)
 # 依赖:  pip install mcp   (requirements.txt 已列; 未安装时本文件不影响主应用)
 #
-# 暴露的工具 = "Kai 的记忆, 可被你的 Sauna 查询":
+# 暴露的工具 = "Fluent Me 的记忆, 可被你的 Sauna 查询":
 #   get_learner_profile / get_due_cards / get_recent_sessions / get_progress_summary
-#   add_identity_fact (Sauna → fluent-me 反向写入: 在 Sauna 里告诉它一个 fact, Kai 下场就知道)
+#   add_identity_fact (Sauna → fluent-me 反向写入: 在 Sauna 里告诉它一个 fact, 下场练习就会用到)
 import json
 import time
 
@@ -67,11 +67,11 @@ def get_progress_summary() -> str:
 
 @mcp.tool()
 def add_identity_fact(text: str, kind: str = "other") -> str:
-    """Teach Kai something about the learner (job, person, project, plan, preference). Kai will use it next session."""
+    """Teach Fluent Me something about the learner (job, person, project, plan, preference). It will be available next session."""
     s = _store()
     s.merge_facts([{"text": text, "kind": kind}], src="sauna")
     s.save()
-    return f"Saved. Kai now knows: {text}"
+    return f"Saved. Fluent Me now knows: {text}"
 
 
 if __name__ == "__main__":

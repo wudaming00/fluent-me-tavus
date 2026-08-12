@@ -148,25 +148,25 @@ input[type=date] { color-scheme: dark; }
   <div class="right" id="topstats"></div>
 </nav>
 <div class="wrap">
-  <h1>Me — everything Kai knows</h1>
-  <p class="sub">You control this memory. Toggle a fact off and Kai never mentions it again.</p>
+  <h1>Me — my learning memory</h1>
+  <p class="sub">You control this memory. Toggle a fact off and Fluent Me never uses it again.</p>
 
   <div class="cols">
     <!-- ================= LEFT ================= -->
     <div class="col">
       <div class="panel">
-        <h3>What Kai knows about you</h3>
-        <div class="micro">Learned from your conversations. Toggle off anything Kai shouldn't bring up — it stays here, but he'll never use it.</div>
+        <h3>What Fluent Me remembers</h3>
+        <div class="micro">Learned from your conversations. Toggle off anything the coach should not bring up—it stays here but will not be used.</div>
         <div id="facts"></div>
         <div class="addrow">
-          <input type="text" id="factinput" placeholder="+ tell Kai something about you…">
+          <input type="text" id="factinput" placeholder="+ add something useful about you…">
           <button class="btn" id="factadd">add</button>
         </div>
       </div>
 
       <div class="panel">
         <h3>Goals</h3>
-        <div class="micro">Deadlines drive practice. Kai suggests Interview or Presentation mode as the day approaches.</div>
+        <div class="micro">Deadlines drive practice. Fluent Me suggests Interview or Presentation mode as the day approaches.</div>
         <div id="goals"></div>
         <div class="goaladd">
           <select id="goalkind">
@@ -182,7 +182,7 @@ input[type=date] { color-scheme: dark; }
       </div>
 
       <div class="panel">
-        <h3>Episodes — what Kai remembers</h3>
+        <h3>Episodes — what Fluent Me remembers</h3>
         <div id="episodes"></div>
       </div>
     </div>
@@ -215,14 +215,14 @@ input[type=date] { color-scheme: dark; }
           <span class="plabel">Corrections voice</span>
           <div class="seg" id="fixseg">
             <button data-v="user">your clone</button>
-            <button data-v="tutor">Kai's voice</button>
+            <button data-v="tutor">Standard practice voice</button>
           </div>
         </div>
       </div>
 
       <div class="panel">
         <h3>Wishlist</h3>
-        <div class="micro">Words you asked about mid-conversation. Kai works them into future sessions until you own them.</div>
+        <div class="micro">Words you asked about mid-conversation. Fluent Me works them into future sessions until you own them.</div>
         <div class="chips" id="wishlist"></div>
         <div class="addrow">
           <input type="text" id="wishinput" placeholder="a word or phrase you want to own">
@@ -279,7 +279,7 @@ function renderFacts(){
   const box = $("facts");
   const facts = ME.facts || [];
   if (!facts.length){
-    box.innerHTML = '<div class="empty">Kai learns you as you talk — facts land here after your first session. Or tell him one now.</div>';
+    box.innerHTML = '<div class="empty">Fluent Me learns as you talk—facts land here after your first session. Or add one now.</div>';
     return;
   }
   box.innerHTML = facts.map((f, i) => `
@@ -325,7 +325,7 @@ function renderGoals(){
   const box = $("goals");
   const goals = ME.goals || [];
   if (!goals.length){
-    box.innerHTML = '<div class="empty">No goals yet — give Kai a date to aim at.</div>';
+    box.innerHTML = '<div class="empty">No goals yet—add a date to aim at.</div>';
     return;
   }
   box.innerHTML = goals.map((g, i) => {
@@ -519,7 +519,7 @@ function renderWishlist(){
   const box = $("wishlist");
   const wl = ME.wishlist || [];
   if (!wl.length){
-    box.innerHTML = '<div class="empty">Nothing here — ask Kai “how do I say…” mid-conversation and it lands here.</div>';
+    box.innerHTML = '<div class="empty">Nothing here—ask “how do I say…” mid-conversation and it lands here.</div>';
     return;
   }
   box.innerHTML = wl.map((w, i) =>

@@ -4,9 +4,9 @@
 
 The default route is now a face-to-face practice room built around a strict division of responsibility:
 
-- **Tavus CVI** supplies Kai's Face, full-duplex conversation, Raven-1 visual/audio context, and Sparrow-1 turn-taking.
+- **Tavus CVI** supplies the coach's Face, full-duplex conversation, Raven-1 visual/audio context, and Sparrow-1 turn-taking.
 - **Fluent Me** supplies the pedagogical layer: per-turn language evidence, mistake-card retrieval, spaced repetition, learner memory, and the private “hear the fluent me” correction loop.
-- **The learner's cloned voice stays separate from Kai.** A Tavus Face uses its own voice (and a video-trained Face can reproduce that person's voice); Fluent Me uses ElevenLabs or local TTS only for the learner's correction card. The tutor's face therefore never speaks with the learner's identity.
+- **The learner's cloned voice stays separate from the coach.** A Tavus Face uses its own voice (and a video-trained Face can reproduce that person's voice); Fluent Me uses ElevenLabs or local TTS only for the learner's correction card. The tutor's face therefore never speaks with the learner's identity.
 
 Raven observations are treated as uncertain conversational context. They are displayed transparently and never used to calculate grammar, vocabulary, CEFR, pronunciation, confidence, personality, or hiring signals. The managed PAL sets biometric emotion recognition to `limited` for this educational experience.
 
@@ -19,7 +19,7 @@ cd server
 python -m uvicorn app:app --host 127.0.0.1 --port 8901
 ```
 
-Open `http://127.0.0.1:8901/`. Without Tavus credentials it runs an explicitly labelled guided preview that never requests camera or microphone access.
+Open `http://127.0.0.1:8901/`. Without Tavus credentials it runs a real on-device speaking loop: microphone transcription when supported, observable pace/filler/structure evidence, a focused retry, and local practice history. It never invents Tavus perception or language scores.
 
 For a live private room, put a newly rotated key in `.env`:
 
@@ -42,15 +42,15 @@ Tavus Face + Raven + Sparrow ── conversation.utterance ──▶ Fluent Me
                                                            └─ cloned-voice recast
 ```
 
-Fluent Me consumes final user utterance events asynchronously. `seq` / `inference_id` dedupe reconnect replays, and each Tavus `conversation_id` owns separate session state. PAL/legacy `replica` duplicate events are ignored.
+Fluent Me consumes final user utterance events asynchronously. `seq` / `inference_id` dedupe reconnect replays, and each Tavus `conversation_id` owns separate session state. Current `replica` and compatible `pal` roles normalize to one coach identity before deduplication.
 
 The earlier sentence-only practice experience remains available at `/studio`; the existing conversation modes remain at `/talk`.
 
 Built for **ElevenLabs x Sauna Hack Night** (2026-07-16, SF). The prompt was "AI with
 memory and voice" — this is the literal answer: a spoken-English tutor with real memory.
 
-**The idea.** Hold a button and chat with Kai. Every mistake becomes a spaced-repetition
-memory card — and instead of flashcards, Kai *engineers the conversation* so the natural answer
+**The idea.** Hold a button and chat with the coach. Every mistake becomes a spaced-repetition
+memory card — and instead of flashcards, the coach *engineers the conversation* so the natural answer
 to his next question forces you to face that exact pattern again, right before you'd forget it.
 Corrections are spoken back **in your own cloned voice**: you literally hear the fluent version
 of yourself, already existing. Then the ECHO loop asks you to try it on — and scores you against
@@ -59,9 +59,9 @@ of yourself, already existing. Then the ECHO loop asks you to try it on — and 
 **Why it's different.**
 - *Conversational spaced repetition* — FSRS-inspired scheduling (per-card stability + live
   retrievability decay), hidden inside small talk. Never a flashcard. Duolingo drills everyone
-  the same; Kai remembers *you* and sets traps.
-- *Your life is the curriculum* — identity facts Kai learns (or you toggle on /me) generate
-  personalized roleplay scenes: "coffee chat with a Google recruiter — because you told Kai
+  the same; Fluent Me remembers *you* and creates useful retrieval moments.
+- *Your life is the curriculum* — identity facts Fluent Me learns (or you toggle on /me) generate
+  personalized roleplay scenes: "coffee chat with a Google recruiter — because you mentioned
   about your friend there." Plus full **Interview prep** (STAR feedback + the killer moment:
   *your own answer, polished, in your own voice*) and **Presentation rehearsal** (per-section
   timing, clarity coaching, skeptical-audience Q&A).
@@ -69,7 +69,7 @@ of yourself, already existing. Then the ECHO loop asks you to try it on — and 
   pronunciation is an **ASR-confidence proxy and labeled as such** (Scribe v2 word-level
   logprobs — it even flags which words came out fuzzy).
 - *Anti-grinding XP* — XP = score × sentence-ambition(1-5). Attempting conditionals beats
-  repeating "Yes, I like it." Echoing Kai's correction back? Detected, zero SRS credit —
+  repeating "Yes, I like it." Echoing the coach's correction back? Detected, zero SRS credit —
   only genuine retrieval in later conversation levels a card up.
 
 **Stack.** ElevenLabs end-to-end for voice (Scribe v2 STT in — word timestamps + confidence,
@@ -104,7 +104,7 @@ Sauna consumes MCP servers you bring. So:
 cloudflared tunnel --url http://localhost:8902  # public URL → Sauna → connect MCP server
 ```
 Tools: `get_learner_profile · get_due_cards · get_recent_sessions · get_progress_summary ·
-add_identity_fact` (that last one writes back — tell Sauna a fact, Kai uses it next session).
+add_identity_fact` (that last one writes back — tell Sauna a fact, Fluent Me uses it next session).
 `data/sauna_export/` also mirrors all memory in Sauna's documented workspace format
 (ABOUT.md + memory/*.md + sessions/*.md). Badge says "local · Sauna-ready" — never fakes a sync.
 
@@ -126,7 +126,7 @@ Demo 弧线 (≈4 分钟): 录声纹→立刻听到流利的自己 → Free talk
 遗忘曲线实时衰减 → /me: "这就是 Sauna 式记忆, 我控制它" + MCP server 现场连 Sauna。
 
 ### 已知降级路径 (全部诚实标注)
-- 无 IVC 权限 (free tier) → 修正句用 Kai 声 + 徽章 "your twin is offline"
+- 无 IVC 权限 (free tier) → 修正句用标准练习声 + 徽章 "your twin is offline"
 - 判卷挂 → canned 回复 + "judge offline" 徽章, 对话继续, 该轮不计分不落卡
 - Scribe 挂 → 本地 whisper (:8123, 家里 GPU 机) → 都挂才报错
 - 断网 → FLUENTME_MOCK=1 全流程照跑 (演 UI, 不演智能)

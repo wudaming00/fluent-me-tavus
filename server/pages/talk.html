@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fluent Me — talk to Kai</title>
+<title>Fluent Me — conversation</title>
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗣</text></svg>">
 <style>
@@ -184,7 +184,7 @@ textarea { width: 100%; min-height: 90px; background: var(--page); border: 1px s
 <nav>
   <div class="brand">Fluent <span>Me</span></div>
   <a class="item" href="/">Practice</a>
-  <a class="item active" href="/talk">Talk to Kai</a>
+  <a class="item active" href="/talk">Conversation</a>
   <a class="item" href="/progress">Progress</a>
   <a class="item" href="/me">Me</a>
   <a class="item" href="/demo">Demo</a>
@@ -196,8 +196,8 @@ textarea { width: 100%; min-height: 90px; background: var(--page); border: 1px s
 <div id="ob" style="display:none">
   <div class="ob" id="ob1" style="display:none">
     <h2>First, the ten-second version of you.</h2>
-    <p class="sub">Kai remembers everything you tell him — starting now.</p>
-    <label>What should Kai call you?</label>
+    <p class="sub">Fluent Me remembers what you choose to share — starting now.</p>
+    <label>What should Fluent Me call you?</label>
     <input type="text" id="ob-name" placeholder="your name" maxlength="40">
     <label>Your first language</label>
     <div class="chips" id="ob-lang"></div>
@@ -225,13 +225,13 @@ textarea { width: 100%; min-height: 90px; background: var(--page); border: 1px s
   <div class="ob" id="ob3" style="display:none">
     <div class="payoff-label">This is you, fluent.</div>
     <div id="ob3-body"><span class="pulse">building your fluent twin…</span></div>
-    <p class="sub" style="margin-top:14px">Same voice. Same person. Just further along. Everything Kai corrects
+    <p class="sub" style="margin-top:14px">Same voice. Same person. Just further along. Everything Fluent Me corrects
     will be spoken back like this — by the you that already made it.</p>
     <p class="ghost">Sounds a little unfamiliar? Everyone's recorded voice does — you hear yourself through bone,
     the world hears this. You'll get used to it fast, and it's worth it.</p>
     <div style="margin-top:22px">
       <button class="startbtn" id="ob3-go">▶ Start my first session</button>
-      <button class="ghostlink" id="ob3-tutor" style="margin-left:14px">Rather hear corrections in Kai's voice instead</button>
+      <button class="ghostlink" id="ob3-tutor" style="margin-left:14px">Rather hear corrections in a standard practice voice</button>
     </div>
   </div>
 </div>
@@ -239,7 +239,7 @@ textarea { width: 100%; min-height: 90px; background: var(--page); border: 1px s
 <!-- ==================== MAIN ==================== -->
 <div id="main" style="display:none">
   <h1>Talk. It listens, remembers, and answers back — <span style="color:var(--blue)">in your voice, fluent.</span></h1>
-  <p class="sub">Every mistake becomes a memory card. Kai steers future conversation so you face it again right
+  <p class="sub">Every mistake becomes a memory card. Fluent Me steers future conversation so you face it again right
   before you'd forget — spaced repetition hidden inside small talk, never a flashcard. Corrections come back in
   <b>your own cloned voice</b>: the fluent you, already existing.</p>
 
@@ -251,13 +251,13 @@ textarea { width: 100%; min-height: 90px; background: var(--page); border: 1px s
       <!-- setup panels -->
       <div class="panel" id="setup-scenario" style="display:none">
         <h3>Scenes from your life <button class="ghostlink" id="sc-regen" style="float:right">↻ new ideas</button></h3>
-        <div class="ghost" id="sugg-note">Kai builds these from what he remembers about you.</div>
+        <div class="ghost" id="sugg-note">Fluent Me builds these from what you chose to share.</div>
         <div class="sugg" id="sugg"></div>
       </div>
       <div class="panel" id="setup-interview" style="display:none">
         <h3>Mock interview setup</h3>
         <textarea id="jd" placeholder="paste the job description…"></textarea>
-        <div class="ghost" style="margin:10px 0 6px">— or build it from what Kai knows about you —</div>
+        <div class="ghost" style="margin:10px 0 6px">— or build it from your learning memory —</div>
         <div class="chips" id="iv-facts"></div>
         <input type="text" id="iv-role" placeholder="role hint (optional), e.g. solutions engineer" style="width:100%;background:var(--page);border:1px solid var(--hairline);border-radius:8px;color:var(--ink);font-size:13px;padding:8px 12px;margin-top:10px">
         <div style="margin-top:12px"><button class="startbtn" id="iv-gen">Generate mock →</button> <span class="ghost" id="iv-status"></span></div>
@@ -517,7 +517,7 @@ $("ob3-tutor").onclick = async () => {
 
 /* ================= scenario setup ================= */
 async function loadSuggestions(regen){
-  $("sugg").innerHTML = '<div class="ghost pulse">Kai is sketching scenes from your life…</div>';
+  $("sugg").innerHTML = '<div class="ghost pulse">Fluent Me is sketching scenes from your life…</div>';
   try {
     const r = await fetch("/api/scenes/suggest" + (regen ? "?regen=1" : ""));
     const j = await r.json();
@@ -527,7 +527,7 @@ async function loadSuggestions(regen){
       <div class="sc ${s.wildcard ? "wild" : ""}" onclick="startScene(${i})">
         <div class="t">${s.wildcard ? "🎲 " : ""}${esc(s.title)}</div>
         <div class="hook">${esc(s.hook || "")}</div>
-        <div class="d">Kai plays: ${esc(s.kai_role)}. You: ${esc(s.learner_role)}.<br>Goal: ${esc(s.objective)}</div>
+        <div class="d">Coach plays: ${esc(s.kai_role)}. You: ${esc(s.learner_role)}.<br>Goal: ${esc(s.objective)}</div>
         <div class="pats">${(s.target_patterns || []).map(p => `<span class="pat">${esc(p)}</span>`).join("")}</div>
       </div>`).join("");
   } catch (e) { $("sugg").innerHTML = `<div class="ghost">couldn't generate scenes (${esc(e.message)}) — try ↻</div>`; }
@@ -545,7 +545,7 @@ async function loadFactChips(){
   const m = await (await fetch("/api/me")).json();
   $("iv-facts").innerHTML = (m.facts || []).filter(f => f.use).map(f =>
     `<span class="chip" data-v="${esc(f.text)}">${esc(f.text)}</span>`).join("") ||
-    '<span class="ghost">no facts yet — talk to Kai first, or paste a JD above</span>';
+    '<span class="ghost">no facts yet — start a conversation first, or paste a JD above</span>';
   [...$("iv-facts").children].forEach(c => { if (c.classList.contains("chip")) c.onclick = () => c.classList.toggle("on"); });
 }
 $("iv-gen").onclick = async () => {
@@ -598,7 +598,7 @@ function beginSession(r){
   if (r.drill_n) $("scenebar").innerHTML = `<div class="drill">⚡ warm-up review · ${r.drill_n} cards fading — quick answers, still just conversation</div>`;
   else $("scenebar").innerHTML = "";
   renderScenePanel(null);
-  const b = bubble(`<div class="who">kai${scene ? " · in character" : ""}</div>${esc(r.reply)}`, "tutor");
+  const b = bubble(`<div class="who">coach${scene ? " · in character" : ""}</div>${esc(r.reply)}`, "tutor");
   if (r.audio){
     const a = document.createElement("audio"); a.controls = true; a.src = r.audio;
     b.appendChild(a); b.insertAdjacentHTML("beforeend", `<div class="badge">${r.engine}</div>`);
@@ -608,7 +608,7 @@ function beginSession(r){
 
 $("startbtn").onclick = async () => {
   if (sessionOn){ endSession(); return; }
-  $("startbtn").disabled = true; $("startbtn").textContent = "waking Kai…";
+  $("startbtn").disabled = true; $("startbtn").textContent = "opening conversation…";
   try {
     const r = await fetch("/api/session/start", {method: "POST", headers: {"Content-Type": "application/json"},
                                                  body: JSON.stringify({mode: mode === "review" ? "review" : "free"})});
@@ -849,7 +849,7 @@ window.sceneNext = async () => {
   const r = await fetch("/api/scene/next", {method: "POST"});
   const j = await r.json();
   if (!r.ok) return;
-  const b = bubble(`<div class="who">kai</div>${esc(j.reply)}`, "tutor");
+  const b = bubble(`<div class="who">coach</div>${esc(j.reply)}`, "tutor");
   if (j.audio){ const a = document.createElement("audio"); a.controls = true; a.src = j.audio; b.appendChild(a); enqueueAudio(a); }
   renderScenePanel({cursor: j.cursor, phase: j.phase, n: null});
 };
@@ -863,8 +863,8 @@ function handleStages(youBub){
       lastWords = j.words || [];
       youBub.innerHTML = `<div class="who">you · ${esc(j.stt_engine)}</div>${esc(j.heard)}` +
         rhythmStrip(lastWords);      // 判卷没回来, 节奏条先画 — 声学反馈零等待
-      kaiBub = bubble(`<div class="who">kai</div><span class="dots"></span>`, "tutor");
-      $("hint").textContent = "Kai is thinking…";
+      kaiBub = bubble(`<div class="who">coach</div><span class="dots"></span>`, "tutor");
+      $("hint").textContent = "Coach is thinking…";
       break;
     case "judge": {
       const grace = j.grace;
@@ -886,7 +886,7 @@ function handleStages(youBub){
       if (j.parrot) extra += `<div class="ghost" style="margin-top:4px">echoing me? nice try — say it in your own sentence for credit 😉</div>`;
       if (j.fl_meta && j.fl_meta.wps != null) extra += paceGauge(j.fl_meta.wps);
       youBub.insertAdjacentHTML("beforeend", extra);
-      kaiBub.innerHTML = `<div class="who">kai${scene ? " · in character" : ""}</div>${esc(j.reply)}` +
+      kaiBub.innerHTML = `<div class="who">coach${scene ? " · in character" : ""}</div>${esc(j.reply)}` +
         (j.degraded ? `<div class="badge">judge offline — conversation continues</div>` : "");
       scorePanel(j.scores, grace);
       renderScenePanel(j.scene);
@@ -903,7 +903,7 @@ function handleStages(youBub){
       const a = document.createElement("audio"); a.controls = true; a.src = j.audio;
       target.appendChild(a);
       target.insertAdjacentHTML("beforeend",
-        `<div class="badge">${isFix ? (j.own_voice ? "☝ your voice, fluent · " : "☝ Kai's voice — your twin is offline · ") : ""}${j.engine}</div>`);
+        `<div class="badge">${isFix ? (j.own_voice ? "☝ your voice, fluent · " : "☝ standard practice voice — your twin is offline · ") : ""}${j.engine}</div>`);
       // 流利版一到 → 打磨面板开 (核心循环: 反复模仿这条参考直到满意)
       enqueueAudio(a, isFix ? () => openPolish(j.ref_text, j.ref_words, j.audio) : null);
       if (isFix) fixMeta = true;

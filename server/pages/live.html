@@ -3,191 +3,203 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#10251d">
-  <meta name="description" content="A face-to-face English coach with Tavus perception, Fluent Me learning memory, and your own fluent voice.">
-  <meta property="og:title" content="Fluent Me × Tavus">
-  <meta property="og:description" content="Meet the fluent version of you.">
-  <meta property="og:image" content="/static/og.png">
-  <title>Fluent Me × Tavus — live practice</title>
+  <meta name="theme-color" content="#090b10">
+  <meta name="description" content="Real English speaking practice with live conversation, useful coaching, and learning memory.">
+  <meta property="og:title" content="Fluent Me">
+  <meta property="og:description" content="Speak. Notice. Say it better.">
+  <meta property="og:image" content="/static/og-v2.png">
+  <title>Fluent Me — speaking practice</title>
   <link rel="stylesheet" href="/static/live.css">
   <script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
 </head>
-<body data-room-state="booting">
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="Fluent Me home">
-      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span>Fluent Me</span>
-    </a>
-    <nav class="primary-nav" aria-label="Primary navigation">
-      <a class="active" href="/">Live practice</a>
-      <a href="/studio">Mirror lab</a>
-      <a href="/progress">Learning memory</a>
-    </nav>
-    <button class="connection-pill" id="connection-pill" type="button" aria-haspopup="dialog">
-      <span class="status-dot"></span><span id="connection-label">Checking Tavus…</span>
-    </button>
-  </header>
-
-  <main class="page-shell">
-    <section class="intro" aria-labelledby="page-title">
-      <div>
-        <p class="eyebrow">Fluent Me <span>×</span> Tavus</p>
-        <h1 id="page-title">Meet the fluent version of you.</h1>
-        <p class="lede">Kai sees the conversation, hears how you deliver it, and remembers what you need to practice next. Your corrections come back in your own cloned voice.</p>
+<body data-screen="setup" data-session-state="idle">
+  <div class="app-shell">
+    <header class="app-bar">
+      <a class="brand" href="/" aria-label="Fluent Me home">
+        <span class="brand-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span>Fluent Me</span>
+      </a>
+      <nav class="app-nav" aria-label="Primary navigation">
+        <a href="/studio">Voice mirror</a>
+        <a href="/progress">Learning memory</a>
+      </nav>
+      <div class="capability-pill" id="capability-pill" aria-live="polite">
+        <span></span><b id="capability-label">Getting ready</b>
       </div>
-      <div class="focus-picker" role="group" aria-label="Practice focus">
-        <span>Today I want to</span>
-        <button class="focus-chip selected" type="button" data-focus="conversation">have a conversation</button>
-        <button class="focus-chip" type="button" data-focus="interview">practice an interview</button>
-        <button class="focus-chip" type="button" data-focus="story">tell a story</button>
-      </div>
-    </section>
+    </header>
 
-    <section class="room-grid" aria-label="Practice room">
-      <article class="stage-card">
-        <header class="stage-head">
-          <div>
-            <span class="stage-kicker">Kai · AI English coach</span>
-            <span class="stage-state" id="stage-state">Preparing the room</span>
-          </div>
-          <div class="live-clock" id="live-clock" hidden><i></i><span>Live</span><time id="timer">00:00</time></div>
+    <main>
+      <section class="setup-screen" id="setup-screen" aria-labelledby="setup-title">
+        <div class="setup-copy">
+          <p class="overline">Live speaking practice</p>
+          <h1 id="setup-title">What do you want to get better at?</h1>
+          <p>Say a real answer. Get one useful note. Try it again while it is still fresh.</p>
+        </div>
+
+        <div class="setup-grid">
+          <section class="prompt-builder" aria-label="Choose a practice goal">
+            <label for="practice-goal">Today I want to practice</label>
+            <textarea id="practice-goal" rows="3" maxlength="240">Explain a product I built from zero to one</textarea>
+
+            <div class="prompt-suggestions" role="group" aria-label="Suggested practice goals">
+              <button class="prompt-chip selected" type="button" data-focus="interview" data-prompt="Explain a product I built from zero to one">
+                <span>01</span><b>Zero to one</b><small>Explain what you owned and why it mattered</small>
+              </button>
+              <button class="prompt-chip" type="button" data-focus="interview" data-prompt="Describe how I understand the AI ecosystem">
+                <span>02</span><b>AI ecosystem</b><small>Models, infrastructure, products, and distribution</small>
+              </button>
+              <button class="prompt-chip" type="button" data-focus="interview" data-prompt="Explain why Tavus is more than a digital face">
+                <span>03</span><b>Tavus interview</b><small>Perception, turn-taking, memory, and interaction</small>
+              </button>
+              <button class="prompt-chip" type="button" data-focus="conversation" data-prompt="Have a natural conversation about what I am building">
+                <span>04</span><b>Open conversation</b><small>Practice without a script</small>
+              </button>
+            </div>
+          </section>
+
+          <aside class="session-card">
+            <div class="session-card-top">
+              <span class="mode-icon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+              <div><p id="mode-kicker">60-second practice</p><h2 id="mode-title">Ready on this device</h2></div>
+            </div>
+            <ol class="session-steps">
+              <li><span>1</span><div><b>Speak naturally</b><small>Use your microphone or type if speech recognition is unavailable.</small></div></li>
+              <li><span>2</span><div><b>See real evidence</b><small>Your words, pace, fillers, and answer structure—not a made-up score.</small></div></li>
+              <li><span>3</span><div><b>Try it once more</b><small>Carry one specific improvement into the second attempt.</small></div></li>
+            </ol>
+            <label class="camera-setting" id="camera-setting" hidden>
+              <input id="camera-enabled" type="checkbox" checked>
+              <span><b>Use my camera</b><small>Optional. Visible context is never used for grading.</small></span>
+            </label>
+            <button class="start-button" id="start-button" type="button" disabled>
+              <span id="start-label">Preparing practice</span><i aria-hidden="true">→</i>
+            </button>
+            <p class="privacy-note" id="privacy-note"><span aria-hidden="true">●</span> Microphone access starts only after you continue.</p>
+          </aside>
+        </div>
+
+        <section class="recent-practice" id="recent-practice" hidden aria-labelledby="recent-title">
+          <div><p class="overline">Last practice</p><h2 id="recent-title">Pick up where you left off</h2></div>
+          <div class="recent-summary"><span id="recent-goal"></span><b id="recent-result"></b></div>
+          <button id="recent-retry" type="button">Practice again <span>→</span></button>
+        </section>
+      </section>
+
+      <section class="practice-screen" id="practice-screen" hidden aria-label="Speaking practice room">
+        <header class="room-bar">
+          <div class="room-goal"><span>Goal</span><b id="room-goal"></b></div>
+          <div class="room-status"><i></i><span id="room-status">Ready</span><time id="room-timer">00:00</time></div>
+          <button class="end-session" id="end-session" type="button">End</button>
         </header>
 
-        <div class="video-stage" id="video-stage">
-          <div class="stage-glow" aria-hidden="true"></div>
-          <div class="preview-label" id="preview-label">Preview mode · sample signals</div>
-          <div class="stage-placeholder" id="stage-placeholder">
-            <div class="signal-portrait" aria-hidden="true">
-              <div class="orbit orbit-one"></div>
-              <div class="orbit orbit-two"></div>
-              <div class="portrait-core"><span>K</span><b></b></div>
+        <div class="room-layout">
+          <section class="conversation-stage" id="conversation-stage">
+            <div class="browser-stage" id="browser-stage">
+              <div class="stage-topline"><span id="attempt-label">Attempt 1 of 2</span><span id="stage-mode">On-device practice</span></div>
+              <div class="prompt-display">
+                <p id="stage-kicker">Your prompt</p>
+                <h2 id="stage-prompt"></h2>
+                <p id="stage-instruction">Take a breath. Start when you are ready.</p>
+              </div>
+              <canvas class="voice-canvas" id="voice-canvas" width="1200" height="240" aria-label="Live microphone level"></canvas>
+              <div class="live-words" id="live-words" aria-live="polite">Your words will appear here as you speak.</div>
+              <div class="text-fallback" id="text-fallback" hidden>
+                <label for="fallback-answer">Speech recognition is unavailable. Type the answer you would say aloud.</label>
+                <textarea id="fallback-answer" rows="6" maxlength="2400" placeholder="Type your answer here…"></textarea>
+              </div>
+              <div class="stage-message" id="stage-message" hidden></div>
             </div>
-            <div class="stage-copy">
-              <p class="stage-copy-kicker" id="stage-copy-kicker">Face-to-face practice</p>
-              <h2 id="stage-title">A coach that notices the whole conversation.</h2>
-              <p id="stage-description">Microphone access is required for live practice. Camera is optional and enables visual context.</p>
+            <div class="video-stage" id="video-stage" hidden></div>
+            <div class="caption-strip" id="caption-strip" hidden><span id="caption-speaker">You</span><p id="caption-text"></p></div>
+          </section>
+
+          <aside class="coach-panel">
+            <div class="panel-tabs" role="tablist" aria-label="Practice insights">
+              <button class="panel-tab active" id="coaching-tab" type="button" role="tab" aria-selected="true" data-panel="coaching">Coaching</button>
+              <button class="panel-tab" id="perception-tab" type="button" role="tab" aria-selected="false" data-panel="perception" disabled>Perception</button>
             </div>
-            <label class="camera-choice" id="camera-choice">
-              <input id="camera-enabled" type="checkbox" checked>
-              <span><b>Camera perception</b><small>Let Raven use visible context. No emotion scoring.</small></span>
-            </label>
-            <div class="stage-actions">
-              <button class="button primary" id="start-button" type="button" disabled>Loading…</button>
-              <button class="button quiet" id="guide-button" type="button">How it connects</button>
+
+            <div class="panel-content" id="coaching-panel" role="tabpanel">
+              <section class="goal-card"><span>Your goal</span><p id="panel-goal"></p></section>
+
+              <section class="coach-note" id="coach-note">
+                <div class="note-empty" id="note-empty">
+                  <span class="listening-orb" aria-hidden="true"><i></i></span>
+                  <h3>Your most useful note will appear here.</h3>
+                  <p>We wait until you finish. Nothing interrupts your answer.</p>
+                </div>
+                <div class="note-result" id="note-result" hidden>
+                  <p class="panel-eyebrow">One thing to try</p>
+                  <h3 id="note-title"></h3>
+                  <p id="note-body"></p>
+                  <blockquote id="note-target"></blockquote>
+                  <button class="listen-button" id="listen-button" type="button" hidden><span>▶</span><b id="listen-label">Listen to the rewrite</b></button>
+                </div>
+              </section>
+
+              <section class="evidence" id="evidence" aria-label="Answer evidence">
+                <div><span>Time</span><b id="metric-time">—</b></div>
+                <div><span>Pace</span><b id="metric-wpm">—</b></div>
+                <div><span>Fillers</span><b id="metric-fillers">—</b></div>
+              </section>
+
+              <section class="attempt-compare" id="attempt-compare" hidden>
+                <span>Second attempt</span><h3 id="compare-title"></h3><p id="compare-copy"></p>
+              </section>
             </div>
-          </div>
-          <div class="speaking-cue" id="speaking-cue" hidden><span></span><b id="speaking-label">Kai is speaking</b></div>
+
+            <div class="panel-content" id="perception-panel" role="tabpanel" hidden>
+              <p class="perception-intro">Observations are tentative conversational context. They never affect your language feedback.</p>
+              <section class="perception-item"><span>Voice delivery</span><p id="audio-perception">Waiting for a complete turn.</p></section>
+              <section class="perception-item"><span>Visible context</span><p id="visual-perception">Waiting for camera context.</p></section>
+              <div class="perception-footnote"><i></i><span>Context only · not used in scoring</span></div>
+            </div>
+          </aside>
         </div>
 
-        <footer class="stage-controls">
-          <p id="room-note">Camera and microphone stay off until you start.</p>
-          <div>
-            <button class="control-button" id="sample-button" type="button" hidden>Run sample turn</button>
-            <button class="control-button danger" id="end-button" type="button" hidden>End session</button>
+        <footer class="room-controls">
+          <div class="media-controls">
+            <button class="round-control" id="mic-toggle" type="button" aria-label="Mute microphone" hidden>Mic</button>
+            <button class="round-control" id="camera-toggle" type="button" aria-label="Turn camera off" hidden>Camera</button>
           </div>
+          <button class="record-control" id="record-control" type="button"><span class="record-dot"></span><b id="record-label">Start answer</b></button>
+          <button class="quiet-control" id="transcript-toggle" type="button">Transcript</button>
         </footer>
+      </section>
 
-        <div class="perception-ribbon" aria-live="polite">
-          <div class="ribbon-intro">
-            <span class="signal-icon" aria-hidden="true">R</span>
-            <div><b>Raven context</b><small>Observations help Kai respond; they never change your language score.</small></div>
-          </div>
-          <div class="signal-card">
-            <span>Vocal delivery</span>
-            <p id="audio-perception">Waiting for a complete user turn.</p>
-          </div>
-          <div class="signal-card">
-            <span>Visible context</span>
-            <p id="visual-perception">Camera context will appear here when available.</p>
-          </div>
+      <section class="review-screen" id="review-screen" hidden aria-labelledby="review-title">
+        <div class="review-mark" aria-hidden="true"><span>✓</span></div>
+        <p class="overline">Practice complete</p>
+        <h1 id="review-title">You said it better the second time.</h1>
+        <p class="review-lede" id="review-lede"></p>
+
+        <div class="review-grid">
+          <section class="review-main">
+            <p class="panel-eyebrow">Carry this forward</p>
+            <h2 id="review-note-title"></h2>
+            <p id="review-note-body"></p>
+            <blockquote id="review-target"></blockquote>
+          </section>
+          <section class="review-evidence">
+            <div><span>Attempts</span><b id="review-attempts">1</b></div>
+            <div><span>Latest pace</span><b id="review-wpm">—</b></div>
+            <div><span>Latest fillers</span><b id="review-fillers">—</b></div>
+            <div><span>Practice time</span><b id="review-time">—</b></div>
+          </section>
         </div>
-      </article>
 
-      <aside class="coach-rail" aria-label="Learning feedback">
-        <section class="rail-card focus-card">
-          <header><span class="rail-index">01</span><div><p class="rail-kicker">Today’s focus</p><h2>Memory in the conversation</h2></div></header>
-          <p class="rail-explain">Kai quietly creates natural openings for patterns that are due for review.</p>
-          <div class="memory-targets" id="memory-targets">
-            <span class="target-skeleton"></span><span class="target-skeleton short"></span>
-          </div>
-        </section>
+        <details class="transcript-details" id="transcript-details">
+          <summary>Review what I said <span>＋</span></summary>
+          <div id="review-transcript"></div>
+        </details>
 
-        <section class="rail-card score-card">
-          <header><span class="rail-index">02</span><div><p class="rail-kicker">This turn</p><h2>Language signal</h2></div></header>
-          <div class="score-summary">
-            <strong id="turn-score">—</strong>
-            <span><b id="score-caption">Waiting for your first turn</b><small id="score-note">Grammar and vocabulary are graded separately from perception.</small></span>
-          </div>
-          <div class="score-grid">
-            <div><span>Grammar</span><b id="score-grammar">—</b><i><em id="bar-grammar"></em></i></div>
-            <div><span>Vocabulary</span><b id="score-vocab">—</b><i><em id="bar-vocab"></em></i></div>
-            <div class="unavailable"><span>Fluency</span><b id="score-fluency">n/a</b><small>needs timing</small></div>
-            <div class="unavailable"><span>Pronunciation</span><b id="score-pron">n/a</b><small>ASR-based only</small></div>
-          </div>
-        </section>
-
-        <section class="rail-card mirror-card" id="mirror-card">
-          <header><span class="rail-index">03</span><div><p class="rail-kicker">Mirror moment</p><h2>Hear the fluent you</h2></div></header>
-          <div class="mirror-empty" id="mirror-empty">
-            <span class="mirror-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-            <p>Your most useful recast will appear here—spoken in your cloned voice when connected.</p>
-          </div>
-          <div class="mirror-result" id="mirror-result" hidden>
-            <span class="before-label">You said</span>
-            <p class="before-text" id="mirror-before"></p>
-            <span class="after-label">A more natural version</span>
-            <blockquote id="mirror-after"></blockquote>
-            <button class="mirror-play" id="mirror-play" type="button"><span>▶</span><b>Hear the fluent me</b><small id="mirror-engine">Your cloned voice</small></button>
-          </div>
-        </section>
-      </aside>
-    </section>
-
-    <section class="transcript-card" aria-labelledby="transcript-title">
-      <header>
-        <div><p class="rail-kicker">Conversation trail</p><h2 id="transcript-title">What happened in the room</h2></div>
-        <span id="transcript-count">No turns yet</span>
-      </header>
-      <div class="transcript" id="transcript">
-        <div class="transcript-empty" id="transcript-empty">
-          <span>“</span><p>Your conversation and learning moments will collect here—not as a wall of chat, but as evidence you can revisit.</p>
+        <div class="review-actions">
+          <button class="start-button compact" id="practice-again" type="button"><span>Practice this again</span><i>→</i></button>
+          <button class="secondary-button" id="new-goal" type="button">Choose a new goal</button>
         </div>
-      </div>
-    </section>
-
-    <section class="report-card" id="report-card" hidden aria-live="polite">
-      <div class="report-heading"><p class="eyebrow">Session complete</p><h2 id="report-title">Nice work. Your learning memory is updated.</h2><p id="report-summary">Finalizing your recap…</p></div>
-      <div class="report-stats">
-        <div><span>Analyzed turns</span><b id="report-turns">0</b></div>
-        <div><span>Language signal</span><b id="report-score">—</b></div>
-        <div><span>New memory cards</span><b id="report-cards">0</b></div>
-        <div><span>XP earned</span><b id="report-xp">0</b></div>
-      </div>
-      <div class="report-actions"><button class="button primary" id="restart-button" type="button">Start another session</button><a class="button quiet" href="/progress">Open learning memory</a></div>
-    </section>
-
-    <section class="architecture-note" aria-label="How the system works">
-      <p><b>One experience, two clear jobs.</b> Tavus handles presence, perception, and human turn-taking. Fluent Me handles evidence, spaced repetition, and the private cloned-voice correction loop.</p>
-      <div><span>Phoenix · face</span><span>Raven · context</span><span>Sparrow · turns</span><span>Fluent Me · learning memory</span></div>
-    </section>
-  </main>
-
-  <dialog class="connection-dialog" id="connection-dialog">
-    <button class="dialog-close" id="dialog-close" type="button" aria-label="Close">×</button>
-    <p class="eyebrow">Server-side connection</p>
-    <h2>Live mode uses a private Tavus room.</h2>
-    <p>The browser never sees your Tavus API key. Put a newly rotated key in the server environment, then restart Fluent Me. A PAL and stock Face can be selected automatically, or you can choose existing IDs.</p>
-    <pre><code>TAVUS_API_KEY=your_new_key
-TAVUS_PAL_ID=optional_existing_pal
-TAVUS_FACE_ID=optional_existing_face
-ELEVENLABS_API_KEY=optional_for_your_mirror_voice</code></pre>
-    <div class="dialog-points">
-      <p><b>Live face + voice</b><span>The Tavus Face supplies Kai’s appearance and default voice.</span></p>
-      <p><b>Your voice clone</b><span>ElevenLabs stays on the private Mirror card; Kai’s face never impersonates you.</span></p>
-      <p><b>Perception</b><span>Raven observations are shown as uncertain context and excluded from scores.</span></p>
-    </div>
-    <button class="button primary" id="dialog-done" type="button">Got it</button>
-  </dialog>
+      </section>
+    </main>
+  </div>
 
   <script src="/static/live.js" defer></script>
 </body>

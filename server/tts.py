@@ -1,7 +1,7 @@
 # TTS 适配层 — 现场唯一要换的引擎面
 #
 #   voice="user"  → 学员自己的克隆声 (recast/native 用它说: "听到流利的自己" 是全场 hook)
-#   voice="tutor" → 导师声 Kai
+#   voice="tutor" → 标准导师声
 #
 #   引擎优先级: ElevenLabs (有 ELEVENLABS_API_KEY 即启用, 现场拿 credits 后 export 就切) →
 #              本地 Higgs v2 (:8124, 今晚测试用, 不依赖任何 key)

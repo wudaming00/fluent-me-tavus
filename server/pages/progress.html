@@ -172,7 +172,7 @@
       <div class="callegend">less
         <i style="background:var(--grid)"></i><i style="background:rgba(25,158,112,.30)"></i><i
         style="background:rgba(25,158,112,.60)"></i><i style="background:#199e70"></i> more</div>
-      <div class="hint2">Kai remembers when you show up — and notices when you don't.</div>
+      <div class="hint2">Fluent Me remembers when you show up — and notices when you don't.</div>
     </div>
   </div>
 
@@ -256,7 +256,7 @@ function renderTiles(p){
   <div class="tile"><div class="label">Mistake cards</div>
     <div class="value" id="cardtv">${p.cards.learning}<span class="unit">learning</span></div>
     <div class="note" id="cardtn">${p.cards.due} due now</div></div>
-  <div class="tile wide"><div class="label">CEFR estimate${p.plateau ? '<span class="plateau">plateau → Kai is pushing you</span>' : ""}</div>
+  <div class="tile wide"><div class="label">CEFR estimate${p.plateau ? '<span class="plateau">plateau → practice is getting harder</span>' : ""}</div>
     <div class="cefrstrip">${segs}<span class="cefrmark" style="left:${mx}%">▼</span></div>
     <div class="cefrlabels">${labs}</div>
     <div class="cefrline">${cp.pct}% of the way to ${cp.next} · score ${cp.score}/100</div>
@@ -453,7 +453,7 @@ const SB = [
 function renderSessions(sessions){
   const el = document.getElementById("sesbox");
   if (!sessions.length){
-    el.innerHTML = '<div class="emptymsg">No sessions yet — hold the button on Practice and talk to Kai.</div>';
+    el.innerHTML = '<div class="emptymsg">No sessions yet — open Practice and start speaking.</div>';
     return;
   }
   let out = "";
@@ -506,7 +506,7 @@ function calcR(c){
 function rState(R){
   if (R >= 0.6) return ["strong", "var(--aqua)"];
   if (R >= 0.3) return ["fading", "var(--yellow)"];
-  return ["almost gone — Kai will hunt it", "var(--critical)"];
+  return ["almost gone — bring it back soon", "var(--critical)"];
 }
 function dueTxt(c){
   const d = c.due_at - nowSec();
@@ -563,7 +563,7 @@ function renderWall(){
     </select>`;
   const wallEl = document.getElementById("wall");
   if (!cards.length){
-    wallEl.innerHTML = '<div class="emptymsg">No mistake cards yet — which means Kai hasn’t caught you yet. Go say something ambitious.</div>';
+    wallEl.innerHTML = '<div class="emptymsg">No mistake cards yet. Go say something ambitious.</div>';
     return;
   }
   const now = nowSec();

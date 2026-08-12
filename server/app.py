@@ -161,10 +161,11 @@ TAVUS_FOCUS = {
 }
 
 
-def _tavus_context(briefing: dict, focus: str) -> str:
+def _tavus_context(briefing: dict, focus: str, topic: str = "") -> str:
     """A bounded, readable memory packet appended to the PAL context."""
     packet = {
         "session_focus": TAVUS_FOCUS[focus],
+        "session_topic": topic,
         "learner": {
             "name": briefing.get("name") or "",
             "native_language": briefing.get("native_lang") or "",
@@ -184,13 +185,16 @@ def _tavus_context(briefing: dict, focus: str) -> str:
             json.dumps(packet, ensure_ascii=False, indent=2))
 
 
-def _tavus_greeting(briefing: dict, focus: str) -> str:
+def _tavus_greeting(briefing: dict, focus: str, topic: str = "") -> str:
     name = str(briefing.get("name") or "there")[:40]
     prompts = {
         "conversation": "What have you been working on lately?",
         "interview": "Let's begin: tell me about yourself and what you want to build next.",
         "story": "Tell me about something memorable that happened recently.",
     }
+    if topic:
+        return (f"Hey {name} — good to see you. Let's work on this: {topic[:220]}. "
+                "Give me your answer as if we were already in the conversation.")
     return f"Hey {name} — good to see you. {prompts[focus]}"
 
 
@@ -223,10 +227,11 @@ def _report_snapshot(session: dict) -> dict:
 
 @app.get("/api/tavus/status")
 def tavus_status():
-    cache_ready = bool(os.environ.get("TAVUS_PAL_ID")) or (BASE / "data" / "tavus_pal.json").exists()
+    cache_ready = bool(os.environ.get("TAVUS_PAL_ID")) or (BASE / "data" / "tavus_pal_v2.json").exists()
     return {
         "configured": tavus.configured(),
-        "mode": "live" if tavus.configured() else "preview",
+        "mode": "live" if tavus.configured() else "browser_practice",
+        "experience_mode": "tavus_live" if tavus.configured() else "browser_practice",
         "pal_ready": cache_ready,
         "mirror_voice_ready": bool(tts._eleven_voices().get("user")) or tts.USER_REF.exists(),
         "capabilities": {
@@ -242,6 +247,7 @@ def tavus_status():
 def start_tavus_conversation(payload: dict | None = None):
     body = payload or {}
     focus = str(body.get("focus") or "conversation")
+    topic = " ".join(str(body.get("topic") or "").split())[:240]
     if focus not in TAVUS_FOCUS:
         return JSONResponse({"error": "unknown practice focus"}, status_code=400)
     if not tavus.configured():
@@ -250,8 +256,8 @@ def start_tavus_conversation(payload: dict | None = None):
     with STORE_LOCK:
         briefing = store.briefing()
     try:
-        remote = tavus.create_conversation(_tavus_context(briefing, focus),
-                                           _tavus_greeting(briefing, focus), focus)
+        remote = tavus.create_conversation(_tavus_context(briefing, focus, topic),
+                                           _tavus_greeting(briefing, focus, topic), focus)
     except tavus.TavusAPIError as exc:
         return _safe_tavus_error(exc)
 
@@ -260,6 +266,7 @@ def start_tavus_conversation(payload: dict | None = None):
         TAVUS_SESSIONS[conversation_id] = {
             "conversation_id": conversation_id,
             "focus": focus,
+            "topic": topic,
             "started_at": time.time(),
             "events": [],
             "local_order": 0,
@@ -292,14 +299,12 @@ def start_tavus_conversation(payload: dict | None = None):
 def record_tavus_event(conversation_id: str, payload: dict):
     props = payload.get("properties") or {}
     role = props.get("role")
-    if payload.get("event_type") != "conversation.utterance" or role not in ("pal", "replica"):
+    if payload.get("event_type") != "conversation.utterance" or role not in ("pal", "replica", "assistant"):
         return {"accepted": False}
-    if role == "replica":
-        return {"accepted": False, "duplicate_role": True}
     speech = str(props.get("speech") or "").strip()[:4000]
     if not speech:
         return {"accepted": False}
-    event_key = f"pal:{payload.get('inference_id') or payload.get('seq') or speech[:80]}"
+    event_key = f"coach:{payload.get('inference_id') or payload.get('seq') or speech[:80]}"
     with TAVUS_LOCK:
         session = TAVUS_SESSIONS.get(conversation_id)
         if not session:
@@ -496,11 +501,15 @@ def end_tavus_conversation(conversation_id: str):
         if not session:
             return JSONResponse({"error": "unknown conversation"}, status_code=404)
         already_ended = session["remote_ended"]
+    remote_warning = ""
     if not already_ended:
         try:
             tavus.end_conversation(conversation_id)
         except tavus.TavusAPIError as exc:
-            return _safe_tavus_error(exc)
+            # A failed remote teardown must not discard the learner's local
+            # transcript or block recap generation. The endpoint remains
+            # idempotent and exposes the warning without failing the session.
+            remote_warning = str(exc)
     with TAVUS_LOCK:
         session = TAVUS_SESSIONS[conversation_id]
         session["remote_ended"] = True
@@ -508,7 +517,10 @@ def end_tavus_conversation(conversation_id: str):
         if not session["finalize_started"]:
             session["finalize_started"] = True
             EX.submit(_finalize_tavus, conversation_id)
-        return _report_snapshot(session)
+        snapshot = _report_snapshot(session)
+        if remote_warning:
+            snapshot["remote_warning"] = remote_warning
+        return snapshot
 
 
 @app.get("/api/tavus/conversations/{conversation_id}/report")
@@ -723,7 +735,7 @@ def scene_next():
 
 
 def _enter_qa():
-    """presentation 讲完 → Kai 变怀疑派听众, 复用 scenario delta。"""
+    """presentation 讲完 → 教练变怀疑派听众, 复用 scenario delta。"""
     scene = SESSION["scene"]
     n = int((scene.get("qa") or {}).get("n", 2))
     SESSION["phase"] = "qa"
@@ -935,7 +947,7 @@ async def turn(file: UploadFile = File(...)):
     return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
-# ============================================================ 练习室 (无 Kai 无对话): 说→纠→克隆参考
+# ============================================================ 练习室 (无视频教练): 说→纠→克隆参考
 @app.post("/api/practice/say")
 async def practice_say(file: UploadFile = File(...)):
     """纯打磨流: STT → 精简纠正(无对话) → 克隆声参考(带词级时间轴)。NDJSON 流式。"""

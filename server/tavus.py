@@ -18,7 +18,7 @@ from typing import Any
 
 
 BASE = Path(__file__).resolve().parent.parent
-CACHE_FILE = BASE / "data" / "tavus_pal.json"
+CACHE_FILE = BASE / "data" / "tavus_pal_v2.json"
 DEFAULT_API_BASE = "https://tavusapi.com/v2"
 
 
@@ -116,7 +116,7 @@ def _select_face_id() -> str:
     raise TavusAPIError(400, "No ready Tavus Face is available. Set TAVUS_FACE_ID first.")
 
 
-PAL_SYSTEM_PROMPT = """You are Kai, Fluent Me's warm, observant English conversation coach.
+PAL_SYSTEM_PROMPT = """You are Fluent Me's warm, observant English conversation coach.
 Your job is to hold a natural face-to-face conversation, not to lecture or grade aloud.
 
 Use the learner context supplied for this conversation. Remember personal facts casually and
@@ -141,13 +141,13 @@ def ensure_pal() -> tuple[str, str]:
 
     face_id = _select_face_id()
     payload = {
-        "pal_name": "Fluent Me · Kai",
+        "pal_name": "Fluent Me English Coach",
         "pipeline_mode": "full",
         "system_prompt": PAL_SYSTEM_PROMPT,
         "default_face_id": face_id,
         "disclosure_type": "always",
-        "verbal_disclosure": "Just so you know, I'm Kai, an AI English coach.",
-        "visual_disclosure": "Kai is an AI English coach.",
+        "verbal_disclosure": "Just so you know, you're speaking with an AI English coach.",
+        "visual_disclosure": "You are speaking with an AI English coach.",
         "layers": {
             "perception": {
                 "perception_model": "raven-1",

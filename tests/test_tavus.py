@@ -89,6 +89,8 @@ def test_auto_pal_uses_raven_sparrow_and_limited_emotion(monkeypatch, tmp_path):
     assert pal_payload["layers"]["perception"]["emotion_recognition"] == "limited"
     assert pal_payload["layers"]["conversational_flow"]["turn_detection_model"] == "sparrow-1"
     assert "tts" not in pal_payload["layers"]
+    assert "Kai" not in pal_payload["pal_name"]
+    assert "Kai" not in pal_payload["system_prompt"]
 
 
 def test_end_conversation_uses_end_endpoint(monkeypatch):

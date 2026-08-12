@@ -38,7 +38,7 @@
 
   <h1>A tutor that <span style="color:var(--violet)">remembers you</span> — and answers in
   <span style="color:var(--blue)">your own voice, fluent.</span></h1>
-  <p class="sub">Every mistake becomes a memory with its own forgetting curve. Kai engineers the next
+  <p class="sub">Every mistake becomes a memory with its own forgetting curve. Fluent Me engineers the next
   conversation so you face it again right before you'd lose it — spaced repetition hidden inside small talk,
   never a flashcard. Corrections come back in your cloned voice: <b>the fluent you, already existing.</b></p>
 
@@ -54,7 +54,7 @@
   <div class="kicker">The money shot — you vs. the fluent you</div>
   <div class="compare" id="compare"></div>
 
-  <div class="kicker">What Kai remembers — mistakes as living memory</div>
+  <div class="kicker">What Fluent Me remembers — mistakes as living memory</div>
   <div class="tscroll"><table class="ttable" id="ttable">
     <thead><tr><th>when</th><th>you said</th><th>the fluent you</th><th>pattern → SRS</th></tr></thead>
     <tbody id="trows"></tbody>
@@ -63,7 +63,7 @@
   <div class="kicker">Why it's different</div>
   <div class="cards">
     <div class="card"><div class="k">memory</div><div class="t">Conversational spaced repetition</div>
-      <div class="d">Errors become pattern-cards on an FSRS-inspired schedule. Kai never shows a flashcard —
+      <div class="d">Errors become pattern-cards on an FSRS-inspired schedule. Fluent Me never shows a flashcard —
       he asks a question whose natural answer <i>requires</i> the pattern.</div>
       <div class="proof"><b>R(t)=1/(1+t/9S)</b> · review lands at ~90% retention · lapse keeps 30% stability</div></div>
     <div class="card"><div class="k">voice</div><div class="t">The fluent you, already existing</div>
@@ -79,11 +79,11 @@
       &gt;0.5s pauses, fillers, fuzzy words — the anatomy of your fluency, every turn.</div>
       <div class="proof">pace band 1.8–3.4 w/s · pause ratio · per-word confidence (ASR proxy)</div></div>
     <div class="card"><div class="k">real life</div><div class="t">Your life is the curriculum</div>
-      <div class="d">Identity facts Kai learns generate personalized scenes, mock interviews (STAR + your
+      <div class="d">Identity facts Fluent Me learns generate personalized scenes, mock interviews (STAR + your
       polished answer in your voice) and presentation rehearsal with timing coach + hostile Q&A.</div>
       <div class="proof">5 modes · goals drive suggestions · facts are toggleable on /me</div></div>
     <div class="card"><div class="k">sauna</div><div class="t">Memory that Sauna can drink</div>
-      <div class="d">Sauna consumes MCP servers — so Kai's memory <i>is one</i>: profile, due cards, sessions,
+      <div class="d">Sauna consumes MCP servers — so Fluent Me memory <i>is one</i>: profile, due cards, sessions,
       plus write-back. Also mirrored in Sauna's documented dual-memory workspace format.</div>
       <div class="proof">MCP :8902 · 5 tools · workspace markdown export · honest "local · Sauna-ready"</div></div>
   </div>
@@ -129,7 +129,7 @@ const STAGES = [
   ["Scribe v2 STT", "ElevenLabs · word timestamps + confidence", "~0.9 s → transcript on screen", "var(--blue)"],
   ["Judge — one call", "Claude Opus · reply + errors + habits + scores", "~8 s (measured tonight)", "var(--violet)"],
   ["Memory write", "FSRS-lite · cards / profile / episodes / identity", "<1 ms · exactly once", "var(--aqua)"],
-  ["Dual TTS", "flash v2.5 · Kai + your clone in parallel", "~0.6 s", "var(--yellow)"],
+  ["Dual TTS", "flash v2.5 · coach + your clone in parallel", "~0.6 s", "var(--yellow)"],
   ["NDJSON stream", "each stage paints the moment it lands", "perceived wait ≈ reading time", "var(--good)"],
 ];
 
@@ -176,7 +176,7 @@ async function load(){
         <div class="vt2">“${esc(L.heard)}”</div>
         <audio controls src="${L.orig_audio}"></audio>
         ${rhythmStrip(L.words)}</div>
-      <div class="vbox"><div class="vh"><span class="badge en">${L.own_voice ? "YOU, FLUENT · YOUR CLONE" : "FLUENT VERSION · KAI'S VOICE"}</span><span class="vt">${esc(L.engine || "")}</span></div>
+      <div class="vbox"><div class="vh"><span class="badge en">${L.own_voice ? "YOU, FLUENT · YOUR CLONE" : "FLUENT VERSION · STANDARD VOICE"}</span><span class="vt">${esc(L.engine || "")}</span></div>
         <div class="vt2">“${esc(L.fix_text)}”</div>
         <audio controls src="${L.fix_audio}"></audio>
         <div class="hint" style="margin-top:8px">${L.own_voice ? "same voice, same person — just further along" : "enroll + clone on /me to hear yourself instead"}</div></div>`;
@@ -192,7 +192,7 @@ async function load(){
     const ts = (d.getMonth()+1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
     return `<tr><td class="ts">${ts}</td><td class="zh">“${esc(r.wrong)}”</td><td class="en">${esc(r.right)}</td>
       <td><span class="pchip">${esc(r.pattern)}</span></td></tr>`;
-  }).join("") : `<tr><td colspan="4" style="color:var(--ink-3)">no mistakes yet — Kai hasn't caught you</td></tr>`;
+  }).join("") : `<tr><td colspan="4" style="color:var(--ink-3)">no mistakes yet — start a practice session</td></tr>`;
 }
 load();
 </script>

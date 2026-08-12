@@ -136,7 +136,7 @@ def _scene_block(scene: dict, mode: str, cursor: int, phase: str) -> str:
         beats = "\n".join(f'{b["i"]}. {b["goal"]} [{"done" if b.get("done") else "pending"}]'
                           for b in scene.get("beats", []))
         return f"""=== SCENE (roleplay in progress) ===
-You are Kai playing: {scene.get("kai_role", "a friendly local")}. Setting: {scene.get("setting", "")}.
+You are the English coach playing: {scene.get("kai_role", "a friendly local")}. Setting: {scene.get("setting", "")}.
 Learner plays: {scene.get("learner_role", "themselves")}. Their objective: {scene.get("objective", "")}.
 BEATS — steer the conversation through these in order, never announcing them:
 {beats}
@@ -183,7 +183,7 @@ def judge_prompt(transcript: str, convo: list, briefing: dict, mode: str = "free
     mode_block = _scene_block(scene, mode, cursor, phase) if scene else ""
     drill_block = (f'\nWARM-UP MODE: reply with ≤1 short encouraging sentence, then ask exactly '
                    f'this next question: "{drill_q}"') if drill_q else ""
-    return f"""You are Kai — a sharp, warm English conversation tutor. You correct like a friend, not a textbook.
+    return f"""You are Fluent Me's sharp, warm English conversation coach. You correct like a friend, not a textbook.
 
 {_briefing_block(briefing)}
 
@@ -235,7 +235,7 @@ Also produce DRILL: for these review targets, one rapid-fire natural question ea
 never naming the pattern — e.g. "So what did you get up to last weekend?" hunts past tense):
 {items}
 Add to JSON: "drill": [{{"pattern": "<key>", "question": "<str>"}}]. Your reply asks the FIRST drill question."""
-    prompt = f"""You are Kai — a warm English conversation tutor greeting a returning learner by voice.
+    prompt = f"""You are Fluent Me's warm English conversation coach greeting a returning learner by voice.
 
 {_briefing_block(briefing)}
 {scene_block}{drill_block}
@@ -302,7 +302,7 @@ def _mock_json(prompt: str) -> dict:
                           {"pattern": "article-missing-the", "question": "How was the commute today?"}]}
     if '"suggestions"' in prompt:
         return {"suggestions": [
-            {"title": "Coffee chat with a Google recruiter", "hook": "because you told Kai about your friend at Google",
+            {"title": "Coffee chat with a Google recruiter", "hook": "because you mentioned your friend at Google",
              "kai_role": "Sarah, a friendly Google recruiter", "setting": "a cafe near campus",
              "learner_role": "yourself — an engineer exploring roles",
              "objective": "introduce your background and ask two good questions",
@@ -367,7 +367,7 @@ def _mock_json(prompt: str) -> dict:
                         "next_move": "advance", "native": None})
         if "PRESENTATION COACH" in prompt:
             out.update({"clarity": 78, "clarity_note": "clear point, weak landing",
-                        "polished": "Duolingo teaches everyone the same course. Kai remembers you — your mistakes, your life — and builds tonight's practice from them.",
+                        "polished": "Duolingo teaches everyone the same course. Fluent Me remembers you — your mistakes, your life — and builds tonight's practice from them.",
                         "reply": "Strong open; land the last sentence slower and it doubles in weight.", "native": None})
         if "SCENE (roleplay" in prompt:
             out.update({"beats_done": [0], "scene_state": "ongoing"})

@@ -12,7 +12,7 @@
 
 **Demo 弧线** (评审定稿，全部环节 <60s)：
 录声纹 → 立刻听到"流利的自己" (O3 payoff) → 对话, 犯错 → 一条 focus 纠错 + 自己声音的修正
-→ ECHO 跟读, 看到 vs 自己的进步 → 场景练习: Kai 用**你的生活**生成的场景 → Progress 页:
+→ ECHO 跟读, 看到 vs 自己的进步 → 场景练习: Fluent Me 用**你的生活**生成的场景 → Progress 页:
 每张错题卡的遗忘曲线实时衰减 → /me 页: "这就是 Sauna 要存的记忆, 我控制它"。
 
 ## 1. 关键裁决 (含对评审的推翻)
@@ -31,7 +31,7 @@
 | R10 | 会话历史单一存储 `data/sessions.json` (含 skills 快照/cx_ema/卡片数); plateau 检测和全部图表都读它 | 合并 srs.D + ui.1.1 |
 | R11 | 防鹦鹉: 学员本轮与上一条 recast 的 token 重叠 ≥0.6 → 该轮 elicited 不给 SRS 学分 (纯 Python, 不加判卷字段) | C10 精简版 |
 | R12 | 判卷 JSON: reply 放第一个 key; errors ≤3; scene 字段仅在对应模式注入 | C10 |
-| R13 | 克隆不可用 (free tier / 断网) → fix 音频用导师声 + 徽章 "Kai's voice — your twin is offline" | 现实: 当前 key 无 IVC |
+| R13 | 克隆不可用 (free tier / 断网) → fix 音频用标准练习声 + 徽章 "standard voice — your twin is offline" | 现实: 当前 key 无 IVC |
 | R14 | 老 /profile 302 → /progress; profile.html 删除 | C8 |
 
 ## 2. 架构
@@ -138,7 +138,7 @@ Scene doc / interview plan / presentation plan 的 JSON 形状按 modes 设计�
   不用双轴) · 4 技能 sparkline 小倍图 (blue/violet 永不同图, 调色板校验结论) · GitHub 点日历 ·
   会话史展开行 · **卡片墙** (R 实时衰减条: ≥.6 aqua "strong" / .3-.6 yellow "fading" /
   <.3 red "almost gone"; 措辞 "estimated") · 奖杯架。种子数据页面角标 "demo data" (H9)。
-- **/me**: facts 开关 (◉/○, off = Kai 永不提) · goals(带日期→Practice 页模式建议 chip) ·
+- **/me**: facts 开关 (◉/○, off = 教练永不提) · goals(带日期→Practice 页模式建议 chip) ·
   wishlist · voice 面板 (状态/试听/重录) · episodes 时间线 · **Sauna 面板**: 导出的 workspace
   markdown 预览 + MCP server 状态与接入说明; 徽章 "● local · Sauna-ready"。
 

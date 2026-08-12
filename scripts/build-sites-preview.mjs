@@ -9,10 +9,12 @@ const read = relative => readFile(join(root, relative));
 let html = (await read("server/pages/live.html")).toString("utf8");
 const css = (await read("server/static/live.css")).toString("utf8");
 const js = (await read("server/static/live.js")).toString("utf8");
-const og = (await read("server/static/og.png")).toString("base64");
+const og = (await read("server/static/og-v2.png")).toString("base64");
 
-// The hosted artifact is a private, interactive product preview. The complete
-// Python/Tavus integration continues to run in the local/server deployment.
+// The hosted artifact remains genuinely useful without server credentials: the
+// browser practice loop records speech locally, transcribes it when supported,
+// analyzes observable answer evidence, and persists the latest practice on the
+// device. A server deployment upgrades the same UI to Tavus live video.
 html = html
   .replaceAll('href="/studio"', 'href="#mirror-card"')
   .replaceAll('href="/progress"', 'href="#report-card"');
@@ -40,7 +42,7 @@ export default {
     if (url.pathname === "/static/live.js") {
       return new Response(JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=3600" } });
     }
-    if (url.pathname === "/static/og.png") {
+    if (url.pathname === "/static/og-v2.png") {
       const raw = atob(OG_BASE64);
       const bytes = new Uint8Array(raw.length);
       for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
@@ -49,7 +51,8 @@ export default {
     if (url.pathname === "/api/tavus/status") {
       return json({
         configured: false,
-        mode: "preview",
+        mode: "browser_practice",
+        experience_mode: "browser_practice",
         pal_ready: false,
         mirror_voice_ready: false,
         capabilities: { face: "Phoenix", perception: "Raven-1", turn_taking: "Sparrow-1", emotion_recognition: "limited_on_managed_pal" },
@@ -59,7 +62,7 @@ export default {
       return json({ now: Math.floor(Date.now() / 1000), cards: [] });
     }
     if (url.pathname.startsWith("/api/tavus/conversations")) {
-      return json({ error: "This hosted build is the guided preview. Configure the server-side integration to start a live room.", reason: "not_configured" }, 503);
+      return json({ error: "Live video is not configured in this environment.", reason: "not_configured" }, 503);
     }
     return new Response("Not found", { status: 404 });
   },
@@ -79,4 +82,4 @@ try {
   // The first build may run before Sites assigns this project an id.
 }
 
-console.log("Built Fluent Me's private guided preview.");
+console.log("Built Fluent Me speaking practice.");
