@@ -25,8 +25,10 @@ Every state has one dominant CTA. Metrics such as WPM, filler counts, hiring sig
 
 - The Tavus video is the largest surface on desktop.
 - On mobile, the video and compact step progress stay visible while the task scrolls.
-- A Daily iframe remains transparent until a non-local Tavus video track is playable; no black frame covers the waiting state.
-- The UI may say **Tavus 视频教练已连接** only after that playable remote track exists.
+- The Daily call-object surface remains transparent until a non-local Tavus video track is playable; no black frame covers the waiting state.
+- The UI may say **Live Tavus video coach connected** only after that playable remote track exists.
+- Every user-visible interface string is English.
+- The visual system uses the original near-black, violet, and mint Fluent Me palette; mint is reserved for live and successful states.
 - A missing or rejected server key produces an error, never a static human presented as live.
 - The browser joins Daily with local camera and audio off. Fluent Me requests microphone access only when the learner explicitly starts a speaking attempt.
 
@@ -37,7 +39,7 @@ Every state has one dominant CTA. Metrics such as WPM, filler counts, hiring sig
 | Listen | Models the full phrase | Watches and listens | Meaning and phrase chunks |
 | Repeat | Waits | Reads the phrase aloud | Captured transcript |
 | Fix | Models one chunk | Repeats that chunk | One concrete adjustment |
-| Recall | Waits | Reconstructs from Chinese | Retrieval evidence |
+| Recall | Waits | Reconstructs from an English meaning cue | Retrieval evidence |
 | Use | Asks a relevant question | Answers with personal content | Phrase used in context |
 
 Keyboard entry is a first-class accessibility path, not an error state. When it is selected, recording actions disappear and the text submission becomes the primary CTA.

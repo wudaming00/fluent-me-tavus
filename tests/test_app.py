@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 
@@ -16,18 +17,20 @@ client = TestClient(app_module.app)
 def test_home_is_a_clear_language_lesson_with_visible_tavus_stage():
     response = client.get("/")
     assert response.status_code == 200
-    assert "三句话" in response.text
-    assert "连接 Tavus 教练" in response.text
-    assert "Tavus 视频教练" in response.text
+    assert "Learn it." in response.text
+    assert "Connect to Tavus coach" in response.text
+    assert "Live Tavus video coach" in response.text
     assert "tavus-coach-preview.png" not in response.text
-    assert "等待连接真实 Tavus 视频" in response.text
+    assert "Waiting for live Tavus video" in response.text
     assert "id=\"tavus-video\"" in response.text
     assert "/static/daily-0.91.0.js" in response.text
+    assert "/static/og-dark-lesson.png" in response.text
     assert "unpkg.com" not in response.text
-    assert "先听" in response.text
-    assert "跟读" in response.text
-    assert "脱稿" in response.text
-    assert "对话" in response.text
+    assert "Hear the model" in response.text
+    assert "Match the rhythm" in response.text
+    assert "Say it from memory" in response.text
+    assert "Put it in context" in response.text
+    assert not re.search(r"[\u4e00-\u9fff]", response.text)
     assert "Pace" not in response.text
     assert "Fillers" not in response.text
     assert "Perception" not in response.text
@@ -66,6 +69,7 @@ def test_browser_practice_uses_real_input_not_fixed_sample():
     assert "fillers" not in response.text.lower()
     assert "const SAMPLE" not in response.text
     assert "guided preview" not in response.text.lower()
+    assert not re.search(r"[\u4e00-\u9fff]", response.text)
 
 
 def test_live_conversation_refuses_to_fake_without_server_key(monkeypatch):

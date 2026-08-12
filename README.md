@@ -1,6 +1,6 @@
 # Fluent Me × Tavus
 
-Fluent Me is a face-to-face English lesson built around a real Tavus CVI room. The default experience does not use a static person or a simulated call: after the learner clicks **连接 Tavus 教练**, the server creates a private Tavus conversation and the UI waits for a playable remote video track before showing the coach.
+Fluent Me is a face-to-face English lesson built around a real Tavus CVI room. The default experience does not use a static person or a simulated call: after the learner clicks **Connect to Tavus coach**, the server creates a private Tavus conversation and the UI waits for a playable remote video track before showing the coach.
 
 ## The lesson
 
@@ -9,7 +9,7 @@ Each of the three phrases follows the same visible loop:
 1. **Listen** — the Tavus coach models the sentence.
 2. **Repeat** — the learner says the complete sentence.
 3. **Fix** — Fluent Me isolates one useful chunk.
-4. **Recall** — the English is removed and the learner retrieves it from the Chinese meaning.
+4. **Recall** — the model sentence is hidden and the learner retrieves the idea from an English meaning cue.
 5. **Use** — the coach asks a real question and the learner uses the phrase in an answer.
 
 Tavus owns the embodied interface: Phoenix face, live video, Raven perception configuration, Sparrow turn-taking, and spoken delivery. Fluent Me owns the pedagogy: the sentence sequence, recording/transcription, one-focus feedback, recall, and local lesson history.
@@ -44,7 +44,7 @@ learner clicks connect
 Sites Worker / FastAPI ── server-side x-api-key ──▶ Tavus /conversations
         │                                      private room + meeting token
         ▼
-Daily iframe joins with camera and microphone off
+Daily call object joins with camera and microphone off
         │
         ├─ waits for the remote coach video track to become playable
         └─ conversation.echo makes the Tavus coach model exact lesson phrases

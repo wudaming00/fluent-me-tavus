@@ -4,32 +4,32 @@
   const LESSON = [
     {
       target: "Tavus is more than a digital face.",
-      translation: "Tavus 不只是一个数字人脸。",
+      translation: "Meaning: The visible face is only one part of Tavus.",
       chunks: ["Tavus is more than", "a digital face"],
       fixChunk: "more than a digital face",
-      fixTitle: "把这一段连成一个意群",
-      fixCopy: "不要在 more 和 than 中间停顿。先听教练说这一小段，再一口气跟上。",
-      recallCue: "请用英文表达：Tavus 不只是一个数字人脸。",
+      fixTitle: "Connect this phrase as one thought",
+      fixCopy: "Keep “more than” together. Listen once, then say the whole phrase without a pause.",
+      recallCue: "Say this idea in English from memory: the visible face is only one part of Tavus.",
       useQuestion: "If Tavus is more than a digital face, what is the real product?"
     },
     {
       target: "The face is the interface; the real product is the system behind it.",
-      translation: "人脸是交互界面，真正的产品是它背后的系统。",
+      translation: "Meaning: The visible face is the interface; the product is the system behind it.",
       chunks: ["The face is the interface", "the real product", "is the system behind it"],
       fixChunk: "the system behind it",
-      fixTitle: "把重音放在 system 上",
-      fixCopy: "face 是表层，system 才是对比重点。让 system 比前后的词更清楚。",
-      recallCue: "请用英文表达：人脸是界面，真正的产品是背后的系统。",
+      fixTitle: "Stress “system”",
+      fixCopy: "“Face” is the surface; “system” is the contrast. Make “system” clearer than the words around it.",
+      recallCue: "Say this idea in English from memory: the face is the interface, and the product is the system behind it.",
       useQuestion: "What do you mean by the system behind the face?"
     },
     {
       target: "It combines perception, memory, and orchestration to make conversations feel responsive.",
-      translation: "它把感知、记忆和编排结合起来，让对话真正有响应感。",
+      translation: "Meaning: Several AI capabilities work together to make the conversation responsive.",
       chunks: ["It combines perception", "memory and orchestration", "to make conversations feel responsive"],
       fixChunk: "perception, memory, and orchestration",
-      fixTitle: "三个能力要有清楚的节奏",
-      fixCopy: "把 perception、memory、orchestration 当成三个并列拍点，不要挤成一团。",
-      recallCue: "请用英文表达：它结合感知、记忆和编排，让对话更有响应感。",
+      fixTitle: "Give the three capabilities a clear rhythm",
+      fixCopy: "Treat “perception,” “memory,” and “orchestration” as three even beats. Do not rush them together.",
+      recallCue: "Say this idea in English from memory: perception, memory, and orchestration work together to make conversation responsive.",
       useQuestion: "How do perception, memory, and orchestration change the user experience?"
     }
   ];
@@ -37,44 +37,44 @@
   const STEPS = ["listen", "repeat", "fix", "recall", "use"];
   const STEP_COPY = {
     listen: {
-      index: "第 1 / 5 步 · LISTEN",
-      title: "先听教练说，不用开口。",
-      instruction: "看着教练，注意句子里的自然意群。",
-      primary: "轮到我",
-      secondary: "再听一遍",
-      help: "听清楚以后，点击“轮到我”。"
+      index: "Step 1 of 5 · LISTEN",
+      title: "Listen first. You do not need to speak yet.",
+      instruction: "Watch your coach and notice the natural thought groups.",
+      primary: "My turn",
+      secondary: "Listen again",
+      help: "When the phrase feels clear, press “My turn.”"
     },
     repeat: {
-      index: "第 2 / 5 步 · REPEAT",
-      title: "照着读一遍，不必完美。",
-      instruction: "保留句子的节奏，先把完整意思说出来。",
-      primary: "开始跟读",
-      secondary: "改为输入",
-      help: "点击后开始说；说完停顿，或点“完成”。"
+      index: "Step 2 of 5 · REPEAT",
+      title: "Repeat the full sentence. It does not need to be perfect.",
+      instruction: "Keep the rhythm and say the complete idea first.",
+      primary: "Start repeating",
+      secondary: "Type instead",
+      help: "Press to speak. Pause when you finish, or press “Done.”"
     },
     fix: {
-      index: "第 3 / 5 步 · FIX ONE THING",
-      title: "只练这一小段。",
-      instruction: "一次只改一个动作，比看一排分数更有用。",
-      primary: "练这一小段",
-      secondary: "听这一小段",
-      help: "听一次，再照着教练的节奏说。"
+      index: "Step 3 of 5 · FIX ONE THING",
+      title: "Practice only this short phrase.",
+      instruction: "One focused change is more useful than a wall of scores.",
+      primary: "Practice this phrase",
+      secondary: "Hear this phrase",
+      help: "Listen once, then match your coach’s rhythm."
     },
     recall: {
-      index: "第 4 / 5 步 · RECALL",
-      title: "现在不看英文，说出同样意思。",
-      instruction: "不必逐字一样；重点是从记忆里把表达找回来。",
-      primary: "开始脱稿说",
-      secondary: "给我一个提示",
-      help: "英文会被藏起来，只保留中文意思。"
+      index: "Step 4 of 5 · RECALL",
+      title: "Now hide the sentence and express the same idea.",
+      instruction: "The wording can change. Retrieve the idea from memory.",
+      primary: "Speak from memory",
+      secondary: "Give me a hint",
+      help: "The model sentence is hidden; use the meaning cue."
     },
     use: {
-      index: "第 5 / 5 步 · USE",
-      title: "把刚学的表达用进回答。",
-      instruction: "教练会问一个真实问题。用自己的内容回答，不要背句子。",
-      primary: "回答教练",
-      secondary: "再听问题",
-      help: "尽量用到刚学的表达；答案可以自由发挥。"
+      index: "Step 5 of 5 · USE",
+      title: "Use the new phrase in your answer.",
+      instruction: "Your coach will ask a real question. Answer with your own ideas.",
+      primary: "Answer the coach",
+      secondary: "Hear the question again",
+      help: "Try to use the new phrase, but make the answer your own."
     }
   };
 
@@ -131,9 +131,9 @@
 
   function restoreCoachState() {
     if (state.baseMode === "tavus-live") {
-      setCoachVisual("tavus-live", "Tavus 视频教练已连接");
+      setCoachVisual("tavus-live", "Live Tavus video coach connected");
     } else {
-      setCoachVisual("offline", "等待 Tavus 视频教练");
+      setCoachVisual("offline", "Waiting for Tavus video coach");
     }
   }
 
@@ -148,15 +148,15 @@
       const status = await fetchJSON("/api/tavus/status", { headers: {} });
       state.configured = Boolean(status.configured);
       if (state.configured) {
-        setWelcomeStatus("tavus-ready", "Tavus 已配置，开始时尝试连接", "远端教练真正加入后，页面才会显示“实时已连接”");
+        setWelcomeStatus("tavus-ready", "Tavus is ready", "We will connect when you start. “Live” appears only after the remote video is playable.");
       } else if (status.has_key) {
-        setWelcomeStatus("unavailable", "Tavus 密钥验证失败", status.error || "请轮换服务端密钥后再连接");
+        setWelcomeStatus("unavailable", "Tavus credential was rejected", status.error || "Rotate the server credential, then reconnect.");
       } else {
-        setWelcomeStatus("offline", "真实 Tavus 尚未配置", "配置完成前不会用静态人脸冒充视频教练");
+        setWelcomeStatus("offline", "Live Tavus is not configured", "A placeholder face will never be shown as a live coach.");
       }
     } catch {
       state.configured = false;
-      setWelcomeStatus("unavailable", "暂时无法检查 Tavus", "课程仍可使用本机语音完成");
+      setWelcomeStatus("unavailable", "Could not check Tavus", "You can review the lesson, but live coaching requires Tavus.");
     }
   }
 
@@ -202,12 +202,12 @@
     const lesson = currentLesson();
     const copy = STEP_COPY[state.step];
     document.body.dataset.lessonStep = state.step;
-    setText("sentence-count", `第 ${state.sentenceIndex + 1} / ${LESSON.length} 句`);
+    setText("sentence-count", `Sentence ${state.sentenceIndex + 1} of ${LESSON.length}`);
     setText("task-index", copy.index);
     setText("task-title", copy.title);
     setText("task-instruction", state.step === "recall" ? lesson.recallCue : copy.instruction);
     const visiblePhrase = state.step === "recall"
-      ? "英文已隐藏 · Say it from memory"
+      ? "Phrase hidden · Say it from memory"
       : state.step === "use"
         ? `Try to use: “${lesson.target}”`
         : lesson.target;
@@ -223,12 +223,12 @@
 
     if (state.step === "fix") {
       $("task-note").hidden = false;
-      setText("task-note-label", "只改这一处");
+      setText("task-note-label", "One thing to fix");
       setText("task-note-title", lesson.fixTitle);
       setText("task-note-copy", lesson.fixCopy);
     }
     if (state.step === "use") {
-      setText("task-instruction", `教练问：${lesson.useQuestion}`);
+      setText("task-instruction", `Coach asks: ${lesson.useQuestion}`);
     }
     updateStepper();
 
@@ -242,7 +242,7 @@
   function updateAfterCapture(text) {
     state.stepComplete = true;
     $("capture-result").hidden = false;
-    setText("capture-label", state.step === "use" ? "你的回答" : "我听到你说");
+    setText("capture-label", state.step === "use" ? "Your answer" : "I heard");
     setText("capture-text", text);
     $("text-entry").hidden = true;
     $("type-instead").hidden = true;
@@ -251,21 +251,21 @@
     $("play-recording").hidden = !state.currentAudioUrl;
 
     const nextLabels = {
-      repeat: "看这一处怎么改",
-      fix: "现在脱稿说",
-      recall: "放进对话里",
-      use: state.sentenceIndex < LESSON.length - 1 ? "下一句" : "完成课程"
+      repeat: "See what to fix",
+      fix: "Now say it from memory",
+      recall: "Use it in conversation",
+      use: state.sentenceIndex < LESSON.length - 1 ? "Next sentence" : "Finish lesson"
     };
-    const label = nextLabels[state.step] || "继续";
+    const label = nextLabels[state.step] || "Continue";
     $("primary-action").innerHTML = `<span>${label}</span><i aria-hidden="true">→</i>`;
-    setText("action-help", state.step === "use" ? "完成了：你已经把这句话放进真实回答。" : "听到了。继续下一步，把刚才的表达留下来。");
+    setText("action-help", state.step === "use" ? "Done — you used the phrase in a real answer." : "Got it. Continue to make the phrase stick.");
 
     if (state.step === "repeat") {
       const missing = findMissingChunk(text, currentLesson().chunks);
       $("task-note").hidden = false;
-      setText("task-note-label", missing ? "下一步会补上这一段" : "下一步只调一个细节");
-      setText("task-note-title", missing ? `再练：${missing}` : currentLesson().fixTitle);
-      setText("task-note-copy", missing ? "转写里没有完整识别到这个意群。先不打分，下一步把它单独说清楚。" : currentLesson().fixCopy);
+      setText("task-note-label", missing ? "Practice this next" : "Tune one detail next");
+      setText("task-note-title", missing ? `Practice again: ${missing}` : currentLesson().fixTitle);
+      setText("task-note-copy", missing ? "The transcript did not capture this whole thought group. No score yet — say this part clearly in the next step." : currentLesson().fixCopy);
     }
   }
 
@@ -281,7 +281,7 @@
   function finishCapturedText(rawText) {
     const text = String(rawText || "").trim().replace(/\s+/g, " ");
     if (!text) {
-      showTextEntry("没有听清这一遍。你可以再说一次，或输入你刚才说的句子。");
+      showTextEntry("I did not catch that attempt. Try again, or type what you said.");
       return;
     }
     state.records[state.sentenceIndex][state.step] = {
@@ -292,7 +292,7 @@
     updateAfterCapture(text);
   }
 
-  function showTextEntry(message = "不方便开麦也没关系。输入你想说的英文，继续同一套练习。") {
+  function showTextEntry(message = "If you cannot use the microphone, type your English answer and continue the same lesson.") {
     $("text-entry").hidden = false;
     $("capture-result").hidden = true;
     $("type-instead").hidden = true;
@@ -325,17 +325,17 @@
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch {
-      showTextEntry("无法使用麦克风。请允许麦克风权限，或直接输入你想说的英文。");
+      showTextEntry("The microphone is unavailable. Allow microphone access, or type your English answer.");
       return;
     }
 
     state.mediaStream = stream;
     state.recording = true;
     $("recording-toast").hidden = false;
-    setText("recording-hint", state.step === "use" ? "回答完整后点“完成”" : "说完后停顿，或点“完成”");
-    setCoachVisual("listening", "轮到你 · 正在听");
-    setText("caption-speaker", "你");
-    setText("caption-text", "开始说吧，我会把听到的词显示出来。");
+    setText("recording-hint", state.step === "use" ? "Press “Done” after your full answer" : "Pause when you finish, or press “Done”");
+    setCoachVisual("listening", "Your turn · Listening");
+    setText("caption-speaker", "You");
+    setText("caption-text", "Start speaking. I’ll show the words I hear.");
 
     if (window.MediaRecorder) {
       try {
@@ -360,7 +360,7 @@
     const recognition = getRecognition();
     state.recognition = recognition;
     if (!recognition) {
-      setText("recording-hint", "录音中；完成后请确认文字");
+      setText("recording-hint", "Recording — press “Done,” then confirm the transcript");
       return;
     }
 
@@ -373,7 +373,7 @@
         else interim += chunk;
       }
       state.transcript = `${finalText}${interim}`.trim();
-      setText("caption-text", state.transcript || "正在听…");
+      setText("caption-text", state.transcript || "Listening…");
       clearTimeout(state.silenceTimer);
       if (finalText.trim()) state.silenceTimer = setTimeout(() => stopCapture(), 1500);
     };
@@ -386,7 +386,7 @@
       if (state.recording && state.transcript) stopCapture();
     };
     try { recognition.start(); }
-    catch { setText("recording-hint", "录音中；完成后请确认文字"); }
+    catch { setText("recording-hint", "Recording — press “Done,” then confirm the transcript"); }
   }
 
   function stopCapture({ showFallback = false } = {}) {
@@ -415,9 +415,9 @@
     const phrase = String(text || "").trim();
     if (!phrase) return;
     state.pendingCoachText = phrase;
-    setText("caption-speaker", "教练");
+    setText("caption-speaker", "Coach");
     setText("caption-text", phrase);
-    setCoachVisual("speaking", "教练正在说");
+    setCoachVisual("speaking", "Coach is speaking");
 
     if (state.baseMode === "tavus-live" && state.call && state.conversationId) {
       try {
@@ -435,7 +435,7 @@
       }
     }
 
-    showConnectionFailure("需要先连接真实 Tavus 视频，教练才会示范这句话。");
+    showConnectionFailure("Connect to the live Tavus video coach before asking for a model.");
   }
 
   function normalizeRole(role) {
@@ -453,7 +453,7 @@
     const speech = message.properties?.speech || message.properties?.text || message.properties?.transcript || "";
 
     if (message.event_type === "conversation.started_speaking") {
-      if (role === "coach") setCoachVisual("speaking", "教练正在说");
+      if (role === "coach") setCoachVisual("speaking", "Coach is speaking");
       return;
     }
     if (message.event_type === "conversation.stopped_speaking") {
@@ -464,12 +464,12 @@
     if (message.event_type !== "conversation.utterance" || !speech) return;
 
     if (role === "coach") {
-      setText("caption-speaker", "教练");
+      setText("caption-speaker", "Coach");
       setText("caption-text", speech);
       return;
     }
     if (role === "user") {
-      setText("caption-speaker", "你");
+      setText("caption-speaker", "You");
       setText("caption-text", speech);
       if (state.recording) {
         state.transcript = speech;
@@ -495,7 +495,7 @@
       player.muted = true;
       player.play().catch(() => {});
       setText("caption-speaker", "Tavus");
-      setText("caption-text", "视频已连接。浏览器阻止了自动声音，请点一下视频后继续。");
+      setText("caption-text", "Video connected. Your browser blocked autoplay with sound; click the video to continue.");
     });
     return true;
   }
@@ -505,7 +505,7 @@
     if (state.connecting) return state.connecting;
     state.connecting = (async () => {
       $("connection-card").hidden = true;
-      setCoachVisual("connecting", "正在请视频教练加入");
+      setCoachVisual("connecting", "Inviting your video coach");
       setText("preview-ribbon", "CONNECTING TO TAVUS…");
       try {
         if (!window.Daily) throw new Error("Daily video client did not load.");
@@ -521,9 +521,9 @@
         });
         state.call = call;
         call.on("app-message", handleTavusMessage);
-        call.on("error", () => { void failConnection("视频连接发生错误。学习进度已经保留。"); });
+        call.on("error", () => { void failConnection("The video connection failed. Your lesson progress is saved."); });
         call.on("left-meeting", () => {
-          if (document.body.dataset.view === "lesson") void failConnection("视频连接已经结束。学习进度还在，你可以重新连接。");
+          if (document.body.dataset.view === "lesson") void failConnection("The video connection ended. Your progress is saved; reconnect to continue.");
         });
 
         let acceptRemote;
@@ -538,7 +538,7 @@
         call.on("participant-joined", event => acceptRemote(event?.participant));
         call.on("participant-updated", event => acceptRemote(event?.participant));
         call.on("participant-left", event => {
-          if (event?.participant && !event.participant.local) void failConnection("Tavus 视频教练已经离开房间，请重新连接。");
+          if (event?.participant && !event.participant.local) void failConnection("The Tavus video coach left the room. Reconnect to continue.");
         });
 
         $("daily-stage").hidden = false;
@@ -557,10 +557,10 @@
         $("daily-stage").classList.remove("pending");
         $("coach-still").hidden = true;
         $("preview-ribbon").hidden = true;
-        setCoachVisual("tavus-live", "Tavus 视频教练已连接");
+        setCoachVisual("tavus-live", "Live Tavus video coach connected");
         return true;
       } catch (error) {
-        await failConnection(error.message || "视频教练暂时没有加入。");
+        await failConnection(error.message || "The video coach did not join.");
         return false;
       } finally {
         state.connecting = null;
@@ -574,10 +574,10 @@
     $("daily-stage").hidden = true;
     $("coach-still").hidden = false;
     $("preview-ribbon").hidden = false;
-    setText("preview-ribbon", "等待真实 TAVUS 视频");
-    setCoachVisual("unavailable", "视频教练暂未连接");
+    setText("preview-ribbon", "WAITING FOR LIVE TAVUS VIDEO");
+    setCoachVisual("unavailable", "Video coach is not connected");
     $("connection-card").hidden = false;
-    setText("connection-copy", detail || "这不是预览模式。请重新连接真实 Tavus 视频教练。");
+    setText("connection-copy", detail || "This is not preview mode. Reconnect to the live Tavus coach.");
   }
 
   async function failConnection(detail) {
@@ -622,7 +622,7 @@
     if (state.configured) {
       await connectTavus();
     } else {
-      showConnectionFailure("这个部署还没有可用的 Tavus 服务端密钥，无法创建真实视频房间。");
+      showConnectionFailure("This deployment does not have a valid Tavus server credential, so it cannot create a live video room.");
     }
   }
 
@@ -661,9 +661,9 @@
     else if (state.step === "fix") speakCoach(lesson.fixChunk);
     else if (state.step === "recall") {
       $("task-note").hidden = false;
-      setText("task-note-label", "一个小提示");
+      setText("task-note-label", "A small hint");
       setText("task-note-title", lesson.chunks[0]);
-      setText("task-note-copy", "只看开头，剩下的自己从记忆里找回来。");
+      setText("task-note-copy", "Use only the opening words, then retrieve the rest from memory.");
     } else if (state.step === "use") speakCoach(lesson.useQuestion);
   }
 
@@ -692,7 +692,7 @@
       const target = document.createElement("p");
       target.textContent = phrase.target;
       const detail = document.createElement("small");
-      detail.textContent = phrase.use ? `你在对话里说：${phrase.use}` : phrase.translation;
+      detail.textContent = phrase.use ? `You said in conversation: ${phrase.use}` : phrase.translation;
       card.append(number, target, detail);
       root.appendChild(card);
     });
@@ -717,12 +717,12 @@
   $("start-lesson").addEventListener("click", startLesson);
   $("primary-action").addEventListener("click", handlePrimary);
   $("secondary-action").addEventListener("click", handleSecondary);
-  $("type-instead").addEventListener("click", () => showTextEntry("直接输入你想说的英文，也可以走完整个练习。"));
+  $("type-instead").addEventListener("click", () => showTextEntry("Type your English answer to continue the full lesson."));
   $("stop-recording").addEventListener("click", () => stopCapture());
   $("submit-text").addEventListener("click", () => finishCapturedText($("typed-answer").value));
   $("edit-transcript").addEventListener("click", () => {
     $("typed-answer").value = $("capture-text").textContent || "";
-    showTextEntry("修改后点击“使用这句话”。");
+    showTextEntry("Edit the transcript, then press “Use this answer.”");
   });
   $("play-recording").addEventListener("click", () => {
     if (!state.currentAudioUrl) return;

@@ -10,7 +10,7 @@ const html = (await read("server/pages/live.html")).toString("utf8");
 const css = (await read("server/static/live.css")).toString("utf8");
 const js = (await read("server/static/live.js")).toString("utf8");
 const dailyJs = (await read("server/static/daily-0.91.0.js")).toString("utf8");
-const og = (await read("server/static/og-language-lesson.png")).toString("base64");
+const og = (await read("server/static/og-dark-lesson.png")).toString("base64");
 
 const worker = `
 const HTML = ${JSON.stringify(html)};
@@ -180,7 +180,7 @@ export default {
     if (url.pathname === "/static/daily-0.91.0.js") {
       return new Response(DAILY_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=31536000, immutable" } });
     }
-    if (url.pathname === "/static/og-language-lesson.png") return imageResponse(OG_BASE64);
+    if (url.pathname === "/static/og-dark-lesson.png") return imageResponse(OG_BASE64);
     if (url.pathname === "/api/tavus/status") {
       const configured = Boolean(String(env.TAVUS_API_KEY || "").trim());
       return json({
