@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10251d">
+  <meta name="description" content="A face-to-face English coach with Tavus perception, Fluent Me learning memory, and your own fluent voice.">
+  <meta property="og:title" content="Fluent Me × Tavus">
+  <meta property="og:description" content="Meet the fluent version of you.">
+  <meta property="og:image" content="/static/og.png">
+  <title>Fluent Me × Tavus — live practice</title>
+  <link rel="stylesheet" href="/static/live.css">
+  <script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
+</head>
+<body data-room-state="booting">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Fluent Me home">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>Fluent Me</span>
+    </a>
+    <nav class="primary-nav" aria-label="Primary navigation">
+      <a class="active" href="/">Live practice</a>
+      <a href="/studio">Mirror lab</a>
+      <a href="/progress">Learning memory</a>
+    </nav>
+    <button class="connection-pill" id="connection-pill" type="button" aria-haspopup="dialog">
+      <span class="status-dot"></span><span id="connection-label">Checking Tavus…</span>
+    </button>
+  </header>
+
+  <main class="page-shell">
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Fluent Me <span>×</span> Tavus</p>
+        <h1 id="page-title">Meet the fluent version of you.</h1>
+        <p class="lede">Kai sees the conversation, hears how you deliver it, and remembers what you need to practice next. Your corrections come back in your own cloned voice.</p>
+      </div>
+      <div class="focus-picker" role="group" aria-label="Practice focus">
+        <span>Today I want to</span>
+        <button class="focus-chip selected" type="button" data-focus="conversation">have a conversation</button>
+        <button class="focus-chip" type="button" data-focus="interview">practice an interview</button>
+        <button class="focus-chip" type="button" data-focus="story">tell a story</button>
+      </div>
+    </section>
+
+    <section class="room-grid" aria-label="Practice room">
+      <article class="stage-card">
+        <header class="stage-head">
+          <div>
+            <span class="stage-kicker">Kai · AI English coach</span>
+            <span class="stage-state" id="stage-state">Preparing the room</span>
+          </div>
+          <div class="live-clock" id="live-clock" hidden><i></i><span>Live</span><time id="timer">00:00</time></div>
+        </header>
+
+        <div class="video-stage" id="video-stage">
+          <div class="stage-glow" aria-hidden="true"></div>
+          <div class="preview-label" id="preview-label">Preview mode · sample signals</div>
+          <div class="stage-placeholder" id="stage-placeholder">
+            <div class="signal-portrait" aria-hidden="true">
+              <div class="orbit orbit-one"></div>
+              <div class="orbit orbit-two"></div>
+              <div class="portrait-core"><span>K</span><b></b></div>
+            </div>
+            <div class="stage-copy">
+              <p class="stage-copy-kicker" id="stage-copy-kicker">Face-to-face practice</p>
+              <h2 id="stage-title">A coach that notices the whole conversation.</h2>
+              <p id="stage-description">Microphone access is required for live practice. Camera is optional and enables visual context.</p>
+            </div>
+            <label class="camera-choice" id="camera-choice">
+              <input id="camera-enabled" type="checkbox" checked>
+              <span><b>Camera perception</b><small>Let Raven use visible context. No emotion scoring.</small></span>
+            </label>
+            <div class="stage-actions">
+              <button class="button primary" id="start-button" type="button" disabled>Loading…</button>
+              <button class="button quiet" id="guide-button" type="button">How it connects</button>
+            </div>
+          </div>
+          <div class="speaking-cue" id="speaking-cue" hidden><span></span><b id="speaking-label">Kai is speaking</b></div>
+        </div>
+
+        <footer class="stage-controls">
+          <p id="room-note">Camera and microphone stay off until you start.</p>
+          <div>
+            <button class="control-button" id="sample-button" type="button" hidden>Run sample turn</button>
+            <button class="control-button danger" id="end-button" type="button" hidden>End session</button>
+          </div>
+        </footer>
+
+        <div class="perception-ribbon" aria-live="polite">
+          <div class="ribbon-intro">
+            <span class="signal-icon" aria-hidden="true">R</span>
+            <div><b>Raven context</b><small>Observations help Kai respond; they never change your language score.</small></div>
+          </div>
+          <div class="signal-card">
+            <span>Vocal delivery</span>
+            <p id="audio-perception">Waiting for a complete user turn.</p>
+          </div>
+          <div class="signal-card">
+            <span>Visible context</span>
+            <p id="visual-perception">Camera context will appear here when available.</p>
+          </div>
+        </div>
+      </article>
+
+      <aside class="coach-rail" aria-label="Learning feedback">
+        <section class="rail-card focus-card">
+          <header><span class="rail-index">01</span><div><p class="rail-kicker">Today’s focus</p><h2>Memory in the conversation</h2></div></header>
+          <p class="rail-explain">Kai quietly creates natural openings for patterns that are due for review.</p>
+          <div class="memory-targets" id="memory-targets">
+            <span class="target-skeleton"></span><span class="target-skeleton short"></span>
+          </div>
+        </section>
+
+        <section class="rail-card score-card">
+          <header><span class="rail-index">02</span><div><p class="rail-kicker">This turn</p><h2>Language signal</h2></div></header>
+          <div class="score-summary">
+            <strong id="turn-score">—</strong>
+            <span><b id="score-caption">Waiting for your first turn</b><small id="score-note">Grammar and vocabulary are graded separately from perception.</small></span>
+          </div>
+          <div class="score-grid">
+            <div><span>Grammar</span><b id="score-grammar">—</b><i><em id="bar-grammar"></em></i></div>
+            <div><span>Vocabulary</span><b id="score-vocab">—</b><i><em id="bar-vocab"></em></i></div>
+            <div class="unavailable"><span>Fluency</span><b id="score-fluency">n/a</b><small>needs timing</small></div>
+            <div class="unavailable"><span>Pronunciation</span><b id="score-pron">n/a</b><small>ASR-based only</small></div>
+          </div>
+        </section>
+
+        <section class="rail-card mirror-card" id="mirror-card">
+          <header><span class="rail-index">03</span><div><p class="rail-kicker">Mirror moment</p><h2>Hear the fluent you</h2></div></header>
+          <div class="mirror-empty" id="mirror-empty">
+            <span class="mirror-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            <p>Your most useful recast will appear here—spoken in your cloned voice when connected.</p>
+          </div>
+          <div class="mirror-result" id="mirror-result" hidden>
+            <span class="before-label">You said</span>
+            <p class="before-text" id="mirror-before"></p>
+            <span class="after-label">A more natural version</span>
+            <blockquote id="mirror-after"></blockquote>
+            <button class="mirror-play" id="mirror-play" type="button"><span>▶</span><b>Hear the fluent me</b><small id="mirror-engine">Your cloned voice</small></button>
+          </div>
+        </section>
+      </aside>
+    </section>
+
+    <section class="transcript-card" aria-labelledby="transcript-title">
+      <header>
+        <div><p class="rail-kicker">Conversation trail</p><h2 id="transcript-title">What happened in the room</h2></div>
+        <span id="transcript-count">No turns yet</span>
+      </header>
+      <div class="transcript" id="transcript">
+        <div class="transcript-empty" id="transcript-empty">
+          <span>“</span><p>Your conversation and learning moments will collect here—not as a wall of chat, but as evidence you can revisit.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="report-card" id="report-card" hidden aria-live="polite">
+      <div class="report-heading"><p class="eyebrow">Session complete</p><h2 id="report-title">Nice work. Your learning memory is updated.</h2><p id="report-summary">Finalizing your recap…</p></div>
+      <div class="report-stats">
+        <div><span>Analyzed turns</span><b id="report-turns">0</b></div>
+        <div><span>Language signal</span><b id="report-score">—</b></div>
+        <div><span>New memory cards</span><b id="report-cards">0</b></div>
+        <div><span>XP earned</span><b id="report-xp">0</b></div>
+      </div>
+      <div class="report-actions"><button class="button primary" id="restart-button" type="button">Start another session</button><a class="button quiet" href="/progress">Open learning memory</a></div>
+    </section>
+
+    <section class="architecture-note" aria-label="How the system works">
+      <p><b>One experience, two clear jobs.</b> Tavus handles presence, perception, and human turn-taking. Fluent Me handles evidence, spaced repetition, and the private cloned-voice correction loop.</p>
+      <div><span>Phoenix · face</span><span>Raven · context</span><span>Sparrow · turns</span><span>Fluent Me · learning memory</span></div>
+    </section>
+  </main>
+
+  <dialog class="connection-dialog" id="connection-dialog">
+    <button class="dialog-close" id="dialog-close" type="button" aria-label="Close">×</button>
+    <p class="eyebrow">Server-side connection</p>
+    <h2>Live mode uses a private Tavus room.</h2>
+    <p>The browser never sees your Tavus API key. Put a newly rotated key in the server environment, then restart Fluent Me. A PAL and stock Face can be selected automatically, or you can choose existing IDs.</p>
+    <pre><code>TAVUS_API_KEY=your_new_key
+TAVUS_PAL_ID=optional_existing_pal
+TAVUS_FACE_ID=optional_existing_face
+ELEVENLABS_API_KEY=optional_for_your_mirror_voice</code></pre>
+    <div class="dialog-points">
+      <p><b>Live face + voice</b><span>The Tavus Face supplies Kai’s appearance and default voice.</span></p>
+      <p><b>Your voice clone</b><span>ElevenLabs stays on the private Mirror card; Kai’s face never impersonates you.</span></p>
+      <p><b>Perception</b><span>Raven observations are shown as uncertain context and excluded from scores.</span></p>
+    </div>
+    <button class="button primary" id="dialog-done" type="button">Got it</button>
+  </dialog>
+
+  <script src="/static/live.js" defer></script>
+</body>
+</html>

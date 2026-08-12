@@ -1,5 +1,51 @@
 # Fluent Me — a tutor that remembers you, in your own voice
 
+## Fluent Me × Tavus — embodied practice room
+
+The default route is now a face-to-face practice room built around a strict division of responsibility:
+
+- **Tavus CVI** supplies Kai's Face, full-duplex conversation, Raven-1 visual/audio context, and Sparrow-1 turn-taking.
+- **Fluent Me** supplies the pedagogical layer: per-turn language evidence, mistake-card retrieval, spaced repetition, learner memory, and the private “hear the fluent me” correction loop.
+- **The learner's cloned voice stays separate from Kai.** A Tavus Face uses its own voice (and a video-trained Face can reproduce that person's voice); Fluent Me uses ElevenLabs or local TTS only for the learner's correction card. The tutor's face therefore never speaks with the learner's identity.
+
+Raven observations are treated as uncertain conversational context. They are displayed transparently and never used to calculate grammar, vocabulary, CEFR, pronunciation, confidence, personality, or hiring signals. The managed PAL sets biometric emotion recognition to `limited` for this educational experience.
+
+### Run the new experience
+
+```bash
+python -m pip install -r requirements.txt
+copy .env.example .env
+cd server
+python -m uvicorn app:app --host 127.0.0.1 --port 8901
+```
+
+Open `http://127.0.0.1:8901/`. Without Tavus credentials it runs an explicitly labelled guided preview that never requests camera or microphone access.
+
+For a live private room, put a newly rotated key in `.env`:
+
+```dotenv
+TAVUS_API_KEY=...
+# Optional: reuse existing resources. Otherwise Fluent Me selects a ready stock Face
+# and creates one cached PAL with Raven-1 + Sparrow-1 on the first live session.
+TAVUS_PAL_ID=
+TAVUS_FACE_ID=
+```
+
+The key remains server-side. The browser receives only the private conversation URL and its meeting token. `ELEVENLABS_API_KEY` is optional and powers the learner's cloned-voice Mirror card; it is not passed to Tavus.
+
+### Live data flow
+
+```text
+Tavus Face + Raven + Sparrow ── conversation.utterance ──▶ Fluent Me
+          │                                                ├─ language judge
+          └─ natural live reply                            ├─ FSRS-lite memory
+                                                           └─ cloned-voice recast
+```
+
+Fluent Me consumes final user utterance events asynchronously. `seq` / `inference_id` dedupe reconnect replays, and each Tavus `conversation_id` owns separate session state. PAL/legacy `replica` duplicate events are ignored.
+
+The earlier sentence-only practice experience remains available at `/studio`; the existing conversation modes remain at `/talk`.
+
 Built for **ElevenLabs x Sauna Hack Night** (2026-07-16, SF). The prompt was "AI with
 memory and voice" — this is the literal answer: a spoken-English tutor with real memory.
 

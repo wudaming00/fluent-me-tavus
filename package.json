@@ -1,0 +1,7 @@
+{
+  "name": "fluent-me-tavus",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-sites-preview.mjs"
+  }
+}

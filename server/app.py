@@ -8,6 +8,7 @@ import json
 import os
 import socket
 import subprocess
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -34,6 +35,7 @@ import scenes         # noqa: E402
 import scoring        # noqa: E402
 import stt as stt_mod # noqa: E402
 import tts            # noqa: E402
+import tavus          # noqa: E402
 
 PAGES = Path(__file__).resolve().parent / "pages"
 AUDIO = BASE / "data" / "audio"
@@ -52,6 +54,13 @@ FRESH_SESSION = {"active": False, "mode": "free", "scene": None, "cursor": 0, "p
                  "drill": [], "drill_i": 0, "turn_i": 0, "last_echo_turn": -9, "last_recast": "",
                  "scene_log": []}
 SESSION = json.loads(json.dumps(FRESH_SESSION))
+
+# Tavus calls are isolated from the legacy single-session audio flow. Each
+# private CVI room gets its own event log and idempotency set so reconnects do
+# not award XP or create memory cards twice.
+TAVUS_SESSIONS: dict[str, dict] = {}
+TAVUS_LOCK = threading.RLock()
+STORE_LOCK = threading.RLock()
 
 ECHO_MIN_GAP = 3      # 距上次 echo 至少 3 轮
 GRACE_TURNS = 2       # 开场宽限: 前 2 轮不弹纠错不亮分 (后台照常记)
@@ -76,6 +85,11 @@ def _page(name: str):
 
 @app.get("/")
 def index():
+    return _page("live.html")
+
+
+@app.get("/studio")
+def studio_page():
     return _page("index.html")
 
 
@@ -137,6 +151,373 @@ def state():
         "cards_total": sum(1 for c in store.cards.values() if c["status"] == "learning"),
         "goal_suggestion": store.goal_suggestion(),
     }
+
+
+# ============================================================ Tavus live room
+TAVUS_FOCUS = {
+    "conversation": "everyday conversation",
+    "interview": "a concise job-interview answer",
+    "story": "telling a clear story about a recent experience",
+}
+
+
+def _tavus_context(briefing: dict, focus: str) -> str:
+    """A bounded, readable memory packet appended to the PAL context."""
+    packet = {
+        "session_focus": TAVUS_FOCUS[focus],
+        "learner": {
+            "name": briefing.get("name") or "",
+            "native_language": briefing.get("native_lang") or "",
+            "estimated_level": briefing.get("level") or "B1",
+        },
+        "facts_to_remember": list(briefing.get("facts") or [])[-6:],
+        "recent_sessions": list(briefing.get("recent_episodes") or [])[-2:],
+        "practice_targets": [
+            {"pattern": c.get("pattern"), "label": c.get("label"),
+             "previous": c.get("example_wrong"), "better": c.get("example_right")}
+            for c in (briefing.get("due_cards") or [])[:3]
+        ],
+        "words_the_learner_wants": list(briefing.get("wishlist") or [])[-5:],
+    }
+    return ("FLUENT ME LEARNER CONTEXT\n"
+            "Use this privately. Never recite the packet or reveal internal pattern keys.\n" +
+            json.dumps(packet, ensure_ascii=False, indent=2))
+
+
+def _tavus_greeting(briefing: dict, focus: str) -> str:
+    name = str(briefing.get("name") or "there")[:40]
+    prompts = {
+        "conversation": "What have you been working on lately?",
+        "interview": "Let's begin: tell me about yourself and what you want to build next.",
+        "story": "Tell me about something memorable that happened recently.",
+    }
+    return f"Hey {name} — good to see you. {prompts[focus]}"
+
+
+def _safe_tavus_error(exc: tavus.TavusAPIError):
+    status = exc.status if 400 <= exc.status < 600 else 502
+    return JSONResponse({"error": str(exc), "reason": "tavus"}, status_code=status)
+
+
+def _event_conversation(session: dict, before_order: float | None = None) -> list:
+    events = sorted(session["events"], key=lambda e: e["order"])
+    if before_order is not None:
+        events = [e for e in events if e["order"] < before_order]
+    return [{"who": e["who"], "text": e["text"]} for e in events[-12:]]
+
+
+def _report_snapshot(session: dict) -> dict:
+    scored = [t["composite"] for t in session["turns"] if t.get("composite") is not None]
+    return {
+        "status": session["report_status"],
+        "turns": len(session["turns"]),
+        "avg": round(sum(scored) / len(scored)) if scored else None,
+        "xp_gained": session["xp_gained"],
+        "cards_created": session["cards_created"],
+        "cards_advanced": session["cards_advanced"],
+        "summary": session.get("summary", ""),
+        "best_moment": session.get("best_moment", ""),
+        "perception_summary": session.get("perception_summary", ""),
+    }
+
+
+@app.get("/api/tavus/status")
+def tavus_status():
+    cache_ready = bool(os.environ.get("TAVUS_PAL_ID")) or (BASE / "data" / "tavus_pal.json").exists()
+    return {
+        "configured": tavus.configured(),
+        "mode": "live" if tavus.configured() else "preview",
+        "pal_ready": cache_ready,
+        "mirror_voice_ready": bool(tts._eleven_voices().get("user")) or tts.USER_REF.exists(),
+        "capabilities": {
+            "face": "Phoenix",
+            "perception": "Raven-1",
+            "turn_taking": "Sparrow-1",
+            "emotion_recognition": "limited_on_managed_pal",
+        },
+    }
+
+
+@app.post("/api/tavus/conversations")
+def start_tavus_conversation(payload: dict | None = None):
+    body = payload or {}
+    focus = str(body.get("focus") or "conversation")
+    if focus not in TAVUS_FOCUS:
+        return JSONResponse({"error": "unknown practice focus"}, status_code=400)
+    if not tavus.configured():
+        return JSONResponse({"error": "Tavus is not configured on this server.",
+                             "reason": "not_configured"}, status_code=503)
+    with STORE_LOCK:
+        briefing = store.briefing()
+    try:
+        remote = tavus.create_conversation(_tavus_context(briefing, focus),
+                                           _tavus_greeting(briefing, focus), focus)
+    except tavus.TavusAPIError as exc:
+        return _safe_tavus_error(exc)
+
+    conversation_id = str(remote["conversation_id"])
+    with TAVUS_LOCK:
+        TAVUS_SESSIONS[conversation_id] = {
+            "conversation_id": conversation_id,
+            "focus": focus,
+            "started_at": time.time(),
+            "events": [],
+            "local_order": 0,
+            "seen": set(),
+            "processing": set(),
+            "turn_results": {},
+            "turns": [],
+            "xp_gained": 0,
+            "cards_created": 0,
+            "cards_advanced": 0,
+            "new_patterns": [],
+            "advanced_patterns": [],
+            "report_status": "live",
+            "finalize_started": False,
+            "remote_ended": False,
+        }
+    # Return only what Daily needs. The long-lived Tavus API credential never
+    # crosses this boundary.
+    return {
+        "conversation_id": conversation_id,
+        "conversation_url": remote["conversation_url"],
+        "meeting_token": remote["meeting_token"],
+        "status": remote.get("status", "active"),
+        "pal_source": remote.get("pal_source"),
+        "focus": focus,
+    }
+
+
+@app.post("/api/tavus/conversations/{conversation_id}/events")
+def record_tavus_event(conversation_id: str, payload: dict):
+    props = payload.get("properties") or {}
+    role = props.get("role")
+    if payload.get("event_type") != "conversation.utterance" or role not in ("pal", "replica"):
+        return {"accepted": False}
+    if role == "replica":
+        return {"accepted": False, "duplicate_role": True}
+    speech = str(props.get("speech") or "").strip()[:4000]
+    if not speech:
+        return {"accepted": False}
+    event_key = f"pal:{payload.get('inference_id') or payload.get('seq') or speech[:80]}"
+    with TAVUS_LOCK:
+        session = TAVUS_SESSIONS.get(conversation_id)
+        if not session:
+            return JSONResponse({"error": "unknown conversation"}, status_code=404)
+        if event_key in session["seen"]:
+            return {"accepted": False, "duplicate": True}
+        session["seen"].add(event_key)
+        session["local_order"] += 1
+        seq = payload.get("seq")
+        order = float(seq) if isinstance(seq, (int, float)) else 1_000_000_000 + session["local_order"]
+        session["events"].append({"order": order, "who": "tutor", "text": speech})
+    return {"accepted": True}
+
+
+@app.post("/api/tavus/conversations/{conversation_id}/turn")
+def analyze_tavus_turn(conversation_id: str, payload: dict):
+    """Asynchronously consumed by the UI; it never controls the PAL's reply."""
+    speech = str(payload.get("speech") or "").strip()[:4000]
+    if not speech:
+        return JSONResponse({"error": "empty user utterance"}, status_code=400)
+    event_id = str(payload.get("inference_id") or payload.get("seq") or
+                   f"local-{abs(hash(speech))}")[:160]
+    event_key = f"user:{event_id}"
+    with TAVUS_LOCK:
+        session = TAVUS_SESSIONS.get(conversation_id)
+        if not session:
+            return JSONResponse({"error": "unknown conversation"}, status_code=404)
+        if event_key in session["turn_results"]:
+            return {**session["turn_results"][event_key], "duplicate": True}
+        if event_key in session["processing"]:
+            return JSONResponse({"status": "processing", "duplicate": True}, status_code=202)
+        session["processing"].add(event_key)
+        session["local_order"] += 1
+        seq = payload.get("seq")
+        order = float(seq) if isinstance(seq, (int, float)) else 1_000_000_000 + session["local_order"]
+        prior = _event_conversation(session, before_order=order)
+        session["events"].append({"order": order, "who": "learner", "text": speech})
+
+    try:
+        with STORE_LOCK:
+            briefing = store.briefing()
+        prompt = brain.judge_prompt(speech, prior, briefing, mode="free")
+        judge, degraded = brain.judge_safe(prompt, timeout=brain.judge_timeout(25))
+        result_scores = scoring.compose_turn(judge, None, None, len(speech.split()))
+        errors = (judge.get("errors") or [])[:3]
+        focus_pattern = None
+        bonus = 0
+
+        if not degraded:
+            due_set = {c["pattern"] for c in briefing.get("due_cards", [])}
+            if errors:
+                sev_rank = {"blocking": 0, "major": 1, "minor": 2}
+                focus_error = sorted(errors, key=lambda e: (
+                    e.get("pattern") not in due_set, sev_rank.get(e.get("severity"), 3)))[0]
+                focus_pattern = focus_error.get("pattern")
+            with STORE_LOCK:
+                for error in errors:
+                    existed = error.get("pattern") in store.cards
+                    store.record_error(error, speech, context={"mode": "tavus"})
+                    if not existed:
+                        session["cards_created"] += 1
+                        session["new_patterns"].append(error.get("pattern"))
+                for pattern, ok in (judge.get("elicited") or {}).items():
+                    if ok:
+                        advanced = store.record_elicited(pattern, True)
+                        if advanced:
+                            session["cards_advanced"] += 1
+                            session["advanced_patterns"].append(pattern)
+                            bonus += memory.XP_GRADUATE if advanced == "graduated" else memory.XP_CARD_ADVANCE
+                for word in judge.get("wishlist") or []:
+                    if word not in store.profile["wishlist"]:
+                        store.profile["wishlist"].append(word)
+                store.update_skills(result_scores["dims"])
+                store.update_cx(result_scores.get("complexity", 1))
+                store.add_xp(result_scores["xp"] + bonus)
+                store.save()
+
+        mirror_text = judge.get("recast") or judge.get("native")
+        if not mirror_text and len(speech.split()) >= 4 and not degraded:
+            mirror_text = speech
+        mirror_audio = None
+        mirror_engine = None
+        mirror_own_voice = False
+        if mirror_text:
+            out = AUDIO / f"tavus_fix_{int(time.time() * 1000)}"
+            try:
+                mirror_engine, _ = tts.say_with_timing(mirror_text, "user", out)
+                mirror_audio = f"/audio/{tts.audio_path(out).name}"
+                mirror_own_voice = bool(tts._eleven_voices().get("user")) or tts.USER_REF.exists()
+            except Exception:
+                pass
+
+        response = {
+            "status": "ready",
+            "speech": speech,
+            "scores": result_scores,
+            "errors": errors,
+            "focus_pattern": focus_pattern,
+            "recast": judge.get("recast"),
+            "native": judge.get("native"),
+            "mirror_text": mirror_text,
+            "mirror_audio": mirror_audio,
+            "mirror_engine": mirror_engine,
+            "mirror_own_voice": mirror_own_voice,
+            "audio_analysis": str(payload.get("audio_analysis") or "")[:500],
+            "visual_analysis": str(payload.get("visual_analysis") or "")[:500],
+            "degraded": degraded,
+            "scoring_note": "Grammar and vocabulary only; Raven observations are not grading inputs.",
+        }
+        with TAVUS_LOCK:
+            session = TAVUS_SESSIONS.get(conversation_id)
+            if session:
+                session["turn_results"][event_key] = response
+                session["turns"].append({"speech": speech,
+                                         "composite": result_scores.get("composite")})
+                session["xp_gained"] += result_scores.get("xp", 0) + bonus
+        return response
+    finally:
+        with TAVUS_LOCK:
+            session = TAVUS_SESSIONS.get(conversation_id)
+            if session:
+                session["processing"].discard(event_key)
+
+
+def _extract_perception_summary(remote: object) -> str:
+    """Best-effort read of Tavus' evolving verbose conversation schema."""
+    if isinstance(remote, dict):
+        for key, value in remote.items():
+            if key in ("perception_analysis", "perception_analysis_summary", "analysis") and isinstance(value, str):
+                if value.strip():
+                    return value.strip()[:2000]
+        for value in remote.values():
+            found = _extract_perception_summary(value)
+            if found:
+                return found
+    elif isinstance(remote, list):
+        for value in remote:
+            found = _extract_perception_summary(value)
+            if found:
+                return found
+    return ""
+
+
+def _finalize_tavus(conversation_id: str) -> None:
+    with TAVUS_LOCK:
+        session = TAVUS_SESSIONS.get(conversation_id)
+        if not session:
+            return
+        convo = _event_conversation(session)
+        snapshot = _report_snapshot(session)
+        focus = session["focus"]
+
+    summary = ""
+    best_moment = ""
+    if any(turn["who"] == "learner" for turn in convo):
+        try:
+            distilled = brain.session_summary(convo, mode="free")
+            summary = str(distilled.get("summary") or "")
+            best_moment = str(distilled.get("best_moment") or "")
+            with STORE_LOCK:
+                store.end_session(distilled)
+        except Exception:
+            summary = (f"Practiced {TAVUS_FOCUS[focus]} across {snapshot['turns']} analyzed "
+                       f"turn{'s' if snapshot['turns'] != 1 else ''}.")
+    perception_summary = ""
+    try:
+        perception_summary = _extract_perception_summary(
+            tavus.get_conversation(conversation_id, verbose=True))
+    except tavus.TavusAPIError:
+        pass
+
+    with STORE_LOCK:
+        if snapshot["turns"]:
+            store.log_session({"mode": "tavus", "turns": snapshot["turns"],
+                               "avg": snapshot["avg"], "xp_gained": snapshot["xp_gained"],
+                               "cards_created": snapshot["cards_created"],
+                               "cards_advanced": snapshot["cards_advanced"],
+                               "new_patterns": list(session["new_patterns"]),
+                               "advanced_patterns": list(session["advanced_patterns"]),
+                               "best_moment": best_moment, "summary": summary, "topics": [focus]})
+    with TAVUS_LOCK:
+        session = TAVUS_SESSIONS.get(conversation_id)
+        if session:
+            session["summary"] = summary
+            session["best_moment"] = best_moment
+            session["perception_summary"] = perception_summary
+            session["report_status"] = "ready"
+
+
+@app.post("/api/tavus/conversations/{conversation_id}/end")
+def end_tavus_conversation(conversation_id: str):
+    with TAVUS_LOCK:
+        session = TAVUS_SESSIONS.get(conversation_id)
+        if not session:
+            return JSONResponse({"error": "unknown conversation"}, status_code=404)
+        already_ended = session["remote_ended"]
+    if not already_ended:
+        try:
+            tavus.end_conversation(conversation_id)
+        except tavus.TavusAPIError as exc:
+            return _safe_tavus_error(exc)
+    with TAVUS_LOCK:
+        session = TAVUS_SESSIONS[conversation_id]
+        session["remote_ended"] = True
+        session["report_status"] = "finalizing"
+        if not session["finalize_started"]:
+            session["finalize_started"] = True
+            EX.submit(_finalize_tavus, conversation_id)
+        return _report_snapshot(session)
+
+
+@app.get("/api/tavus/conversations/{conversation_id}/report")
+def tavus_report(conversation_id: str):
+    with TAVUS_LOCK:
+        session = TAVUS_SESSIONS.get(conversation_id)
+        if not session:
+            return JSONResponse({"error": "unknown conversation"}, status_code=404)
+        return _report_snapshot(session)
 
 
 @app.post("/api/setup")

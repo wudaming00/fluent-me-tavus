@@ -1,0 +1,106 @@
+import io
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "server"))
+
+import tavus  # noqa: E402
+
+
+class FakeResponse:
+    def __init__(self, payload=None):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode() if self.payload is not None else b""
+
+
+def test_status_requires_server_key(monkeypatch):
+    monkeypatch.delenv("TAVUS_API_KEY", raising=False)
+    assert tavus.configured() is False
+    with pytest.raises(tavus.TavusAPIError) as error:
+        tavus._request("GET", "/faces")
+    assert error.value.status == 503
+
+
+def test_create_conversation_is_private_and_does_not_expose_key(monkeypatch, tmp_path):
+    monkeypatch.setenv("TAVUS_API_KEY", "server-secret")
+    monkeypatch.setenv("TAVUS_PAL_ID", "pal-existing")
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen["url"] = request.full_url
+        seen["headers"] = dict(request.header_items())
+        seen["body"] = json.loads(request.data)
+        return FakeResponse({
+            "conversation_id": "c-live",
+            "conversation_url": "https://tavus.daily.co/c-live",
+            "meeting_token": "short-lived-token",
+            "status": "active",
+        })
+
+    monkeypatch.setattr(tavus.urllib.request, "urlopen", fake_urlopen)
+    result = tavus.create_conversation("learner context", "Hey there", "interview")
+
+    assert seen["url"].endswith("/v2/conversations")
+    assert seen["headers"]["X-api-key"] == "server-secret"
+    assert seen["body"]["require_auth"] is True
+    assert seen["body"]["max_participants"] == 2
+    assert seen["body"]["pal_id"] == "pal-existing"
+    assert "server-secret" not in json.dumps(result)
+    assert result["meeting_token"] == "short-lived-token"
+
+
+def test_auto_pal_uses_raven_sparrow_and_limited_emotion(monkeypatch, tmp_path):
+    monkeypatch.setenv("TAVUS_API_KEY", "server-secret")
+    monkeypatch.delenv("TAVUS_PAL_ID", raising=False)
+    monkeypatch.delenv("TAVUS_FACE_ID", raising=False)
+    monkeypatch.setattr(tavus, "CACHE_FILE", tmp_path / "tavus_pal.json")
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        body = json.loads(request.data) if request.data else None
+        requests.append((request.get_method(), request.full_url, body))
+        if request.get_method() == "GET":
+            return FakeResponse({"data": [{
+                "face_id": "face-stock", "status": "completed", "model_name": "phoenix-4"
+            }]})
+        return FakeResponse({"pal_id": "pal-created"})
+
+    monkeypatch.setattr(tavus.urllib.request, "urlopen", fake_urlopen)
+    pal_id, source = tavus.ensure_pal()
+    pal_payload = requests[-1][2]
+
+    assert (pal_id, source) == ("pal-created", "created")
+    assert pal_payload["pipeline_mode"] == "full"
+    assert pal_payload["default_face_id"] == "face-stock"
+    assert pal_payload["layers"]["perception"]["perception_model"] == "raven-1"
+    assert pal_payload["layers"]["perception"]["emotion_recognition"] == "limited"
+    assert pal_payload["layers"]["conversational_flow"]["turn_detection_model"] == "sparrow-1"
+    assert "tts" not in pal_payload["layers"]
+
+
+def test_end_conversation_uses_end_endpoint(monkeypatch):
+    monkeypatch.setenv("TAVUS_API_KEY", "server-secret")
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen["method"] = request.get_method()
+        seen["url"] = request.full_url
+        return FakeResponse(None)
+
+    monkeypatch.setattr(tavus.urllib.request, "urlopen", fake_urlopen)
+    tavus.end_conversation("c-safe")
+    assert seen["method"] == "POST"
+    assert seen["url"].endswith("/v2/conversations/c-safe/end")
