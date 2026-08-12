@@ -20,7 +20,7 @@ from typing import Any
 BASE = Path(__file__).resolve().parent.parent
 CACHE_FILE = BASE / "data" / "tavus_pal_v3.json"
 DEFAULT_API_BASE = "https://tavusapi.com/v2"
-DEFAULT_FACE_ID = "r874cc5f8a3b"  # Lucas, Tavus Featured Pro / Phoenix-4
+DEFAULT_FACE_ID = "r5f0577fc829"  # Lucas - Studio, account-available Phoenix-4 stock Face
 
 
 class TavusAPIError(RuntimeError):

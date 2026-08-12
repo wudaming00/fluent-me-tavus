@@ -12,7 +12,7 @@ const responseJson = value => new Response(JSON.stringify(value), {
 });
 
 for (const [label, faceId, expected] of [
-  ["Lucas by default", undefined, "r874cc5f8a3b"],
+  ["Lucas by default", undefined, "r5f0577fc829"],
   ["an environment override", "face-custom-male", "face-custom-male"],
 ]) {
   test(`Sites Worker uses ${label} with an existing PAL`, async () => {

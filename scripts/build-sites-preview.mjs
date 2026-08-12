@@ -19,7 +19,7 @@ const JS = ${JSON.stringify(js)};
 const DAILY_JS = ${JSON.stringify(dailyJs)};
 const OG_BASE64 = ${JSON.stringify(og)};
 const TAVUS_BASE = "https://tavusapi.com/v2";
-const DEFAULT_FACE_ID = "r874cc5f8a3b"; // Lucas, Tavus Featured Pro / Phoenix-4
+const DEFAULT_FACE_ID = "r5f0577fc829"; // Lucas - Studio, account-available Phoenix-4 stock Face
 const PAL_NAME = "Fluent Me Language Coach v3";
 
 const PAL_PROMPT = ${JSON.stringify(`You are the visible English coach inside Fluent Me, a five-step speaking lesson.

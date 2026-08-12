@@ -14,7 +14,7 @@ Each of the three phrases follows the same visible loop:
 
 Tavus owns the embodied interface: Phoenix face, live video, Raven perception configuration, Sparrow turn-taking, and spoken delivery. Fluent Me owns the pedagogy: the sentence sequence, recording/transcription, one-focus feedback, recall, and local lesson history.
 
-The prototype defaults to **Lucas**, Tavus' male Featured Pro Phoenix-4 stock Face. Set `TAVUS_FACE_ID` to override him; the selected Face is sent on every conversation so an older PAL cannot silently restore its previous default.
+The prototype defaults to **Lucas – Studio**, a male Phoenix-4 stock Face verified in this Tavus account. Set `TAVUS_FACE_ID` to override him; the selected Face is sent on every conversation so an older PAL cannot silently restore its previous default.
 
 ## Run locally
 
