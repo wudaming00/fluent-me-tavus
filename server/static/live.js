@@ -268,6 +268,10 @@
 
     const stream = new MediaStream([video, audio].filter(Boolean));
     const player = $("tavus-video");
+    const current = player.srcObject;
+    const sameVideo = current instanceof MediaStream && current.getVideoTracks()[0]?.id === video.id;
+    const sameAudio = current instanceof MediaStream && current.getAudioTracks()[0]?.id === audio?.id;
+    if (sameVideo && sameAudio) return true;
     player.srcObject = stream;
     player.muted = false;
     player.play().catch(() => {
