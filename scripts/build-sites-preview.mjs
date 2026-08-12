@@ -172,10 +172,10 @@ export default {
       return new Response(HTML, { headers: { ...SECURITY_HEADERS, "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     }
     if (url.pathname === "/static/live.css") {
-      return new Response(CSS, { headers: { "content-type": "text/css; charset=utf-8", "cache-control": "public, max-age=3600" } });
+      return new Response(CSS, { headers: { "content-type": "text/css; charset=utf-8", "cache-control": "no-store" } });
     }
     if (url.pathname === "/static/live.js") {
-      return new Response(JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=3600" } });
+      return new Response(JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
     }
     if (url.pathname === "/static/daily-0.91.0.js") {
       return new Response(DAILY_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=31536000, immutable" } });
