@@ -192,13 +192,13 @@ def _tavus_greeting(briefing: dict, focus: str, topic: str = "") -> str:
         "conversation": "What have you been working on lately?",
         "interview": "Let's begin: tell me about yourself and what you want to build next.",
         "story": "Tell me about something memorable that happened recently.",
-        "language_lesson": ("First, look at me and listen. The screen will tell you exactly "
-                            "when it is your turn to repeat, recall, and answer."),
+        "language_lesson": ("Hi, I'm your personal English coach. First, listen to the model "
+                            "phrase. Then the screen will tell you when it's your turn."),
     }
     if topic:
         if focus == "language_lesson":
-            return (f"Welcome, {name}. We're practicing {topic[:220]}. First, look at me and "
-                    "listen. The screen will tell you exactly when it is your turn.")
+            return (f"Hi, I'm your personal English coach. Let's practice {topic[:220]}. "
+                    "First, listen: Let me tell you about a project I'm proud of.")
         return (f"Hey {name} — good to see you. Let's work on this: {topic[:220]}. "
                 "Give me your answer as if we were already in the conversation.")
     return f"Hey {name} — good to see you. {prompts[focus]}"
@@ -206,7 +206,9 @@ def _tavus_greeting(briefing: dict, focus: str, topic: str = "") -> str:
 
 def _safe_tavus_error(exc: tavus.TavusAPIError):
     status = exc.status if 400 <= exc.status < 600 else 502
-    return JSONResponse({"error": str(exc), "reason": "tavus"}, status_code=status)
+    message = ("Your coach is busy right now. Try again shortly." if status == 429
+               else "I couldn't bring your coach into the lesson. Try again.")
+    return JSONResponse({"error": message, "reason": "tavus"}, status_code=status)
 
 
 def _event_conversation(session: dict, before_order: float | None = None) -> list:

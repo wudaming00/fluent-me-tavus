@@ -3,34 +3,34 @@
 
   const LESSON = [
     {
-      target: "Tavus is more than a digital face.",
-      translation: "Meaning: The visible face is only one part of Tavus.",
-      chunks: ["Tavus is more than", "a digital face"],
-      fixChunk: "more than a digital face",
-      fixTitle: "Connect this phrase as one thought",
-      fixCopy: "Keep “more than” together. Listen once, then say the whole phrase without a pause.",
-      recallCue: "Say this idea in English from memory: the visible face is only one part of Tavus.",
-      useQuestion: "If Tavus is more than a digital face, what is the real product?"
+      target: "Let me tell you about a project I'm proud of.",
+      translation: "Meaning: A natural way to introduce a project story.",
+      chunks: ["Let me tell you about", "a project I'm proud of"],
+      fixChunk: "a project I'm proud of",
+      fixTitle: "Connect “proud of”",
+      fixCopy: "Keep “proud of” together as one thought. Let the final word land clearly.",
+      recallCue: "Say this idea in English from memory: introduce a project that makes you proud.",
+      useQuestion: "What project are you most proud of?"
     },
     {
-      target: "The face is the interface; the real product is the system behind it.",
-      translation: "Meaning: The visible face is the interface; the product is the system behind it.",
-      chunks: ["The face is the interface", "the real product", "is the system behind it"],
-      fixChunk: "the system behind it",
-      fixTitle: "Stress “system”",
-      fixCopy: "“Face” is the surface; “system” is the contrast. Make “system” clearer than the words around it.",
-      recallCue: "Say this idea in English from memory: the face is the interface, and the product is the system behind it.",
-      useQuestion: "What do you mean by the system behind the face?"
+      target: "I built it from the ground up to solve a real problem.",
+      translation: "Meaning: I created it from the beginning.",
+      chunks: ["I built it", "from the ground up", "to solve a real problem"],
+      fixChunk: "from the ground up",
+      fixTitle: "Stress “ground up”",
+      fixCopy: "Give “ground up” one smooth beat so the expression sounds natural.",
+      recallCue: "Say this idea in English from memory: you created it from the beginning to solve a real problem.",
+      useQuestion: "What problem were you trying to solve?"
     },
     {
-      target: "It combines perception, memory, and orchestration to make conversations feel responsive.",
-      translation: "Meaning: Several AI capabilities work together to make the conversation responsive.",
-      chunks: ["It combines perception", "memory and orchestration", "to make conversations feel responsive"],
-      fixChunk: "perception, memory, and orchestration",
-      fixTitle: "Give the three capabilities a clear rhythm",
-      fixCopy: "Treat “perception,” “memory,” and “orchestration” as three even beats. Do not rush them together.",
-      recallCue: "Say this idea in English from memory: perception, memory, and orchestration work together to make conversation responsive.",
-      useQuestion: "How do perception, memory, and orchestration change the user experience?"
+      target: "The biggest lesson was to test assumptions early.",
+      translation: "Meaning: I learned to validate ideas before investing too much.",
+      chunks: ["The biggest lesson", "was to test assumptions", "early"],
+      fixChunk: "test assumptions early",
+      fixTitle: "Make the lesson sound decisive",
+      fixCopy: "Stress “test” and “early” so the takeaway is easy to hear.",
+      recallCue: "Say this idea in English from memory: you learned to validate ideas before investing too much.",
+      useQuestion: "What did you learn from building it?"
     }
   ];
 
@@ -41,8 +41,8 @@
       title: "Listen first. You do not need to speak yet.",
       instruction: "Watch your coach and notice the natural thought groups.",
       primary: "My turn",
-      secondary: "Listen again",
-      help: "When the phrase feels clear, press “My turn.”"
+      secondary: "Hear it again",
+      help: "Tap “Hear it again” whenever you want your coach to model the phrase."
     },
     repeat: {
       index: "Step 2 of 5 · REPEAT",
@@ -73,7 +73,7 @@
       title: "Use the new phrase in your answer.",
       instruction: "Your coach will ask a real question. Answer with your own ideas.",
       primary: "Answer the coach",
-      secondary: "Hear the question again",
+      secondary: "Hear the question",
       help: "Try to use the new phrase, but make the answer your own."
     }
   };
@@ -131,9 +131,9 @@
 
   function restoreCoachState() {
     if (state.baseMode === "tavus-live") {
-      setCoachVisual("tavus-live", "Live Tavus video coach connected");
+      setCoachVisual("tavus-live", "Coach is ready");
     } else {
-      setCoachVisual("offline", "Waiting for Tavus video coach");
+      setCoachVisual("offline", "Waiting for your coach");
     }
   }
 
@@ -148,15 +148,15 @@
       const status = await fetchJSON("/api/tavus/status", { headers: {} });
       state.configured = Boolean(status.configured);
       if (state.configured) {
-        setWelcomeStatus("tavus-ready", "Tavus is ready", "We will connect when you start. “Live” appears only after the remote video is playable.");
+        setWelcomeStatus("tavus-ready", "Ready to practice", "Video and voice begin when you start.");
       } else if (status.has_key) {
-        setWelcomeStatus("unavailable", "Tavus credential was rejected", status.error || "Rotate the server credential, then reconnect.");
+        setWelcomeStatus("unavailable", "Your coach is unavailable", status.error || "Please try again in a moment.");
       } else {
-        setWelcomeStatus("offline", "Live Tavus is not configured", "A placeholder face will never be shown as a live coach.");
+        setWelcomeStatus("offline", "Your coach is unavailable", "Live coaching has not been configured yet.");
       }
     } catch {
       state.configured = false;
-      setWelcomeStatus("unavailable", "Could not check Tavus", "You can review the lesson, but live coaching requires Tavus.");
+      setWelcomeStatus("unavailable", "Could not reach your coach", "Please try again in a moment.");
     }
   }
 
@@ -435,7 +435,7 @@
       }
     }
 
-    showConnectionFailure("Connect to the live Tavus video coach before asking for a model.");
+    showConnectionFailure("Reconnect your coach before asking to hear a model.");
   }
 
   function normalizeRole(role) {
@@ -494,7 +494,7 @@
     player.play().catch(() => {
       player.muted = true;
       player.play().catch(() => {});
-      setText("caption-speaker", "Tavus");
+      setText("caption-speaker", "Coach");
       setText("caption-text", "Video connected. Your browser blocked autoplay with sound; click the video to continue.");
     });
     return true;
@@ -506,12 +506,12 @@
     state.connecting = (async () => {
       $("connection-card").hidden = true;
       setCoachVisual("connecting", "Inviting your video coach");
-      setText("preview-ribbon", "CONNECTING TO TAVUS…");
+      setText("preview-ribbon", "BRINGING YOUR COACH IN…");
       try {
         if (!window.Daily) throw new Error("Daily video client did not load.");
         const room = await fetchJSON("/api/tavus/conversations", {
           method: "POST",
-          body: JSON.stringify({ topic: "Tavus interview English", focus: "language_lesson" })
+          body: JSON.stringify({ topic: "talking about a project you built", focus: "language_lesson" })
         });
         state.conversationId = room.conversation_id;
         const call = window.Daily.createCallObject({
@@ -528,7 +528,7 @@
 
         let acceptRemote;
         const remoteJoined = new Promise((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error("The Tavus video track did not become playable in time.")), 25000);
+          const timer = setTimeout(() => reject(new Error("Your coach did not appear in time. Please reconnect.")), 25000);
           acceptRemote = participant => {
             if (!attachRemoteMedia(participant)) return;
             clearTimeout(timer);
@@ -538,7 +538,7 @@
         call.on("participant-joined", event => acceptRemote(event?.participant));
         call.on("participant-updated", event => acceptRemote(event?.participant));
         call.on("participant-left", event => {
-          if (event?.participant && !event.participant.local) void failConnection("The Tavus video coach left the room. Reconnect to continue.");
+          if (event?.participant && !event.participant.local) void failConnection("Your coach left the room. Reconnect to continue.");
         });
 
         $("daily-stage").hidden = false;
@@ -557,7 +557,7 @@
         $("daily-stage").classList.remove("pending");
         $("coach-still").hidden = true;
         $("preview-ribbon").hidden = true;
-        setCoachVisual("tavus-live", "Live Tavus video coach connected");
+        setCoachVisual("tavus-live", "Coach is ready");
         return true;
       } catch (error) {
         await failConnection(error.message || "The video coach did not join.");
@@ -574,10 +574,10 @@
     $("daily-stage").hidden = true;
     $("coach-still").hidden = false;
     $("preview-ribbon").hidden = false;
-    setText("preview-ribbon", "WAITING FOR LIVE TAVUS VIDEO");
+    setText("preview-ribbon", "BRINGING YOUR COACH IN…");
     setCoachVisual("unavailable", "Video coach is not connected");
     $("connection-card").hidden = false;
-    setText("connection-copy", detail || "This is not preview mode. Reconnect to the live Tavus coach.");
+    setText("connection-copy", detail || "Reconnect to continue practicing with your coach.");
   }
 
   async function failConnection(detail) {
@@ -622,7 +622,7 @@
     if (state.configured) {
       await connectTavus();
     } else {
-      showConnectionFailure("This deployment does not have a valid Tavus server credential, so it cannot create a live video room.");
+      showConnectionFailure("Live coaching is unavailable right now. Please try again later.");
     }
   }
 
@@ -645,6 +645,7 @@
     if (state.step === "listen") {
       state.step = "repeat";
       renderStep();
+      beginCapture();
       return;
     }
     if (state.stepComplete) {

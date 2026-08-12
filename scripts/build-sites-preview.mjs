@@ -10,7 +10,7 @@ const html = (await read("server/pages/live.html")).toString("utf8");
 const css = (await read("server/static/live.css")).toString("utf8");
 const js = (await read("server/static/live.js")).toString("utf8");
 const dailyJs = (await read("server/static/daily-0.91.0.js")).toString("utf8");
-const og = (await read("server/static/og-dark-lesson.png")).toString("base64");
+const og = (await read("server/static/og-personal-coach.png")).toString("base64");
 
 const worker = `
 const HTML = ${JSON.stringify(html)};
@@ -19,7 +19,7 @@ const JS = ${JSON.stringify(js)};
 const DAILY_JS = ${JSON.stringify(dailyJs)};
 const OG_BASE64 = ${JSON.stringify(og)};
 const TAVUS_BASE = "https://tavusapi.com/v2";
-const DEFAULT_FACE_ID = "r5f0577fc829"; // Lucas - Studio, account-available Phoenix-4 stock Face
+const DEFAULT_FACE_ID = "r987f6e6f73c"; // Nathan - Bookshelf, account-available Phoenix-4 stock Face
 const PAL_NAME = "Fluent Me Language Coach v3";
 
 const PAL_PROMPT = ${JSON.stringify(`You are the visible English coach inside Fluent Me, a five-step speaking lesson.
@@ -30,12 +30,14 @@ When the learner repeats or recalls a sentence, acknowledge its meaning in at mo
 
 Raven observations are uncertain context only. Never infer ability, personality, protected traits, or mental state from perception. You are an AI English coach, not a human and not an examiner.`)};
 
-const LESSON_CONTEXT = ${JSON.stringify(`Today's three target phrases are:
-1. Tavus is more than a digital face.
-2. The face is the interface; the real product is the system behind it.
-3. It combines perception, memory, and orchestration to make conversations feel responsive.
+const LESSON_CONTEXT = ${JSON.stringify(`You are the learner's personal English coach for a short lesson about describing a project they built.
 
-The learner is preparing to explain Tavus in an interview. The app controls exact demonstrations and the learner's current step. Keep spontaneous replies brief so they do not compete with the lesson UI.`)};
+Today's three target phrases are:
+1. Let me tell you about a project I'm proud of.
+2. I built it from the ground up to solve a real problem.
+3. The biggest lesson was to test assumptions early.
+
+The app controls exact demonstrations and the learner's current step. Say each model phrase exactly when asked. Keep spontaneous replies brief, warm, and focused on helping the learner speak naturally.`)};
 
 const SECURITY_HEADERS = {
   "x-content-type-options": "nosniff",
@@ -57,7 +59,7 @@ const imageResponse = (base64, type = "image/png") => {
 
 async function tavusRequest(env, path, options = {}) {
   const key = String(env.TAVUS_API_KEY || "").trim();
-  if (!key) throw Object.assign(new Error("Tavus live video is not configured on this deployment."), { status: 503 });
+  if (!key) throw Object.assign(new Error("Live coaching is unavailable right now."), { status: 503 });
   const response = await fetch(TAVUS_BASE + path, {
     method: options.method || "GET",
     headers: {
@@ -116,7 +118,7 @@ async function ensurePal(env) {
 
 async function createConversation(request, env) {
   if (!String(env.TAVUS_API_KEY || "").trim()) {
-    return json({ error: "Tavus live video is not configured on this deployment.", reason: "not_configured" }, 503);
+    return json({ error: "Live coaching is unavailable right now.", reason: "not_configured" }, 503);
   }
   try {
     const palId = await ensurePal(env);
@@ -127,9 +129,9 @@ async function createConversation(request, env) {
         pal_id: palId,
         // Explicitly override an older PAL's default Face for every room.
         face_id: faceId,
-        conversation_name: "Fluent Me · Tavus interview English",
+        conversation_name: "Fluent Me · Personal English coaching",
         conversational_context: LESSON_CONTEXT,
-        custom_greeting: "Tavus is more than a digital face.",
+        custom_greeting: "Hi, I'm your personal English coach. Let's practice talking about a project you built. First, listen: Let me tell you about a project I'm proud of.",
         require_auth: true,
         max_participants: 2,
         audio_only: false,
@@ -151,9 +153,9 @@ async function createConversation(request, env) {
   } catch (error) {
     const status = Number(error.status) || 502;
     const safeStatus = status >= 400 && status < 600 ? status : 502;
-    const message = safeStatus === 401 || safeStatus === 403
-      ? "Tavus rejected the server credential. Rotate it and reconnect."
-      : error.message || "Could not create the Tavus room.";
+    const message = safeStatus === 429
+      ? "Your coach is busy right now. Try again shortly."
+      : "I couldn't bring your coach into the lesson. Try again.";
     return json({ error: message, reason: "tavus" }, safeStatus);
   }
 }
@@ -183,7 +185,7 @@ export default {
     if (url.pathname === "/static/daily-0.91.0.js") {
       return new Response(DAILY_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=31536000, immutable" } });
     }
-    if (url.pathname === "/static/og-dark-lesson.png") return imageResponse(OG_BASE64);
+    if (url.pathname === "/static/og-personal-coach.png") return imageResponse(OG_BASE64);
     if (url.pathname === "/api/tavus/status") {
       const configured = Boolean(String(env.TAVUS_API_KEY || "").trim());
       return json({

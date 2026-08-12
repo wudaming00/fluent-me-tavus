@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090b10">
-  <meta name="description" content="Learn useful English by listening, repeating, recalling, and using it with a Tavus video coach.">
+  <meta name="description" content="Practice useful English face to face with your personal AI coach.">
   <meta property="og:title" content="Fluent Me — learn it, then use it">
   <meta property="og:description" content="Learn three useful English phrases with a face-to-face AI coach.">
-  <meta property="og:image" content="/static/og-dark-lesson.png">
+  <meta property="og:image" content="/static/og-personal-coach.png">
   <meta name="twitter:card" content="summary_large_image">
   <title>Fluent Me — learn it, then use it</title>
   <link rel="stylesheet" href="/static/live.css?v=7">
@@ -21,7 +21,7 @@
         <span>Fluent Me</span>
       </a>
       <div class="topbar-center" id="lesson-progress" hidden>
-        <span id="lesson-topic">Tavus interview English</span>
+        <span id="lesson-topic">Talking about a project</span>
         <b id="sentence-count">Sentence 1 of 3</b>
       </div>
       <button class="text-button" id="exit-button" type="button" hidden>Exit lesson</button>
@@ -30,37 +30,37 @@
     <main>
       <section class="welcome" id="welcome" aria-labelledby="welcome-title">
         <div class="welcome-copy">
-          <p class="eyebrow">5-minute English lesson</p>
-          <h1 id="welcome-title">Learn it.<br>Say it.<br>Use it.</h1>
-          <p class="welcome-lede">Listen to your coach, repeat the phrase, fix one thing, recall it, then use it in a real answer.</p>
+          <p class="eyebrow">YOUR PERSONAL ENGLISH COACH</p>
+          <h1 id="welcome-title">Speak naturally.<br>One phrase<br>at a time.</h1>
+          <p class="welcome-lede">Hear a useful phrase, say it back, and use it in a real answer. I’ll help you improve one clear thing at a time.</p>
 
           <div class="lesson-preview" aria-label="Today’s lesson flow">
-            <div><span>01</span><b>Listen</b><small>Hear natural phrasing</small></div>
-            <div><span>02</span><b>Repeat</b><small>Say it and fix one thing</small></div>
-            <div><span>03</span><b>Use</b><small>Recall it in a real answer</small></div>
+            <div><span>01</span><b>Hear it</b><small>Listen to natural English</small></div>
+            <div><span>02</span><b>Say it</b><small>Practice in your own voice</small></div>
+            <div><span>03</span><b>Use it</b><small>Make it part of a real answer</small></div>
           </div>
 
           <button class="primary-button welcome-start" id="start-lesson" type="button">
-            <span>Connect to Tavus coach</span><i aria-hidden="true">→</i>
+            <span>Start practice</span><i aria-hidden="true">→</i>
           </button>
-          <p class="welcome-note">Today’s topic: Explain why Tavus is more than a digital face.</p>
+          <p class="welcome-note">Today’s prompt: Tell me about a project you built.</p>
         </div>
 
-        <aside class="welcome-coach" aria-label="Tavus video coach preview">
+        <aside class="welcome-coach" aria-label="Personal English coach preview">
           <div class="coach-preview-frame">
-            <div class="tavus-waiting-canvas" aria-label="Waiting for live Tavus video">
-              <span>TAVUS</span><i></i><b>LIVE VIDEO</b>
+            <div class="tavus-waiting-canvas" aria-label="Waiting for your video coach">
+              <span>HELLO</span><i></i><b>YOUR COACH</b>
             </div>
-            <div class="coach-preview-badge"><i></i><span>Waiting for live Tavus video</span></div>
+            <div class="coach-preview-badge"><i></i><span>Your coach is ready</span></div>
             <div class="coach-preview-copy">
-              <p>YOUR VIDEO COACH</p>
-              <h2>Press start to connect directly to Tavus.</h2>
-              <span>No placeholder face. Your coach appears only when the live remote video is ready.</span>
+              <p>PERSONAL ENGLISH COACH</p>
+              <h2>Hi, I’m your personal English coach.</h2>
+              <span>Start when you’re ready. I’ll say the first phrase, then it’s your turn.</span>
             </div>
           </div>
           <div class="coach-readiness" id="welcome-readiness" aria-live="polite">
             <span class="status-dot"></span>
-            <div><b id="welcome-status">Checking Tavus connection…</b><small id="welcome-status-detail">Live status appears only after the video is ready.</small></div>
+            <div><b id="welcome-status">Getting your coach ready…</b><small id="welcome-status-detail">Video and voice begin when you start.</small></div>
           </div>
         </aside>
       </section>
@@ -78,18 +78,18 @@
 
         <div class="lesson-grid">
           <section class="coach-stage" aria-label="Video coach">
-            <div class="coach-still tavus-waiting-canvas" id="coach-still" aria-label="Waiting for live Tavus video">
-              <span>TAVUS</span><i></i><b>CONNECTING</b>
+            <div class="coach-still tavus-waiting-canvas" id="coach-still" aria-label="Waiting for your video coach">
+              <span>HELLO</span><i></i><b>CONNECTING</b>
             </div>
             <div class="daily-stage" id="daily-stage" hidden>
-              <video id="tavus-video" autoplay playsinline aria-label="Live Tavus video coach"></video>
+              <video id="tavus-video" autoplay playsinline aria-label="Live personal English coach"></video>
             </div>
 
             <div class="coach-state" id="coach-state">
               <span class="coach-state-dot"></span>
               <b id="coach-state-label">Connecting to video coach</b>
             </div>
-            <div class="preview-ribbon" id="preview-ribbon">WAITING FOR LIVE TAVUS VIDEO</div>
+            <div class="preview-ribbon" id="preview-ribbon">BRINGING YOUR COACH IN…</div>
             <div class="coach-caption" id="coach-caption" aria-live="polite">
               <span id="caption-speaker">Coach</span>
               <p id="caption-text">Once connected, your coach will model each phrase and talk with you here.</p>
@@ -97,9 +97,9 @@
 
             <div class="connection-card" id="connection-card" hidden>
               <p id="connection-title">Video coach is not connected</p>
-              <span id="connection-copy">This is not preview mode. Reconnect to the live Tavus coach.</span>
+              <span id="connection-copy">Reconnect to continue practicing with your coach.</span>
               <div>
-                <button class="small-button strong" id="retry-tavus" type="button">Reconnect to Tavus</button>
+                <button class="small-button strong" id="retry-tavus" type="button">Reconnect coach</button>
               </div>
             </div>
           </section>
@@ -112,8 +112,8 @@
             </div>
 
             <div class="phrase-card" id="phrase-card">
-              <p class="target-phrase" id="target-phrase">Tavus is more than a digital face.</p>
-              <p class="translation" id="translation">Meaning: The visible face is only one part of Tavus.</p>
+              <p class="target-phrase" id="target-phrase">Let me tell you about a project I’m proud of.</p>
+              <p class="translation" id="translation">Meaning: A natural way to introduce a project story.</p>
               <div class="chunks" id="chunks" aria-label="Phrase chunks"></div>
             </div>
 
@@ -173,6 +173,6 @@
     <button id="stop-recording" type="button">Done</button>
   </div>
 
-  <script src="/static/live.js?v=7" defer></script>
+  <script src="/static/live.js?v=10" defer></script>
 </body>
 </html>

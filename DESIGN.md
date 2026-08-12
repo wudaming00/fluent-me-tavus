@@ -4,7 +4,7 @@
 
 The learner should always be able to answer two questions without guessing:
 
-- **Who am I talking to?** A real Tavus video coach, or an explicit connection error.
+- **Who am I talking to?** My personal English coach, or an explicit connection error.
 - **What do I do now?** One action in a five-step language-learning loop.
 
 The face is not decoration. It models phrasing, timing, and conversational presence. Fluent Me turns that embodied interface into a repeatable learning sequence.
@@ -26,9 +26,9 @@ Every state has one dominant CTA. Metrics such as WPM, filler counts, hiring sig
 - The Tavus video is the largest surface on desktop.
 - On mobile, the video and compact step progress stay visible while the task scrolls.
 - The Daily call-object surface remains transparent until a non-local Tavus video track is playable; no black frame covers the waiting state.
-- The UI may say **Live Tavus video coach connected** only after that playable remote track exists.
+- The UI may say **Coach is ready** only after that playable remote track exists.
 - Every user-visible interface string is English.
-- The current prototype uses Lucas – Studio, a male Tavus Phoenix-4 stock Face verified in this account, unless `TAVUS_FACE_ID` explicitly selects another Face.
+- The current prototype uses Nathan – Bookshelf, a male Tavus Phoenix-4 stock Face verified in this account, unless `TAVUS_FACE_ID` explicitly selects another Face.
 - The visual system uses the original near-black, violet, and mint Fluent Me palette; mint is reserved for live and successful states.
 - A missing or rejected server key produces an error, never a static human presented as live.
 - The browser joins Daily with local camera and audio off. Fluent Me requests microphone access only when the learner explicitly starts a speaking attempt.
@@ -53,4 +53,4 @@ Fluent Me sends exact model sentences with `conversation.echo`; it does not expo
 
 ## Honest degradation
 
-There is no visual fallback that imitates a connected coach. The only non-live visual is an abstract **TAVUS / CONNECTING** canvas. A learner can retry the connection; a valid Tavus room is required for the video lesson.
+There is no visual fallback that imitates a connected coach. The non-live visual is an abstract **HELLO / CONNECTING** canvas. A learner can retry the connection; a valid Tavus room is required for the video lesson.

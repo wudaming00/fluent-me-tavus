@@ -1,6 +1,6 @@
 # Fluent Me × Tavus
 
-Fluent Me is a face-to-face English lesson built around a real Tavus CVI room. The default experience does not use a static person or a simulated call: after the learner clicks **Connect to Tavus coach**, the server creates a private Tavus conversation and the UI waits for a playable remote video track before showing the coach.
+Fluent Me is a face-to-face lesson with a personal AI English coach. The product interface stays focused on learning: after the learner clicks **Start practice**, the server creates a private video conversation and the UI waits for a playable remote track before showing the coach.
 
 ## The lesson
 
@@ -14,7 +14,7 @@ Each of the three phrases follows the same visible loop:
 
 Tavus owns the embodied interface: Phoenix face, live video, Raven perception configuration, Sparrow turn-taking, and spoken delivery. Fluent Me owns the pedagogy: the sentence sequence, recording/transcription, one-focus feedback, recall, and local lesson history.
 
-The prototype defaults to **Lucas – Studio**, a male Phoenix-4 stock Face verified in this Tavus account. Set `TAVUS_FACE_ID` to override him; the selected Face is sent on every conversation so an older PAL cannot silently restore its previous default.
+The prototype defaults to **Nathan – Bookshelf**, a male Phoenix-4 stock Face verified in this Tavus account. Set `TAVUS_FACE_ID` to override him; the selected Face is sent on every conversation so an older PAL cannot silently restore its previous default.
 
 ## Run locally
 
@@ -33,7 +33,7 @@ TAVUS_PAL_ID=
 TAVUS_FACE_ID=
 ```
 
-Open `http://127.0.0.1:8901/`. The API key stays server-side. If `TAVUS_PAL_ID` is absent, the server reuses or creates the versioned Fluent Me PAL. `TAVUS_FACE_ID` is optional; when omitted, Lucas is used. If no valid Tavus key is available, the page reports that real video cannot connect; it does not substitute a fake face.
+Open `http://127.0.0.1:8901/`. The API key stays server-side. If `TAVUS_PAL_ID` is absent, the server reuses or creates the versioned Fluent Me PAL. `TAVUS_FACE_ID` is optional; when omitted, Nathan – Bookshelf is used. If no valid Tavus key is available, the page reports that real video cannot connect; it does not substitute a fake face.
 
 For the hosted Sites build, store `TAVUS_API_KEY` as a secret runtime environment variable. Never commit it to source or paste it into client-side code. Rotate any credential that has appeared in chat or logs.
 

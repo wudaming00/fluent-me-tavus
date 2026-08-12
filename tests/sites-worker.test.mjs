@@ -12,7 +12,7 @@ const responseJson = value => new Response(JSON.stringify(value), {
 });
 
 for (const [label, faceId, expected] of [
-  ["Lucas by default", undefined, "r5f0577fc829"],
+  ["Nathan by default", undefined, "r987f6e6f73c"],
   ["an environment override", "face-custom-male", "face-custom-male"],
 ]) {
   test(`Sites Worker uses ${label} with an existing PAL`, async () => {
@@ -46,6 +46,10 @@ for (const [label, faceId, expected] of [
       assert.equal(response.status, 200);
       assert.equal(conversationBody.pal_id, "pal-existing");
       assert.equal(conversationBody.face_id, expected);
+      assert.equal(conversationBody.conversation_name, "Fluent Me · Personal English coaching");
+      assert.match(conversationBody.custom_greeting, /personal English coach/);
+      assert.match(conversationBody.conversational_context, /project I'm proud of/);
+      assert.doesNotMatch(conversationBody.custom_greeting, /Tavus|digital face/i);
     } finally {
       globalThis.fetch = originalFetch;
     }

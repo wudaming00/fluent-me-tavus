@@ -12,6 +12,10 @@ sys.path.insert(0, str(ROOT / "server"))
 import tavus  # noqa: E402
 
 
+def test_default_face_is_nathan_bookshelf():
+    assert tavus.DEFAULT_FACE_ID == "r987f6e6f73c"
+
+
 class FakeResponse:
     def __init__(self, payload=None):
         self.payload = payload

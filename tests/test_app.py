@@ -14,22 +14,27 @@ import app as app_module  # noqa: E402
 client = TestClient(app_module.app)
 
 
-def test_home_is_a_clear_language_lesson_with_visible_tavus_stage():
+def test_home_is_a_clear_personal_english_coaching_experience():
     response = client.get("/")
     assert response.status_code == 200
-    assert "Learn it." in response.text
-    assert "Connect to Tavus coach" in response.text
-    assert "Live Tavus video coach" in response.text
+    assert "YOUR PERSONAL ENGLISH COACH" in response.text
+    assert "Speak naturally." in response.text
+    assert "Start practice" in response.text
+    assert "Live personal English coach" in response.text
+    assert "Tell me about a project you built" in response.text
     assert "tavus-coach-preview.png" not in response.text
-    assert "Waiting for live Tavus video" in response.text
+    assert "Your coach is ready" in response.text
     assert "id=\"tavus-video\"" in response.text
     assert "/static/daily-0.91.0.js" in response.text
-    assert "/static/og-dark-lesson.png" in response.text
+    assert "/static/og-personal-coach.png" in response.text
     assert "unpkg.com" not in response.text
     assert "Hear the model" in response.text
     assert "Match the rhythm" in response.text
     assert "Say it from memory" in response.text
     assert "Put it in context" in response.text
+    assert "Tavus interview English" not in response.text
+    assert "digital face" not in response.text
+    assert ">TAVUS<" not in response.text
     assert not re.search(r"[\u4e00-\u9fff]", response.text)
     assert "Pace" not in response.text
     assert "Fillers" not in response.text
@@ -53,6 +58,16 @@ def test_unconfigured_status_requires_real_tavus(monkeypatch):
     assert response.json()["experience_mode"] == "tavus_required"
 
 
+def test_language_lesson_greeting_is_personal_and_vendor_free():
+    greeting = app_module._tavus_greeting(
+        {"name": "Alex"}, "language_lesson", "talking about a project you built"
+    )
+    assert greeting.startswith("Hi, I'm your personal English coach.")
+    assert "talking about a project you built" in greeting
+    assert "Let me tell you about a project I'm proud of." in greeting
+    assert "Tavus" not in greeting
+
+
 def test_browser_practice_uses_real_input_not_fixed_sample():
     response = client.get("/static/live.js")
     assert response.status_code == 200
@@ -62,9 +77,10 @@ def test_browser_practice_uses_real_input_not_fixed_sample():
     assert "conversation.echo" in response.text
     assert "createCallObject" in response.text
     assert "persistentTrack" in response.text
+    assert 'state.step = "repeat";\n      renderStep();\n      beginCapture();' in response.text
     assert "createFrame" not in response.text
     assert "Listen, Repeat, Fix, Recall, and Use" not in response.text  # copy lives in the PAL prompt
-    assert "Tavus is more than a digital face." in response.text
+    assert "Let me tell you about a project I'm proud of." in response.text
     assert "pace" not in response.text.lower()
     assert "fillers" not in response.text.lower()
     assert "const SAMPLE" not in response.text
