@@ -14,6 +14,8 @@ Each of the three phrases follows the same visible loop:
 
 Tavus owns the embodied interface: Phoenix face, live video, Raven perception configuration, Sparrow turn-taking, and spoken delivery. Fluent Me owns the pedagogy: the sentence sequence, recording/transcription, one-focus feedback, recall, and local lesson history.
 
+The prototype defaults to **Lucas**, Tavus' male Featured Pro Phoenix-4 stock Face. Set `TAVUS_FACE_ID` to override him; the selected Face is sent on every conversation so an older PAL cannot silently restore its previous default.
+
 ## Run locally
 
 ```powershell
@@ -31,7 +33,7 @@ TAVUS_PAL_ID=
 TAVUS_FACE_ID=
 ```
 
-Open `http://127.0.0.1:8901/`. The API key stays server-side. If `TAVUS_PAL_ID` is absent, the server reuses or creates the versioned Fluent Me PAL. If no valid Tavus key is available, the page reports that real video cannot connect; it does not substitute a fake face.
+Open `http://127.0.0.1:8901/`. The API key stays server-side. If `TAVUS_PAL_ID` is absent, the server reuses or creates the versioned Fluent Me PAL. `TAVUS_FACE_ID` is optional; when omitted, Lucas is used. If no valid Tavus key is available, the page reports that real video cannot connect; it does not substitute a fake face.
 
 For the hosted Sites build, store `TAVUS_API_KEY` as a secret runtime environment variable. Never commit it to source or paste it into client-side code. Rotate any credential that has appeared in chat or logs.
 

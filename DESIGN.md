@@ -28,6 +28,7 @@ Every state has one dominant CTA. Metrics such as WPM, filler counts, hiring sig
 - The Daily call-object surface remains transparent until a non-local Tavus video track is playable; no black frame covers the waiting state.
 - The UI may say **Live Tavus video coach connected** only after that playable remote track exists.
 - Every user-visible interface string is English.
+- The current prototype uses Lucas, a male Tavus Phoenix-4 stock Face, unless `TAVUS_FACE_ID` explicitly selects another Face.
 - The visual system uses the original near-black, violet, and mint Fluent Me palette; mint is reserved for live and successful states.
 - A missing or rejected server key produces an error, never a static human presented as live.
 - The browser joins Daily with local camera and audio off. Fluent Me requests microphone access only when the learner explicitly starts a speaking attempt.
@@ -46,7 +47,7 @@ Keyboard entry is a first-class accessibility path, not an error state. When it 
 
 ## Tavus boundary
 
-Tavus provides the face and live room through a full PAL pipeline. The managed PAL uses Phoenix, Raven-1, and Sparrow-1. Raven observations are uncertain context only and must never become ability, personality, protected-trait, emotion, or hiring judgments.
+Tavus provides the face and live room through a full PAL pipeline. The managed PAL uses Phoenix, Raven-1, and Sparrow-1. Fluent Me passes the selected `face_id` on every conversation, so a cached PAL cannot override the visible coach. Raven observations are uncertain context only and must never become ability, personality, protected-trait, emotion, or hiring judgments.
 
 Fluent Me sends exact model sentences with `conversation.echo`; it does not expose `TAVUS_API_KEY` to the browser. Private conversations use authentication, two-participant limits, finite call duration, and short participant timeouts. Every failure or exit attempts to end the remote Tavus conversation.
 

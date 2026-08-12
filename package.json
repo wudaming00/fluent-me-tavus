@@ -2,6 +2,7 @@
   "name": "fluent-me-tavus",
   "private": true,
   "scripts": {
-    "build": "node scripts/build-sites-preview.mjs"
+    "build": "node scripts/build-sites-preview.mjs",
+    "test:worker": "node --test tests/sites-worker.test.mjs"
   }
 }

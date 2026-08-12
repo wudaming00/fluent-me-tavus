@@ -20,6 +20,7 @@ from typing import Any
 BASE = Path(__file__).resolve().parent.parent
 CACHE_FILE = BASE / "data" / "tavus_pal_v3.json"
 DEFAULT_API_BASE = "https://tavusapi.com/v2"
+DEFAULT_FACE_ID = "r874cc5f8a3b"  # Lucas, Tavus Featured Pro / Phoenix-4
 
 
 class TavusAPIError(RuntimeError):
@@ -93,27 +94,7 @@ def _save_pal_id(pal_id: str, face_id: str) -> None:
 
 
 def _select_face_id() -> str:
-    explicit = os.environ.get("TAVUS_FACE_ID", "").strip()
-    if explicit:
-        return explicit
-
-    # Prefer a Phoenix-4 stock face. If an account exposes only its own faces,
-    # fall back to any completed face rather than creating one implicitly.
-    searches = (
-        {"face_type": "system", "model_name": "phoenix-4", "verbose": "true", "limit": 100},
-        {"verbose": "true", "limit": 100},
-    )
-    for query in searches:
-        result = _request("GET", "/faces", query=query)
-        faces = result.get("data") or []
-        ready = [f for f in faces if str(f.get("status", "")).lower() in
-                 ("completed", "ready", "active")]
-        candidates = ready or faces
-        if candidates:
-            face_id = str(candidates[0].get("face_id") or "")
-            if face_id:
-                return face_id
-    raise TavusAPIError(400, "No ready Tavus Face is available. Set TAVUS_FACE_ID first.")
+    return os.environ.get("TAVUS_FACE_ID", "").strip() or DEFAULT_FACE_ID
 
 
 PAL_SYSTEM_PROMPT = """You are the visible English coach inside Fluent Me.
@@ -184,6 +165,9 @@ def create_conversation(context: str, greeting: str, focus: str = "conversation"
     pal_id, pal_source = ensure_pal()
     payload: dict[str, Any] = {
         "pal_id": pal_id,
+        # A conversation-level Face wins over an older PAL default. This keeps
+        # cached/configured PALs while making the visible coach deterministic.
+        "face_id": _select_face_id(),
         "conversation_name": f"Fluent Me · {focus[:40]}",
         "conversational_context": context[:12_000],
         "custom_greeting": greeting[:500],

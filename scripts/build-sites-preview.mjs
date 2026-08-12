@@ -19,7 +19,7 @@ const JS = ${JSON.stringify(js)};
 const DAILY_JS = ${JSON.stringify(dailyJs)};
 const OG_BASE64 = ${JSON.stringify(og)};
 const TAVUS_BASE = "https://tavusapi.com/v2";
-const DEFAULT_FACE_ID = "r90bbd427f71";
+const DEFAULT_FACE_ID = "r874cc5f8a3b"; // Lucas, Tavus Featured Pro / Phoenix-4
 const PAL_NAME = "Fluent Me Language Coach v3";
 
 const PAL_PROMPT = ${JSON.stringify(`You are the visible English coach inside Fluent Me, a five-step speaking lesson.
@@ -120,10 +120,13 @@ async function createConversation(request, env) {
   }
   try {
     const palId = await ensurePal(env);
+    const faceId = String(env.TAVUS_FACE_ID || DEFAULT_FACE_ID).trim();
     const result = await tavusRequest(env, "/conversations", {
       method: "POST",
       body: {
         pal_id: palId,
+        // Explicitly override an older PAL's default Face for every room.
+        face_id: faceId,
         conversation_name: "Fluent Me · Tavus interview English",
         conversational_context: LESSON_CONTEXT,
         custom_greeting: "Tavus is more than a digital face.",
