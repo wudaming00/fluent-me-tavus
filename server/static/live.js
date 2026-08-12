@@ -1,907 +1,727 @@
 (() => {
   "use strict";
 
-  const $ = id => document.getElementById(id);
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const STORAGE_KEY = "fluent-me:recent-practice:v2";
-  const state = {
-    capability: "browser",
-    configured: false,
-    mirrorVoiceReady: false,
-    focus: "interview",
-    goal: "",
-    sessionState: "idle",
-    speakerState: "none",
-    feedbackState: "idle",
-    attempts: [],
-    transcriptFinal: "",
-    transcriptInterim: "",
-    recognition: null,
-    mediaStream: null,
-    audioContext: null,
-    analyser: null,
-    drawFrame: null,
-    timerId: null,
-    startedAt: 0,
-    sessionStartedAt: 0,
-    call: null,
-    conversationId: null,
-    joinTimeout: null,
-    seenEvents: new Set(),
-    pendingFeedback: null,
-    latestFeedback: null,
-    currentAudio: null,
-    captionsVisible: true,
-    ending: false,
+  const LESSON = [
+    {
+      target: "Tavus is more than a digital face.",
+      translation: "Tavus 不只是一个数字人脸。",
+      chunks: ["Tavus is more than", "a digital face"],
+      fixChunk: "more than a digital face",
+      fixTitle: "把这一段连成一个意群",
+      fixCopy: "不要在 more 和 than 中间停顿。先听教练说这一小段，再一口气跟上。",
+      recallCue: "请用英文表达：Tavus 不只是一个数字人脸。",
+      useQuestion: "If Tavus is more than a digital face, what is the real product?"
+    },
+    {
+      target: "The face is the interface; the real product is the system behind it.",
+      translation: "人脸是交互界面，真正的产品是它背后的系统。",
+      chunks: ["The face is the interface", "the real product", "is the system behind it"],
+      fixChunk: "the system behind it",
+      fixTitle: "把重音放在 system 上",
+      fixCopy: "face 是表层，system 才是对比重点。让 system 比前后的词更清楚。",
+      recallCue: "请用英文表达：人脸是界面，真正的产品是背后的系统。",
+      useQuestion: "What do you mean by the system behind the face?"
+    },
+    {
+      target: "It combines perception, memory, and orchestration to make conversations feel responsive.",
+      translation: "它把感知、记忆和编排结合起来，让对话真正有响应感。",
+      chunks: ["It combines perception", "memory and orchestration", "to make conversations feel responsive"],
+      fixChunk: "perception, memory, and orchestration",
+      fixTitle: "三个能力要有清楚的节奏",
+      fixCopy: "把 perception、memory、orchestration 当成三个并列拍点，不要挤成一团。",
+      recallCue: "请用英文表达：它结合感知、记忆和编排，让对话更有响应感。",
+      useQuestion: "How do perception, memory, and orchestration change the user experience?"
+    }
+  ];
+
+  const STEPS = ["listen", "repeat", "fix", "recall", "use"];
+  const STEP_COPY = {
+    listen: {
+      index: "第 1 / 5 步 · LISTEN",
+      title: "先听教练说，不用开口。",
+      instruction: "看着教练，注意句子里的自然意群。",
+      primary: "轮到我",
+      secondary: "再听一遍",
+      help: "听清楚以后，点击“轮到我”。"
+    },
+    repeat: {
+      index: "第 2 / 5 步 · REPEAT",
+      title: "照着读一遍，不必完美。",
+      instruction: "保留句子的节奏，先把完整意思说出来。",
+      primary: "开始跟读",
+      secondary: "改为输入",
+      help: "点击后开始说；说完停顿，或点“完成”。"
+    },
+    fix: {
+      index: "第 3 / 5 步 · FIX ONE THING",
+      title: "只练这一小段。",
+      instruction: "一次只改一个动作，比看一排分数更有用。",
+      primary: "练这一小段",
+      secondary: "听这一小段",
+      help: "听一次，再照着教练的节奏说。"
+    },
+    recall: {
+      index: "第 4 / 5 步 · RECALL",
+      title: "现在不看英文，说出同样意思。",
+      instruction: "不必逐字一样；重点是从记忆里把表达找回来。",
+      primary: "开始脱稿说",
+      secondary: "给我一个提示",
+      help: "英文会被藏起来，只保留中文意思。"
+    },
+    use: {
+      index: "第 5 / 5 步 · USE",
+      title: "把刚学的表达用进回答。",
+      instruction: "教练会问一个真实问题。用自己的内容回答，不要背句子。",
+      primary: "回答教练",
+      secondary: "再听问题",
+      help: "尽量用到刚学的表达；答案可以自由发挥。"
+    }
   };
 
-  function setText(id, value) {
-    const node = $(id);
-    if (node) node.textContent = value == null ? "" : String(value);
-  }
+  const $ = id => document.getElementById(id);
+  const setText = (id, value) => { const node = $(id); if (node) node.textContent = value ?? ""; };
 
-  function setScreen(screen) {
-    document.body.dataset.screen = screen;
-    $("setup-screen").hidden = screen !== "setup";
-    $("practice-screen").hidden = screen !== "practice";
-    $("review-screen").hidden = screen !== "review";
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function setSessionState(next, label) {
-    state.sessionState = next;
-    document.body.dataset.sessionState = next;
-    if (label) setText("room-status", label);
-  }
-
-  function formatTime(seconds) {
-    if (!Number.isFinite(seconds)) return "—";
-    const total = Math.max(0, Math.floor(seconds));
-    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-  }
+  const state = {
+    sentenceIndex: 0,
+    step: "listen",
+    stepComplete: false,
+    configured: false,
+    baseMode: "offline",
+    call: null,
+    conversationId: null,
+    connecting: null,
+    recognition: null,
+    transcript: "",
+    mediaRecorder: null,
+    mediaStream: null,
+    audioChunks: [],
+    currentAudioUrl: null,
+    silenceTimer: null,
+    recording: false,
+    records: LESSON.map(() => ({})),
+    pendingCoachText: "",
+    coachRestoreTimer: null,
+    failureInProgress: false
+  };
 
   async function fetchJSON(url, options = {}) {
     const response = await fetch(url, {
       ...options,
-      headers: { "content-type": "application/json", ...(options.headers || {}) },
+      headers: { "content-type": "application/json", ...(options.headers || {}) }
     });
-    let payload = {};
-    try { payload = await response.json(); } catch {}
-    if (!response.ok) {
-      const error = new Error(payload.error || `Request failed (${response.status})`);
-      error.status = response.status;
-      error.reason = payload.reason;
-      throw error;
-    }
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || payload.message || `Request failed (${response.status})`);
     return payload;
   }
 
-  function startTimer(kind = "recording") {
-    clearInterval(state.timerId);
-    state.startedAt = Date.now();
-    if (!state.sessionStartedAt) state.sessionStartedAt = state.startedAt;
-    const tick = () => {
-      const elapsed = (Date.now() - (kind === "session" ? state.sessionStartedAt : state.startedAt)) / 1000;
-      setText("room-timer", formatTime(elapsed));
-      if (kind === "recording" && elapsed >= 60 && state.sessionState === "recording") finishBrowserAnswer();
-    };
-    tick();
-    state.timerId = setInterval(tick, 250);
+  function setView(view) {
+    document.body.dataset.view = view;
+    $("welcome").hidden = view !== "welcome";
+    $("lesson").hidden = view !== "lesson";
+    $("complete").hidden = view !== "complete";
+    $("lesson-progress").hidden = view !== "lesson";
+    $("exit-button").hidden = view !== "lesson";
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function stopTimer() {
-    clearInterval(state.timerId);
-    state.timerId = null;
+  function setCoachVisual(mode, label) {
+    document.body.dataset.coachMode = mode;
+    setText("coach-state-label", label);
   }
 
-  function currentGoal() {
-    return $("practice-goal").value.trim().replace(/\s+/g, " ").slice(0, 240) || "Have a natural conversation in English";
+  function restoreCoachState() {
+    if (state.baseMode === "tavus-live") {
+      setCoachVisual("tavus-live", "Tavus 视频教练已连接");
+    } else {
+      setCoachVisual("offline", "等待 Tavus 视频教练");
+    }
   }
 
-  function selectPrompt(button) {
-    document.querySelectorAll(".prompt-chip").forEach(chip => chip.classList.toggle("selected", chip === button));
-    state.focus = button.dataset.focus || "conversation";
-    $("practice-goal").value = button.dataset.prompt || "";
+  function setWelcomeStatus(mode, title, detail) {
+    document.body.dataset.coachMode = mode;
+    setText("welcome-status", title);
+    setText("welcome-status-detail", detail);
   }
 
-  function updateCapabilityUI() {
-    const live = state.configured;
-    state.capability = live ? "tavus" : "browser";
-    $("capability-pill").classList.add("ready");
-    setText("capability-label", live ? "Live video ready" : "Speaking practice ready");
-    setText("mode-kicker", live ? "Live video conversation" : "60-second practice");
-    setText("mode-title", live ? "Private coach ready" : "Ready on this device");
-    setText("start-label", live ? "Start live conversation" : "Start speaking practice");
-    setText("privacy-note", live
-      ? "● Microphone required · camera optional · private room"
-      : "● Microphone access starts only after you continue.");
-    $("camera-setting").hidden = !live;
-    $("start-button").disabled = false;
-  }
-
-  function readRecent() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch { return null; }
-  }
-
-  function renderRecent() {
-    const recent = readRecent();
-    if (!recent?.goal || !Array.isArray(recent.attempts) || !recent.attempts.length) return;
-    $("recent-practice").hidden = false;
-    setText("recent-goal", recent.goal);
-    const latest = recent.attempts.at(-1);
-    const evidence = [latest.words ? `${latest.words} words` : null,
-      Number.isFinite(latest.wpm) ? `${latest.wpm} wpm` : null,
-      Number.isFinite(latest.fillers) ? `${latest.fillers} fillers` : null].filter(Boolean).join(" · ");
-    setText("recent-result", evidence || "Saved on this device");
-    $("recent-retry").onclick = () => {
-      $("practice-goal").value = recent.goal;
-      state.focus = recent.focus || "interview";
-      startPractice();
-    };
-  }
-
-  async function boot() {
-    renderRecent();
+  async function checkCapability() {
     try {
       const status = await fetchJSON("/api/tavus/status", { headers: {} });
       state.configured = Boolean(status.configured);
-      state.mirrorVoiceReady = Boolean(status.mirror_voice_ready);
+      if (state.configured) {
+        setWelcomeStatus("tavus-ready", "Tavus 已配置，开始时尝试连接", "远端教练真正加入后，页面才会显示“实时已连接”");
+      } else if (status.has_key) {
+        setWelcomeStatus("unavailable", "Tavus 密钥验证失败", status.error || "请轮换服务端密钥后再连接");
+      } else {
+        setWelcomeStatus("offline", "真实 Tavus 尚未配置", "配置完成前不会用静态人脸冒充视频教练");
+      }
     } catch {
       state.configured = false;
+      setWelcomeStatus("unavailable", "暂时无法检查 Tavus", "课程仍可使用本机语音完成");
     }
-    updateCapabilityUI();
-    drawIdleWave();
   }
 
-  function resetRoom(goal) {
-    state.goal = goal;
-    state.attempts = [];
-    state.transcriptFinal = "";
-    state.transcriptInterim = "";
-    state.pendingFeedback = null;
-    state.latestFeedback = null;
-    state.feedbackState = "idle";
-    state.seenEvents.clear();
-    state.sessionStartedAt = 0;
-    setText("room-goal", goal);
-    setText("panel-goal", goal);
-    setText("stage-prompt", goal);
-    setText("room-timer", "00:00");
-    setText("metric-time", "—");
-    setText("metric-wpm", "—");
-    setText("metric-fillers", "—");
-    $("note-empty").hidden = false;
-    $("note-result").hidden = true;
-    $("attempt-compare").hidden = true;
-    $("stage-message").hidden = true;
-    $("text-fallback").hidden = true;
-    $("caption-strip").hidden = true;
-    setText("live-words", "Your words will appear here as you speak.");
-    $("live-words").classList.remove("active");
+  function currentLesson() { return LESSON[state.sentenceIndex]; }
+
+  function updateStepper() {
+    const current = STEPS.indexOf(state.step);
+    document.querySelectorAll(".stepper li").forEach((item, index) => {
+      item.classList.toggle("active", index === current);
+      item.classList.toggle("done", index < current);
+      const number = item.querySelector(":scope > span");
+      if (number) number.textContent = index < current ? "✓" : String(index + 1);
+    });
   }
 
-  function startPractice() {
-    const goal = currentGoal();
-    resetRoom(goal);
-    setScreen("practice");
-    if (state.capability === "tavus") startTavusPractice();
-    else startBrowserPractice();
+  function renderChunks(chunks) {
+    const root = $("chunks");
+    root.replaceChildren();
+    chunks.forEach(chunk => {
+      const chip = document.createElement("span");
+      chip.textContent = chunk;
+      root.appendChild(chip);
+    });
   }
 
-  function startBrowserPractice() {
-    $("browser-stage").hidden = false;
-    $("video-stage").hidden = true;
-    $("record-control").hidden = false;
-    $("mic-toggle").hidden = true;
-    $("camera-toggle").hidden = true;
-    $("perception-tab").disabled = true;
-    $("evidence").hidden = false;
-    setText("stage-mode", Recognition ? "Microphone practice" : "Text fallback");
-    prepareBrowserAttempt();
+  function resetCaptureUI() {
+    $("capture-result").hidden = true;
+    $("text-entry").hidden = true;
+    $("task-note").hidden = true;
+    $("typed-answer").value = "";
+    $("play-recording").hidden = true;
+    $("primary-action").hidden = false;
+    $("secondary-action").hidden = false;
+    state.stepComplete = false;
+    state.transcript = "";
+    if (state.currentAudioUrl) {
+      URL.revokeObjectURL(state.currentAudioUrl);
+      state.currentAudioUrl = null;
+    }
   }
 
-  function prepareBrowserAttempt() {
-    const attempt = state.attempts.length + 1;
-    setSessionState("ready", "Ready to speak");
-    setText("attempt-label", `Attempt ${attempt} of 2`);
-    setText("stage-kicker", attempt === 1 ? "Your prompt" : "Try the same answer again");
-    setText("stage-instruction", attempt === 1
-      ? "Take a breath. Start when you are ready."
-      : "Keep the useful parts. Make just the one change in your coaching note.");
-    setText("record-label", "Start answer");
-    $("record-control").disabled = false;
-    $("text-fallback").hidden = true;
-    $("stage-message").hidden = true;
-    setText("live-words", "Your words will appear here as you speak.");
-    $("live-words").classList.remove("active");
-    drawIdleWave();
+  function renderStep({ announce = false } = {}) {
+    const lesson = currentLesson();
+    const copy = STEP_COPY[state.step];
+    document.body.dataset.lessonStep = state.step;
+    setText("sentence-count", `第 ${state.sentenceIndex + 1} / ${LESSON.length} 句`);
+    setText("task-index", copy.index);
+    setText("task-title", copy.title);
+    setText("task-instruction", state.step === "recall" ? lesson.recallCue : copy.instruction);
+    const visiblePhrase = state.step === "recall"
+      ? "英文已隐藏 · Say it from memory"
+      : state.step === "use"
+        ? `Try to use: “${lesson.target}”`
+        : lesson.target;
+    setText("target-phrase", visiblePhrase);
+    setText("translation", lesson.translation);
+    renderChunks(lesson.chunks);
+    setText("primary-action", copy.primary);
+    $("primary-action").innerHTML = `<span>${copy.primary}</span><i aria-hidden="true">→</i>`;
+    setText("secondary-action", copy.secondary);
+    setText("action-help", copy.help);
+    resetCaptureUI();
+    $("type-instead").hidden = ["listen", "repeat"].includes(state.step);
+
+    if (state.step === "fix") {
+      $("task-note").hidden = false;
+      setText("task-note-label", "只改这一处");
+      setText("task-note-title", lesson.fixTitle);
+      setText("task-note-copy", lesson.fixCopy);
+    }
+    if (state.step === "use") {
+      setText("task-instruction", `教练问：${lesson.useQuestion}`);
+    }
+    updateStepper();
+
+    if (announce) {
+      if (state.step === "listen") speakCoach(lesson.target);
+      if (state.step === "fix") speakCoach(lesson.fixChunk);
+      if (state.step === "use") speakCoach(lesson.useQuestion);
+    }
   }
 
-  function cleanTranscript(value) {
-    return String(value || "").replace(/\s+/g, " ").replace(/\s+([,.!?])/g, "$1").trim();
+  function updateAfterCapture(text) {
+    state.stepComplete = true;
+    $("capture-result").hidden = false;
+    setText("capture-label", state.step === "use" ? "你的回答" : "我听到你说");
+    setText("capture-text", text);
+    $("text-entry").hidden = true;
+    $("type-instead").hidden = true;
+    $("primary-action").hidden = false;
+    $("secondary-action").hidden = false;
+    $("play-recording").hidden = !state.currentAudioUrl;
+
+    const nextLabels = {
+      repeat: "看这一处怎么改",
+      fix: "现在脱稿说",
+      recall: "放进对话里",
+      use: state.sentenceIndex < LESSON.length - 1 ? "下一句" : "完成课程"
+    };
+    const label = nextLabels[state.step] || "继续";
+    $("primary-action").innerHTML = `<span>${label}</span><i aria-hidden="true">→</i>`;
+    setText("action-help", state.step === "use" ? "完成了：你已经把这句话放进真实回答。" : "听到了。继续下一步，把刚才的表达留下来。");
+
+    if (state.step === "repeat") {
+      const missing = findMissingChunk(text, currentLesson().chunks);
+      $("task-note").hidden = false;
+      setText("task-note-label", missing ? "下一步会补上这一段" : "下一步只调一个细节");
+      setText("task-note-title", missing ? `再练：${missing}` : currentLesson().fixTitle);
+      setText("task-note-copy", missing ? "转写里没有完整识别到这个意群。先不打分，下一步把它单独说清楚。" : currentLesson().fixCopy);
+    }
   }
 
-  async function ensureMicrophone() {
-    const active = state.mediaStream?.getAudioTracks().some(track => track.readyState === "live");
-    if (active) return state.mediaStream;
-    state.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
-    return state.mediaStream;
+  function normalizedWords(text) {
+    return String(text || "").toLowerCase().replace(/[^a-z0-9'\s]/g, " ").split(/\s+/).filter(Boolean);
   }
 
-  function setupRecognition() {
+  function findMissingChunk(text, chunks) {
+    const heard = new Set(normalizedWords(text));
+    return chunks.find(chunk => normalizedWords(chunk).some(word => !heard.has(word))) || "";
+  }
+
+  function finishCapturedText(rawText) {
+    const text = String(rawText || "").trim().replace(/\s+/g, " ");
+    if (!text) {
+      showTextEntry("没有听清这一遍。你可以再说一次，或输入你刚才说的句子。");
+      return;
+    }
+    state.records[state.sentenceIndex][state.step] = {
+      text,
+      at: Date.now(),
+      audioUrl: state.currentAudioUrl || ""
+    };
+    updateAfterCapture(text);
+  }
+
+  function showTextEntry(message = "不方便开麦也没关系。输入你想说的英文，继续同一套练习。") {
+    $("text-entry").hidden = false;
+    $("capture-result").hidden = true;
+    $("type-instead").hidden = true;
+    $("primary-action").hidden = true;
+    $("secondary-action").hidden = true;
+    setText("action-help", message);
+    setTimeout(() => $("typed-answer").focus(), 0);
+  }
+
+  function getRecognition() {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition) return null;
     const recognition = new Recognition();
     recognition.lang = "en-US";
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
-    recognition.onresult = event => {
-      let interim = "";
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const words = event.results[index][0]?.transcript || "";
-        if (event.results[index].isFinal) state.transcriptFinal += `${words} `;
-        else interim += words;
-      }
-      state.transcriptInterim = interim;
-      const visible = cleanTranscript(`${state.transcriptFinal} ${interim}`);
-      setText("live-words", visible || "Listening…");
-      $("live-words").classList.toggle("active", Boolean(visible));
-    };
-    recognition.onerror = event => {
-      if (["not-allowed", "service-not-allowed"].includes(event.error)) switchToTextFallback("Microphone transcription was blocked. You can still type the answer you would give.");
-    };
-    recognition.onend = () => {
-      if (state.sessionState === "recording" && !state.ending) {
-        try { recognition.start(); } catch {}
-      }
-    };
     return recognition;
   }
 
-  async function beginBrowserAnswer() {
-    setSessionState("permission", "Opening microphone");
-    setText("record-label", "Allow microphone");
-    state.transcriptFinal = "";
-    state.transcriptInterim = "";
+  async function beginCapture() {
+    if (state.recording) return;
+    state.stepComplete = false;
+    state.transcript = "";
+    state.audioChunks = [];
+    $("capture-result").hidden = true;
+    $("text-entry").hidden = true;
+
+    let stream = null;
     try {
-      await ensureMicrophone();
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch {
-      switchToTextFallback("Microphone access is unavailable. Type the answer you would say aloud.");
+      showTextEntry("无法使用麦克风。请允许麦克风权限，或直接输入你想说的英文。");
       return;
     }
-    if (!Recognition) {
-      switchToTextFallback("This browser cannot create a live transcript. Type the answer you would say aloud.");
+
+    state.mediaStream = stream;
+    state.recording = true;
+    $("recording-toast").hidden = false;
+    setText("recording-hint", state.step === "use" ? "回答完整后点“完成”" : "说完后停顿，或点“完成”");
+    setCoachVisual("listening", "轮到你 · 正在听");
+    setText("caption-speaker", "你");
+    setText("caption-text", "开始说吧，我会把听到的词显示出来。");
+
+    if (window.MediaRecorder) {
+      try {
+        const recorder = new MediaRecorder(stream);
+        state.mediaRecorder = recorder;
+        recorder.ondataavailable = event => { if (event.data?.size) state.audioChunks.push(event.data); };
+        recorder.onstop = () => {
+          if (!state.audioChunks.length) return;
+          const blob = new Blob(state.audioChunks, { type: recorder.mimeType || "audio/webm" });
+          if (state.currentAudioUrl) URL.revokeObjectURL(state.currentAudioUrl);
+          state.currentAudioUrl = URL.createObjectURL(blob);
+          $("play-recording").hidden = $("capture-result").hidden;
+          const record = state.records[state.sentenceIndex]?.[state.step];
+          if (record) record.audioUrl = state.currentAudioUrl;
+        };
+        recorder.start();
+      } catch {
+        state.mediaRecorder = null;
+      }
+    }
+
+    const recognition = getRecognition();
+    state.recognition = recognition;
+    if (!recognition) {
+      setText("recording-hint", "录音中；完成后请确认文字");
       return;
     }
-    state.recognition = setupRecognition();
-    setSessionState("recording", "Listening");
-    setText("record-label", "Finish answer");
-    setText("stage-instruction", "Speak naturally. Finish when your answer feels complete.");
-    setText("live-words", "Listening…");
-    startTimer("recording");
-    startLiveWave();
-    try { state.recognition.start(); } catch { switchToTextFallback("Speech transcription did not start. Type the answer you would say aloud."); }
+
+    let finalText = "";
+    recognition.onresult = event => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const chunk = event.results[i][0]?.transcript || "";
+        if (event.results[i].isFinal) finalText += `${chunk} `;
+        else interim += chunk;
+      }
+      state.transcript = `${finalText}${interim}`.trim();
+      setText("caption-text", state.transcript || "正在听…");
+      clearTimeout(state.silenceTimer);
+      if (finalText.trim()) state.silenceTimer = setTimeout(() => stopCapture(), 1500);
+    };
+    recognition.onerror = event => {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        stopCapture({ showFallback: true });
+      }
+    };
+    recognition.onend = () => {
+      if (state.recording && state.transcript) stopCapture();
+    };
+    try { recognition.start(); }
+    catch { setText("recording-hint", "录音中；完成后请确认文字"); }
   }
 
-  function switchToTextFallback(message) {
-    stopRecognitionAndMedia();
-    setSessionState("text", "Text fallback");
-    setText("stage-instruction", message);
-    $("text-fallback").hidden = false;
-    $("fallback-answer").value = cleanTranscript(`${state.transcriptFinal} ${state.transcriptInterim}`);
-    $("fallback-answer").focus();
-    setText("record-label", "Analyze answer");
-    drawIdleWave();
-  }
-
-  function stopRecognitionAndMedia() {
-    if (state.recognition) {
-      state.recognition.onend = null;
-      try { state.recognition.stop(); } catch {}
-      state.recognition = null;
-    }
-    if (state.mediaStream) {
-      state.mediaStream.getTracks().forEach(track => track.stop());
-      state.mediaStream = null;
-    }
-    if (state.audioContext) {
-      state.audioContext.close().catch(() => {});
-      state.audioContext = null;
-      state.analyser = null;
-    }
-    cancelAnimationFrame(state.drawFrame);
-    state.drawFrame = null;
-  }
-
-  function finishBrowserAnswer() {
-    if (state.sessionState !== "recording") return;
-    const duration = Math.max(1, (Date.now() - state.startedAt) / 1000);
-    const transcript = cleanTranscript(`${state.transcriptFinal} ${state.transcriptInterim}`);
-    state.ending = true;
-    stopTimer();
-    stopRecognitionAndMedia();
-    state.ending = false;
-    if (transcript.split(/\s+/).filter(Boolean).length < 3) {
-      switchToTextFallback("We did not catch enough words to analyze. Add the answer below, then continue.");
+  function stopCapture({ showFallback = false } = {}) {
+    if (!state.recording) {
+      if (showFallback) showTextEntry();
       return;
     }
-    completeBrowserAttempt(transcript, duration, "speech");
-  }
-
-  function analyzeTypedAnswer() {
-    const transcript = cleanTranscript($("fallback-answer").value);
-    if (transcript.split(/\s+/).filter(Boolean).length < 3) {
-      $("stage-message").hidden = false;
-      setText("stage-message", "Add at least one complete sentence so the coaching note has something real to use.");
-      return;
-    }
-    $("stage-message").hidden = true;
-    completeBrowserAttempt(transcript, null, "typed");
-  }
-
-  function countMatches(text, pattern) {
-    return (text.match(pattern) || []).length;
-  }
-
-  function analyzeEvidence(transcript, duration, source) {
-    const words = transcript.match(/[A-Za-z0-9%'-]+/g) || [];
-    const lower = transcript.toLowerCase();
-    const fillers = countMatches(lower, /\b(?:um+|uh+|you know|basically|actually|kind of|sort of|i mean)\b/g);
-    const wpm = Number.isFinite(duration) && duration > 4 ? Math.round(words.length / duration * 60) : null;
-    const ownership = /\bi\s+(?:built|created|designed|led|decided|launched|implemented|started|owned|tested|changed|shipped)\b/i.test(transcript);
-    const outcome = /\b(?:result|impact|outcome|increased|reduced|improved|grew|saved|adoption|users?|revenue|latency|accuracy|conversion)\b|\d+(?:\.\d+)?\s*%/i.test(transcript);
-    const reasoning = /\b(?:because|so that|which meant|therefore|in order to|the reason)\b/i.test(transcript);
-    const stackSignals = ["model", "data", "infrastructure", "application", "product", "distribution", "workflow", "agent", "interface"].filter(term => lower.includes(term)).length;
-    const tavusSignals = ["perception", "turn", "memory", "face", "video", "voice", "latency", "interaction", "raven", "sparrow"].filter(term => lower.includes(term)).length;
-    return { transcript, source, words: words.length, duration, wpm, fillers, ownership, outcome, reasoning, stackSignals, tavusSignals,
-      structure: Number(ownership) + Number(outcome) + Number(reasoning) };
-  }
-
-  function coachingFor(evidence) {
-    const goal = state.goal.toLowerCase();
-    if (evidence.words < 28) return {
-      title: "Add one concrete decision",
-      body: "The answer is still an outline. Name the problem, one decision you personally made, and what happened next.",
-      target: "Try again: problem → your decision → result.",
-    };
-    if (evidence.fillers >= 4 || evidence.fillers / Math.max(1, evidence.words) > .045) return {
-      title: "Trade fillers for one pause",
-      body: `We heard ${evidence.fillers} filler${evidence.fillers === 1 ? "" : "s"}. A short silent pause will make the same ideas sound more deliberate.`,
-      target: "Try again: pause before the key decision instead of filling the space.",
-    };
-    if (Number.isFinite(evidence.wpm) && evidence.wpm > 175) return {
-      title: "Give the important sentence room",
-      body: `Your pace was ${evidence.wpm} words per minute. Slow down at the decision and the outcome so they do not disappear inside the story.`,
-      target: "Try again: one beat before the decision, one beat before the result.",
-    };
-    if (goal.includes("ai ecosystem") && evidence.stackSignals < 3) return {
-      title: "Show how the layers connect",
-      body: "Make the ecosystem visible: foundation models and data become infrastructure, products, workflows, and distribution.",
-      target: "Try again: model layer → infrastructure → application → distribution.",
-    };
-    if (goal.includes("tavus") && evidence.tavusSignals < 3) return {
-      title: "Go beyond the face",
-      body: "Separate the visual output from the system underneath: perception, conversational turn-taking, reasoning, voice, and memory.",
-      target: "Try again: the face is the interface; the product is the real-time interaction system.",
-    };
-    if (!evidence.ownership) return {
-      title: "Make your ownership unmistakable",
-      body: "The story has context, but your decision is hard to locate. Use a direct sentence beginning with “I decided,” “I built,” or “I changed.”",
-      target: "Try again: put your most important “I” sentence near the beginning.",
-    };
-    if (!evidence.outcome) return {
-      title: "Land the result",
-      body: "You explained the work. Finish with what changed—adoption, time saved, quality, learning, or the next decision it unlocked.",
-      target: "Try again: end with one concrete outcome.",
-    };
-    if (!evidence.reasoning) return {
-      title: "Expose the reasoning",
-      body: "The actions are clear. Add one sentence explaining why that choice was better than the alternatives.",
-      target: "Try again: add “I chose this because…” before the outcome.",
-    };
-    return {
-      title: "Lead with the outcome",
-      body: "The answer already has ownership, reasoning, and a result. Make it sharper by putting the result first, then explain how you got there.",
-      target: "Try again: outcome first → decision → evidence.",
-    };
-  }
-
-  function completeBrowserAttempt(transcript, duration, source) {
-    const evidence = analyzeEvidence(transcript, duration, source);
-    const coaching = coachingFor(evidence);
-    const attempt = { ...evidence, coaching };
-    state.attempts.push(attempt);
-    state.feedbackState = "ready";
-    setSessionState("feedback", "Coaching ready");
-    renderAttempt(attempt);
-    if (state.attempts.length > 1) renderComparison(state.attempts[0], attempt);
-    setText("record-label", state.attempts.length < 2 ? "Try it again" : "Finish practice");
-    setText("stage-kicker", "Answer captured");
-    setText("stage-instruction", state.attempts.length < 2
-      ? "Keep the answer. Change only the one thing in your coaching note."
-      : "Two real attempts are ready to compare.");
-    setText("live-words", transcript);
-    $("live-words").classList.add("active");
-    $("text-fallback").hidden = true;
-    drawIdleWave();
-  }
-
-  function renderAttempt(attempt) {
-    $("note-empty").hidden = true;
-    $("note-result").hidden = false;
-    setText("note-title", attempt.coaching.title);
-    setText("note-body", attempt.coaching.body);
-    setText("note-target", attempt.coaching.target);
-    setText("metric-time", Number.isFinite(attempt.duration) ? formatTime(attempt.duration) : "typed");
-    setText("metric-wpm", Number.isFinite(attempt.wpm) ? `${attempt.wpm}` : "—");
-    setText("metric-fillers", attempt.fillers);
-    $("listen-button").hidden = true;
-  }
-
-  function renderComparison(first, second) {
-    const gains = [];
-    if (second.structure > first.structure) gains.push("clearer structure");
-    if (second.fillers < first.fillers) gains.push("fewer fillers");
-    if (Number.isFinite(first.wpm) && Number.isFinite(second.wpm) && Math.abs(second.wpm - 140) < Math.abs(first.wpm - 140)) gains.push("steadier pace");
-    $("attempt-compare").hidden = false;
-    setText("compare-title", gains.length ? `Improved: ${gains.join(" · ")}` : "A more deliberate second pass");
-    setText("compare-copy", gains.length
-      ? "The comparison uses your two actual attempts on this device."
-      : "The evidence stayed similar. Keep the coaching target and make the change more explicit next time.");
-  }
-
-  function handleRecordControl() {
-    if (state.capability === "tavus") return;
-    if (["ready", "idle"].includes(state.sessionState)) beginBrowserAnswer();
-    else if (state.sessionState === "recording") finishBrowserAnswer();
-    else if (state.sessionState === "text") analyzeTypedAnswer();
-    else if (state.sessionState === "feedback" && state.attempts.length < 2) prepareBrowserAttempt();
-    else if (state.sessionState === "feedback") finishBrowserSession();
-  }
-
-  function comparisonSummary() {
-    if (state.attempts.length < 2) return "One complete attempt is saved on this device.";
-    const [first, second] = state.attempts;
-    const changes = [];
-    if (second.fillers < first.fillers) changes.push(`${first.fillers - second.fillers} fewer filler${first.fillers - second.fillers === 1 ? "" : "s"}`);
-    if (second.structure > first.structure) changes.push("a clearer answer structure");
-    if (Number.isFinite(first.wpm) && Number.isFinite(second.wpm)) changes.push(`pace moved from ${first.wpm} to ${second.wpm} wpm`);
-    return changes.length ? `Your second attempt had ${changes.join(" and ")}.` : "You completed two real attempts. Keep the same coaching target for the next session.";
-  }
-
-  function finishBrowserSession() {
-    stopTimer();
-    stopRecognitionAndMedia();
-    if (!state.attempts.length) {
-      resetToSetup();
-      return;
-    }
-    const latest = state.attempts.at(-1);
+    state.recording = false;
+    clearTimeout(state.silenceTimer);
+    state.silenceTimer = null;
+    $("recording-toast").hidden = true;
+    try { state.recognition?.stop(); } catch {}
+    state.recognition = null;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        goal: state.goal, focus: state.focus, createdAt: new Date().toISOString(),
-        attempts: state.attempts.map(({ transcript, source, words, duration, wpm, fillers, structure }) => ({ transcript, source, words, duration, wpm, fillers, structure })),
-        coaching: latest.coaching,
-      }));
+      if (state.mediaRecorder?.state !== "inactive") state.mediaRecorder?.stop();
     } catch {}
-    renderReview(latest, comparisonSummary());
+    state.mediaRecorder = null;
+    state.mediaStream?.getTracks().forEach(track => track.stop());
+    state.mediaStream = null;
+    restoreCoachState();
+    if (showFallback || !state.transcript.trim()) showTextEntry();
+    else finishCapturedText(state.transcript);
   }
 
-  function renderReview(latest, summary, report = null) {
-    setScreen("review");
-    const second = state.attempts.length > 1;
-    setText("review-title", second ? "You gave the answer a stronger second pass." : "You finished a real speaking attempt.");
-    setText("review-lede", report?.summary || summary || `You practiced: ${state.goal}`);
-    const coaching = latest?.coaching || state.pendingFeedback || {
-      title: "Keep one clear through-line", body: "Lead with the point, explain your decision, and finish with what changed.", target: "Outcome → decision → evidence.",
-    };
-    setText("review-note-title", coaching.title || "One thing to carry forward");
-    setText("review-note-body", coaching.body || report?.best_moment || "Your learning memory is being updated.");
-    setText("review-target", coaching.target || report?.best_moment || state.goal);
-    setText("review-attempts", state.attempts.length || report?.turns || 1);
-    setText("review-wpm", Number.isFinite(latest?.wpm) ? `${latest.wpm} wpm` : "—");
-    setText("review-fillers", Number.isFinite(latest?.fillers) ? latest.fillers : "—");
-    const total = state.attempts.reduce((sum, item) => sum + (item.duration || 0), 0);
-    setText("review-time", total ? formatTime(total) : formatTime((Date.now() - state.sessionStartedAt) / 1000));
-    const transcriptRoot = $("review-transcript");
-    transcriptRoot.replaceChildren();
-    state.attempts.forEach((attempt, index) => {
-      const row = document.createElement("article");
-      row.className = "transcript-attempt";
-      const label = document.createElement("span");
-      label.textContent = `Attempt ${index + 1}`;
-      const copy = document.createElement("p");
-      copy.textContent = attempt.transcript || "Transcript unavailable";
-      row.append(label, copy);
-      transcriptRoot.append(row);
-    });
-  }
+  async function speakCoach(text) {
+    const phrase = String(text || "").trim();
+    if (!phrase) return;
+    state.pendingCoachText = phrase;
+    setText("caption-speaker", "教练");
+    setText("caption-text", phrase);
+    setCoachVisual("speaking", "教练正在说");
 
-  function resetToSetup(keepGoal = false) {
-    stopTimer();
-    stopRecognitionAndMedia();
-    destroyCall();
-    state.conversationId = null;
-    state.sessionStartedAt = 0;
-    state.ending = false;
-    if (!keepGoal) {
-      state.goal = "";
-      state.attempts = [];
+    if (state.baseMode === "tavus-live" && state.call && state.conversationId) {
+      try {
+        await state.call.sendAppMessage({
+          message_type: "conversation",
+          event_type: "conversation.echo",
+          conversation_id: state.conversationId,
+          properties: { modality: "text", text: phrase, done: true }
+        }, "*");
+        clearTimeout(state.coachRestoreTimer);
+        state.coachRestoreTimer = setTimeout(restoreCoachState, Math.max(5000, phrase.split(/\s+/).length * 520 + 2500));
+        return;
+      } catch {
+        state.baseMode = "audio";
+      }
     }
-    setScreen("setup");
-    renderRecent();
+
+    showConnectionFailure("需要先连接真实 Tavus 视频，教练才会示范这句话。");
   }
 
-  /* Tavus live conversation */
   function normalizeRole(role) {
-    if (role === "user") return "user";
-    if (["pal", "replica", "assistant"].includes(role)) return "coach";
-    return null;
+    const value = String(role || "").toLowerCase();
+    if (["pal", "replica", "assistant", "agent"].includes(value)) return "coach";
+    if (["user", "participant", "human"].includes(value)) return "user";
+    return value;
   }
 
-  function eventKey(message) {
-    return [message.event_type, message.seq ?? "", message.inference_id ?? "", normalizeRole(message.properties?.role) ?? ""].join(":");
-  }
+  function handleTavusMessage(event) {
+    const message = event?.data || event;
+    if (!message || typeof message !== "object") return;
+    if (message.conversation_id && message.conversation_id !== state.conversationId) return;
+    const role = normalizeRole(message.properties?.role);
+    const speech = message.properties?.speech || message.properties?.text || message.properties?.transcript || "";
 
-  function normalizeMessage(event) {
-    const candidate = event?.data || event;
-    if (typeof candidate === "string") {
-      try { return JSON.parse(candidate); } catch { return {}; }
-    }
-    return candidate && typeof candidate === "object" ? candidate : {};
-  }
-
-  async function startTavusPractice() {
-    $("browser-stage").hidden = false;
-    $("video-stage").hidden = true;
-    $("record-control").hidden = true;
-    $("mic-toggle").hidden = false;
-    $("camera-toggle").hidden = false;
-    $("perception-tab").disabled = false;
-    $("evidence").hidden = true;
-    setText("attempt-label", "Private video room");
-    setText("stage-mode", "Live conversation");
-    setText("stage-kicker", "Opening your room");
-    setText("stage-instruction", "Creating room → joining media → waiting for the conversation partner");
-    setSessionState("creating", "Creating private room");
-    if (!window.Daily?.createFrame) {
-      state.capability = "browser";
-      setText("stage-message", "Live video could not load. Continuing with speaking practice on this device.");
-      $("stage-message").hidden = false;
-      startBrowserPractice();
-      return;
-    }
-    try {
-      const room = await fetchJSON("/api/tavus/conversations", {
-        method: "POST",
-        body: JSON.stringify({ focus: state.focus, topic: state.goal }),
-      });
-      state.conversationId = room.conversation_id;
-      sessionStorage.setItem("fluent-me:active-conversation", state.conversationId);
-      setSessionState("joining", "Joining media");
-      $("video-stage").hidden = false;
-      const call = window.Daily.createFrame($("video-stage"), {
-        showLeaveButton: false,
-        showFullscreenButton: true,
-        activeSpeakerMode: true,
-        iframeStyle: { width: "100%", height: "100%", border: "0" },
-      });
-      state.call = call;
-      registerCallHandlers(call);
-      await call.join({ url: room.conversation_url, token: room.meeting_token, startVideoOff: !$("camera-enabled").checked });
-      setSessionState("waiting", "Waiting for coach");
-      state.joinTimeout = setTimeout(() => {
-        if (state.sessionState === "waiting") failLive("The coach did not join in time. You can retry or continue with on-device speaking practice.");
-      }, 20000);
-      const participants = call.participants?.() || {};
-      if (Object.values(participants).some(participant => !participant.local)) activateLive();
-    } catch (error) {
-      await failLive(error.message || "We could not open the conversation.");
-    }
-  }
-
-  function registerCallHandlers(call) {
-    call.on("app-message", handleAppMessage);
-    call.on("participant-joined", event => { if (event?.participant && !event.participant.local) activateLive(); });
-    call.on("joined-meeting", () => setSessionState("waiting", "Waiting for coach"));
-    call.on("left-meeting", () => { if (!state.ending && state.sessionState === "live") endLiveSession(); });
-    call.on("error", event => failLive(event?.errorMsg || "The live room lost its connection."));
-  }
-
-  function activateLive() {
-    clearTimeout(state.joinTimeout);
-    state.joinTimeout = null;
-    $("browser-stage").hidden = true;
-    $("video-stage").hidden = false;
-    state.sessionStartedAt = Date.now();
-    setSessionState("live", "Your turn");
-    startTimer("session");
-  }
-
-  async function failLive(message) {
-    clearTimeout(state.joinTimeout);
-    setSessionState("error", "Connection unavailable");
-    await cleanupRemoteRoom();
-    state.capability = "browser";
-    $("browser-stage").hidden = false;
-    $("video-stage").hidden = true;
-    startBrowserPractice();
-    $("stage-message").hidden = false;
-    setText("stage-message", `${message} Continuing with speaking practice on this device.`);
-  }
-
-  function handleAppMessage(event) {
-    const message = normalizeMessage(event);
-    if (!message.event_type || (message.conversation_id && message.conversation_id !== state.conversationId)) return;
-    const key = eventKey(message);
-    if (state.seenEvents.has(key)) return;
-    state.seenEvents.add(key);
-    const props = message.properties || {};
-    const role = normalizeRole(props.role);
-    if (!role) return;
     if (message.event_type === "conversation.started_speaking") {
-      state.speakerState = role;
-      setSessionState("live", role === "user" ? "Listening" : "Coach is speaking");
+      if (role === "coach") setCoachVisual("speaking", "教练正在说");
       return;
     }
     if (message.event_type === "conversation.stopped_speaking") {
-      state.speakerState = "none";
-      setSessionState("live", role === "coach" ? "Your turn" : "Thinking");
-      if (role === "coach" && state.pendingFeedback) {
-        renderLiveFeedback(state.pendingFeedback);
-        state.pendingFeedback = null;
-      }
+      clearTimeout(state.coachRestoreTimer);
+      restoreCoachState();
       return;
     }
-    if (message.event_type !== "conversation.utterance") return;
-    const speech = cleanTranscript(props.speech);
-    if (!speech) return;
-    showCaption(role, speech);
-    if (role === "user") analyzeLiveTurn(message);
-    else sendCoachEvent(message);
-  }
+    if (message.event_type !== "conversation.utterance" || !speech) return;
 
-  function showCaption(role, speech) {
-    $("caption-strip").hidden = !state.captionsVisible;
-    setText("caption-speaker", role === "user" ? "You" : "Coach");
-    setText("caption-text", speech);
-  }
-
-  async function sendCoachEvent(message) {
-    try {
-      await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(state.conversationId)}/events`, {
-        method: "POST", body: JSON.stringify(message),
-      });
-    } catch {}
-  }
-
-  async function analyzeLiveTurn(message) {
-    const props = message.properties || {};
-    const speech = cleanTranscript(props.speech);
-    if (props.user_audio_analysis) setText("audio-perception", props.user_audio_analysis);
-    if (props.user_visual_analysis) setText("visual-perception", props.user_visual_analysis);
-    setSessionState("live", "Reviewing your answer");
-    try {
-      const result = await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(state.conversationId)}/turn`, {
-        method: "POST",
-        body: JSON.stringify({
-          speech,
-          seq: message.seq,
-          inference_id: message.inference_id,
-          turn_idx: message.turn_idx,
-          audio_analysis: props.user_audio_analysis || "",
-          visual_analysis: props.user_visual_analysis || "",
-        }),
-      });
-      if (result.status === "processing") return;
-      const feedback = {
-        title: result.errors?.[0]?.label || result.errors?.[0]?.pattern?.replaceAll("-", " ") || "A more natural version",
-        body: result.errors?.[0]?.explain || "Keep the meaning; make the phrasing easier to follow.",
-        target: result.mirror_text || result.recast || result.native || speech,
-        audio: result.mirror_audio,
-        ownVoice: result.mirror_own_voice,
-      };
-      state.attempts.push({ transcript: speech, coaching: feedback, duration: null, wpm: null, fillers: null });
-      if (state.speakerState === "coach") state.pendingFeedback = feedback;
-      else renderLiveFeedback(feedback);
-    } catch {
-      setSessionState("live", "Your turn");
+    if (role === "coach") {
+      setText("caption-speaker", "教练");
+      setText("caption-text", speech);
+      return;
+    }
+    if (role === "user") {
+      setText("caption-speaker", "你");
+      setText("caption-text", speech);
+      if (state.recording) {
+        state.transcript = speech;
+        clearTimeout(state.silenceTimer);
+        state.silenceTimer = setTimeout(() => stopCapture(), 350);
+      }
     }
   }
 
-  function renderLiveFeedback(feedback) {
-    $("note-empty").hidden = true;
-    $("note-result").hidden = false;
-    setText("note-title", feedback.title);
-    setText("note-body", feedback.body);
-    setText("note-target", feedback.target);
-    state.latestFeedback = feedback;
-    $("listen-button").hidden = !feedback.audio;
-    setText("listen-label", feedback.ownVoice ? "Play in my voice" : "Listen to the rewrite");
-  }
-
-  async function playFeedback() {
-    const audioUrl = state.latestFeedback?.audio;
-    if (!audioUrl) return;
-    if (state.currentAudio) state.currentAudio.pause();
-    state.currentAudio = new Audio(audioUrl);
-    try { await state.currentAudio.play(); } catch {}
-  }
-
-  async function destroyCall() {
-    clearTimeout(state.joinTimeout);
-    state.joinTimeout = null;
-    if (!state.call) return;
-    const call = state.call;
-    state.call = null;
-    try { await call.leave(); } catch {}
-    try { await call.destroy(); } catch {}
-  }
-
-  async function cleanupRemoteRoom() {
-    const conversationId = state.conversationId;
-    await destroyCall();
-    if (!conversationId) return;
-    try {
-      await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(conversationId)}/end`, { method: "POST", body: "{}" });
-    } catch {}
-    sessionStorage.removeItem("fluent-me:active-conversation");
-    state.conversationId = null;
-  }
-
-  async function endLiveSession() {
-    if (state.ending) return;
-    state.ending = true;
-    stopTimer();
-    setSessionState("ending", "Saving what you practiced");
-    const conversationId = state.conversationId;
-    await destroyCall();
-    let report = null;
-    if (conversationId) {
+  async function connectTavus() {
+    if (state.baseMode === "tavus-live" && state.call) return true;
+    if (state.connecting) return state.connecting;
+    state.connecting = (async () => {
+      $("connection-card").hidden = true;
+      setCoachVisual("connecting", "正在请视频教练加入");
+      setText("preview-ribbon", "CONNECTING TO TAVUS…");
       try {
-        report = await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(conversationId)}/end`, { method: "POST", body: "{}" });
+        if (!window.Daily) throw new Error("Daily video client did not load.");
+        const room = await fetchJSON("/api/tavus/conversations", {
+          method: "POST",
+          body: JSON.stringify({ topic: "Tavus interview English", focus: "language_lesson" })
+        });
+        state.conversationId = room.conversation_id;
+        const call = window.Daily.createFrame($("daily-stage"), {
+          showLeaveButton: false,
+          showFullscreenButton: false,
+          showLocalVideo: true,
+          iframeStyle: { width: "100%", height: "100%", border: "0" }
+        });
+        state.call = call;
+        call.on("app-message", handleTavusMessage);
+        call.on("error", () => { void failConnection("视频连接发生错误。学习进度已经保留。"); });
+        call.on("left-meeting", () => {
+          if (document.body.dataset.view === "lesson") void failConnection("视频连接已经结束。学习进度还在，你可以重连或继续语音练习。");
+        });
+
+        const remoteJoined = new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error("The coach did not join in time.")), 20000);
+          const accept = participant => {
+            const videoReady = participant?.video || participant?.tracks?.video?.state === "playable";
+            if (participant && !participant.local && videoReady) {
+              clearTimeout(timer);
+              resolve(true);
+            }
+          };
+          call.on("participant-joined", event => accept(event?.participant));
+          call.on("participant-updated", event => accept(event?.participant));
+        });
+
+        $("daily-stage").hidden = false;
+        $("daily-stage").classList.add("pending");
+        await call.join({
+          url: room.conversation_url,
+          token: room.meeting_token,
+          startVideoOff: true,
+          startAudioOff: true
+        });
+        await remoteJoined;
+
+        state.baseMode = "tavus-live";
+        $("daily-stage").classList.remove("pending");
+        $("coach-still").hidden = true;
+        $("preview-ribbon").hidden = true;
+        setCoachVisual("tavus-live", "Tavus 视频教练已连接");
+        return true;
+      } catch (error) {
+        await failConnection(error.message || "视频教练暂时没有加入。");
+        return false;
+      } finally {
+        state.connecting = null;
+      }
+    })();
+    return state.connecting;
+  }
+
+  function showConnectionFailure(detail) {
+    state.baseMode = "offline";
+    $("daily-stage").hidden = true;
+    $("coach-still").hidden = false;
+    $("preview-ribbon").hidden = false;
+    setText("preview-ribbon", "等待真实 TAVUS 视频");
+    setCoachVisual("unavailable", "视频教练暂未连接");
+    $("connection-card").hidden = false;
+    setText("connection-copy", detail || "这不是预览模式。请重新连接真实 Tavus 视频教练。");
+  }
+
+  async function failConnection(detail) {
+    if (state.failureInProgress) return;
+    state.failureInProgress = true;
+    try {
+      await destroyCall(true);
+      state.baseMode = "offline";
+      showConnectionFailure(detail);
+    } finally {
+      state.failureInProgress = false;
+    }
+  }
+
+  async function destroyCall(endRemote = true) {
+    const call = state.call;
+    const conversationId = state.conversationId;
+    state.call = null;
+    state.conversationId = null;
+    if (call) {
+      try { await call.leave(); } catch {}
+      try { await call.destroy(); } catch {}
+    }
+    if (endRemote && conversationId) {
+      try {
+        await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(conversationId)}/end`, { method: "POST", body: "{}" });
       } catch {}
     }
-    sessionStorage.removeItem("fluent-me:active-conversation");
-    state.conversationId = null;
-    state.ending = false;
-    renderReview(state.attempts.at(-1), "You kept the conversation moving and saved a useful correction.", report);
-    if (conversationId && report?.status !== "ready") pollLiveReport(conversationId, 0);
   }
 
-  async function pollLiveReport(conversationId, attempt) {
-    if (attempt >= 7 || document.body.dataset.screen !== "review") return;
-    await new Promise(resolve => setTimeout(resolve, 1000 + attempt * 700));
-    try {
-      const report = await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(conversationId)}/report`, { headers: {} });
-      if (report.summary) setText("review-lede", report.summary);
-      if (report.best_moment) setText("review-target", report.best_moment);
-      if (report.status !== "ready") pollLiveReport(conversationId, attempt + 1);
-    } catch {}
-  }
-
-  function endSession() {
-    if (state.capability === "tavus" && state.conversationId) endLiveSession();
-    else finishBrowserSession();
-  }
-
-  function drawIdleWave() {
-    cancelAnimationFrame(state.drawFrame);
-    const canvas = $("voice-canvas");
-    if (!canvas || canvas.hidden) return;
-    const context = canvas.getContext("2d");
-    const width = canvas.width;
-    const height = canvas.height;
-    context.clearRect(0, 0, width, height);
-    const gradient = context.createLinearGradient(0, 0, width, 0);
-    gradient.addColorStop(0, "rgba(128,108,255,.08)");
-    gradient.addColorStop(.5, "rgba(154,140,255,.52)");
-    gradient.addColorStop(1, "rgba(64,217,173,.08)");
-    context.strokeStyle = gradient;
-    context.lineWidth = 3;
-    context.beginPath();
-    for (let x = 0; x <= width; x += 6) {
-      const envelope = Math.sin(Math.PI * x / width);
-      const y = height / 2 + Math.sin(x / 30) * 7 * envelope + Math.sin(x / 73) * 4 * envelope;
-      if (x === 0) context.moveTo(x, y); else context.lineTo(x, y);
+  async function startLesson() {
+    state.sentenceIndex = 0;
+    state.step = "listen";
+    state.records = LESSON.map(() => ({}));
+    setView("lesson");
+    renderStep();
+    if (state.configured) {
+      await connectTavus();
+    } else {
+      showConnectionFailure("这个部署还没有可用的 Tavus 服务端密钥，无法创建真实视频房间。");
     }
-    context.stroke();
   }
 
-  async function startLiveWave() {
-    if (!state.mediaStream) return;
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    state.audioContext = new AudioContext();
-    state.analyser = state.audioContext.createAnalyser();
-    state.analyser.fftSize = 256;
-    state.audioContext.createMediaStreamSource(state.mediaStream).connect(state.analyser);
-    const values = new Uint8Array(state.analyser.frequencyBinCount);
-    const canvas = $("voice-canvas");
-    const context = canvas.getContext("2d");
-    const draw = () => {
-      if (!state.analyser || state.sessionState !== "recording") return;
-      state.analyser.getByteFrequencyData(values);
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      const bars = 64;
-      const gap = 7;
-      const barWidth = (canvas.width - gap * (bars - 1)) / bars;
-      const gradient = context.createLinearGradient(0, 0, canvas.width, 0);
-      gradient.addColorStop(0, "#5f51c8");
-      gradient.addColorStop(.55, "#9a8cff");
-      gradient.addColorStop(1, "#40d9ad");
-      context.fillStyle = gradient;
-      for (let index = 0; index < bars; index += 1) {
-        const source = values[Math.floor(index / bars * values.length)] / 255;
-        const height = Math.max(5, source * canvas.height * .72);
-        const x = index * (barWidth + gap);
-        context.beginPath();
-        context.roundRect(x, (canvas.height - height) / 2, barWidth, height, barWidth / 2);
-        context.fill();
+  function advanceAfterCapture() {
+    if (state.step === "repeat") state.step = "fix";
+    else if (state.step === "fix") state.step = "recall";
+    else if (state.step === "recall") state.step = "use";
+    else if (state.step === "use") {
+      if (state.sentenceIndex >= LESSON.length - 1) {
+        completeLesson();
+        return;
       }
-      state.drawFrame = requestAnimationFrame(draw);
+      state.sentenceIndex += 1;
+      state.step = "listen";
+    }
+    renderStep({ announce: state.step === "fix" || state.step === "use" || state.step === "listen" });
+  }
+
+  function handlePrimary() {
+    if (state.step === "listen") {
+      state.step = "repeat";
+      renderStep();
+      return;
+    }
+    if (state.stepComplete) {
+      advanceAfterCapture();
+      return;
+    }
+    beginCapture();
+  }
+
+  function handleSecondary() {
+    const lesson = currentLesson();
+    if (state.step === "listen") speakCoach(lesson.target);
+    else if (state.step === "repeat") showTextEntry();
+    else if (state.step === "fix") speakCoach(lesson.fixChunk);
+    else if (state.step === "recall") {
+      $("task-note").hidden = false;
+      setText("task-note-label", "一个小提示");
+      setText("task-note-title", lesson.chunks[0]);
+      setText("task-note-copy", "只看开头，剩下的自己从记忆里找回来。");
+    } else if (state.step === "use") speakCoach(lesson.useQuestion);
+  }
+
+  async function completeLesson() {
+    stopCapture();
+    const completedAt = new Date().toISOString();
+    const review = {
+      completedAt,
+      dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      phrases: LESSON.map((lesson, index) => ({
+        target: lesson.target,
+        translation: lesson.translation,
+        recall: state.records[index].recall?.text || "",
+        use: state.records[index].use?.text || ""
+      }))
     };
-    draw();
-  }
+    try { localStorage.setItem("fluent-me:latest-lesson", JSON.stringify(review)); } catch {}
 
-  function togglePanel(button) {
-    if (button.disabled) return;
-    document.querySelectorAll(".panel-tab").forEach(tab => {
-      const active = tab === button;
-      tab.classList.toggle("active", active);
-      tab.setAttribute("aria-selected", String(active));
+    const root = $("learned-list");
+    root.replaceChildren();
+    review.phrases.forEach((phrase, index) => {
+      const card = document.createElement("article");
+      card.className = "learned-item";
+      const number = document.createElement("span");
+      number.textContent = `0${index + 1} · LEARNED`;
+      const target = document.createElement("p");
+      target.textContent = phrase.target;
+      const detail = document.createElement("small");
+      detail.textContent = phrase.use ? `你在对话里说：${phrase.use}` : phrase.translation;
+      card.append(number, target, detail);
+      root.appendChild(card);
     });
-    $("coaching-panel").hidden = button.dataset.panel !== "coaching";
-    $("perception-panel").hidden = button.dataset.panel !== "perception";
+    setView("complete");
+    window.speechSynthesis?.cancel();
+    await destroyCall(true);
   }
 
-  async function toggleMic() {
-    if (!state.call) return;
-    const next = !$("mic-toggle").classList.contains("off");
-    await state.call.setLocalAudio(!next);
-    $("mic-toggle").classList.toggle("off", next);
-    setText("mic-toggle", next ? "Mic off" : "Mic");
+  async function exitLesson() {
+    stopCapture();
+    window.speechSynthesis?.cancel();
+    await destroyCall(true);
+    state.baseMode = "offline";
+    $("daily-stage").hidden = true;
+    $("coach-still").hidden = false;
+    $("preview-ribbon").hidden = false;
+    $("connection-card").hidden = true;
+    setView("welcome");
+    checkCapability();
   }
 
-  async function toggleCamera() {
-    if (!state.call) return;
-    const next = !$("camera-toggle").classList.contains("off");
-    await state.call.setLocalVideo(!next);
-    $("camera-toggle").classList.toggle("off", next);
-    setText("camera-toggle", next ? "Camera off" : "Camera");
-  }
-
-  document.querySelectorAll(".prompt-chip").forEach(button => button.addEventListener("click", () => selectPrompt(button)));
-  document.querySelectorAll(".panel-tab").forEach(button => button.addEventListener("click", () => togglePanel(button)));
-  $("practice-goal").addEventListener("input", () => document.querySelectorAll(".prompt-chip").forEach(chip => chip.classList.remove("selected")));
-  $("start-button").addEventListener("click", startPractice);
-  $("record-control").addEventListener("click", handleRecordControl);
-  $("end-session").addEventListener("click", endSession);
-  $("practice-again").addEventListener("click", () => {
-    $("practice-goal").value = state.goal;
-    startPractice();
+  $("start-lesson").addEventListener("click", startLesson);
+  $("primary-action").addEventListener("click", handlePrimary);
+  $("secondary-action").addEventListener("click", handleSecondary);
+  $("type-instead").addEventListener("click", () => showTextEntry("直接输入你想说的英文，也可以走完整个练习。"));
+  $("stop-recording").addEventListener("click", () => stopCapture());
+  $("submit-text").addEventListener("click", () => finishCapturedText($("typed-answer").value));
+  $("edit-transcript").addEventListener("click", () => {
+    $("typed-answer").value = $("capture-text").textContent || "";
+    showTextEntry("修改后点击“使用这句话”。");
   });
-  $("new-goal").addEventListener("click", () => resetToSetup());
-  $("listen-button").addEventListener("click", playFeedback);
-  $("mic-toggle").addEventListener("click", toggleMic);
-  $("camera-toggle").addEventListener("click", toggleCamera);
-  $("transcript-toggle").addEventListener("click", () => {
-    state.captionsVisible = !state.captionsVisible;
-    $("live-words").hidden = !state.captionsVisible;
-    if (!state.captionsVisible) $("caption-strip").hidden = true;
-    $("transcript-toggle").classList.toggle("off", !state.captionsVisible);
+  $("play-recording").addEventListener("click", () => {
+    if (!state.currentAudioUrl) return;
+    window.speechSynthesis?.cancel();
+    new Audio(state.currentAudioUrl).play().catch(() => {});
   });
+  $("retry-tavus").addEventListener("click", async () => {
+    $("connection-card").hidden = true;
+    const connected = await connectTavus();
+    if (connected) {
+      const lesson = currentLesson();
+      if (state.step === "fix") speakCoach(lesson.fixChunk);
+      else if (state.step === "use") speakCoach(lesson.useQuestion);
+    }
+  });
+  $("exit-button").addEventListener("click", exitLesson);
+  $("practice-again").addEventListener("click", startLesson);
+  $("back-home").addEventListener("click", () => { setView("welcome"); checkCapability(); });
 
-  window.addEventListener("resize", () => { if (state.sessionState !== "recording") drawIdleWave(); });
-  window.addEventListener("pagehide", () => {
-    stopRecognitionAndMedia();
-    if (state.call) { try { state.call.leave(); } catch {} }
+  window.addEventListener("beforeunload", () => {
+    state.mediaStream?.getTracks().forEach(track => track.stop());
     if (state.conversationId) {
       fetch(`/api/tavus/conversations/${encodeURIComponent(state.conversationId)}/end`, {
-        method: "POST", headers: { "content-type": "application/json" }, body: "{}", keepalive: true,
+        method: "POST", headers: { "content-type": "application/json" }, body: "{}", keepalive: true
       }).catch(() => {});
     }
   });
 
-  boot();
+  if (window.speechSynthesis) window.speechSynthesis.getVoices();
+  checkCapability();
 })();

@@ -18,7 +18,7 @@ from typing import Any
 
 
 BASE = Path(__file__).resolve().parent.parent
-CACHE_FILE = BASE / "data" / "tavus_pal_v2.json"
+CACHE_FILE = BASE / "data" / "tavus_pal_v3.json"
 DEFAULT_API_BASE = "https://tavusapi.com/v2"
 
 
@@ -79,7 +79,7 @@ def _request(method: str, path: str, payload: dict | None = None,
 def _cached_pal_id() -> str:
     try:
         cached = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-        if cached.get("schema") == 1:
+        if cached.get("schema") == 2:
             return str(cached.get("pal_id") or "")
     except (OSError, ValueError, AttributeError):
         pass
@@ -88,7 +88,7 @@ def _cached_pal_id() -> str:
 
 def _save_pal_id(pal_id: str, face_id: str) -> None:
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_text(json.dumps({"schema": 1, "pal_id": pal_id,
+    CACHE_FILE.write_text(json.dumps({"schema": 2, "pal_id": pal_id,
                                       "face_id": face_id}, indent=2), encoding="utf-8")
 
 
@@ -116,19 +116,19 @@ def _select_face_id() -> str:
     raise TavusAPIError(400, "No ready Tavus Face is available. Set TAVUS_FACE_ID first.")
 
 
-PAL_SYSTEM_PROMPT = """You are Fluent Me's warm, observant English conversation coach.
-Your job is to hold a natural face-to-face conversation, not to lecture or grade aloud.
+PAL_SYSTEM_PROMPT = """You are the visible English coach inside Fluent Me.
 
-Use the learner context supplied for this conversation. Remember personal facts casually and
-weave due language patterns into natural questions without naming the pattern or revealing the
-learning machinery. Keep most turns to one or two spoken sentences. Give the learner time to
-finish. If a sentence is imperfect, respond to its meaning first; Fluent Me provides private
-correction cards beside the call.
+The Fluent Me interface owns a five-step lesson: Listen, Repeat, Fix, Recall, and Use. Never
+advance the lesson yourself and never give numeric scores. The app may send exact model sentences
+through conversation.echo; speak those sentences exactly and naturally.
 
-Raven may provide visual and vocal observations. Treat them as uncertain context, never as facts
-about emotion, personality, ability, protected traits, or intent. You may mention a visible object,
-screen, or obvious activity when it makes the conversation more natural. Never use perception to
-score the learner. You are an AI coach, not a human and not an examiner."""
+When the learner repeats or recalls a sentence, acknowledge its meaning in at most one short
+sentence, then wait. Do not interrupt. During the Use step, ask or answer one natural follow-up so
+the new expression enters a real conversation. Keep every turn short, warm, spoken-first, and
+appropriate for an intermediate English learner.
+
+Raven observations are uncertain context only. Never infer ability, personality, protected traits,
+or mental state from perception. You are an AI English coach, not a human and not an examiner."""
 
 
 def ensure_pal() -> tuple[str, str]:

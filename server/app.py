@@ -158,6 +158,7 @@ TAVUS_FOCUS = {
     "conversation": "everyday conversation",
     "interview": "a concise job-interview answer",
     "story": "telling a clear story about a recent experience",
+    "language_lesson": "a structured Listen, Repeat, Fix, Recall, and Use English lesson",
 }
 
 
@@ -191,8 +192,13 @@ def _tavus_greeting(briefing: dict, focus: str, topic: str = "") -> str:
         "conversation": "What have you been working on lately?",
         "interview": "Let's begin: tell me about yourself and what you want to build next.",
         "story": "Tell me about something memorable that happened recently.",
+        "language_lesson": ("First, look at me and listen. The screen will tell you exactly "
+                            "when it is your turn to repeat, recall, and answer."),
     }
     if topic:
+        if focus == "language_lesson":
+            return (f"Welcome, {name}. We're practicing {topic[:220]}. First, look at me and "
+                    "listen. The screen will tell you exactly when it is your turn.")
         return (f"Hey {name} — good to see you. Let's work on this: {topic[:220]}. "
                 "Give me your answer as if we were already in the conversation.")
     return f"Hey {name} — good to see you. {prompts[focus]}"
@@ -230,8 +236,8 @@ def tavus_status():
     cache_ready = bool(os.environ.get("TAVUS_PAL_ID")) or (BASE / "data" / "tavus_pal_v2.json").exists()
     return {
         "configured": tavus.configured(),
-        "mode": "live" if tavus.configured() else "browser_practice",
-        "experience_mode": "tavus_live" if tavus.configured() else "browser_practice",
+        "mode": "live" if tavus.configured() else "tavus_required",
+        "experience_mode": "tavus_live" if tavus.configured() else "tavus_required",
         "pal_ready": cache_ready,
         "mirror_voice_ready": bool(tts._eleven_voices().get("user")) or tts.USER_REF.exists(),
         "capabilities": {

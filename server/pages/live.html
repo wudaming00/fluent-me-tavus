@@ -1,204 +1,174 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#090b10">
-  <meta name="description" content="Real English speaking practice with live conversation, useful coaching, and learning memory.">
-  <meta property="og:title" content="Fluent Me">
-  <meta property="og:description" content="Speak. Notice. Say it better.">
-  <meta property="og:image" content="/static/og-v2.png">
-  <title>Fluent Me — speaking practice</title>
+  <meta name="theme-color" content="#f5f2ea">
+  <meta name="description" content="Learn useful English by listening, repeating, recalling, and using it with a Tavus video coach.">
+  <meta property="og:title" content="Fluent Me — learn it, then use it">
+  <meta property="og:description" content="Learn three useful English phrases with a face-to-face AI coach.">
+  <meta property="og:image" content="/static/og-language-lesson.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>Fluent Me — learn it, then use it</title>
   <link rel="stylesheet" href="/static/live.css">
-  <script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
+  <script crossorigin src="https://unpkg.com/@daily-co/daily-js@0.91.0"></script>
 </head>
-<body data-screen="setup" data-session-state="idle">
+<body data-view="welcome" data-lesson-step="listen" data-coach-mode="checking">
   <div class="app-shell">
-    <header class="app-bar">
-      <a class="brand" href="/" aria-label="Fluent Me home">
-        <span class="brand-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Fluent Me 首页">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
         <span>Fluent Me</span>
       </a>
-      <nav class="app-nav" aria-label="Primary navigation">
-        <a href="/studio">Voice mirror</a>
-        <a href="/progress">Learning memory</a>
-      </nav>
-      <div class="capability-pill" id="capability-pill" aria-live="polite">
-        <span></span><b id="capability-label">Getting ready</b>
+      <div class="topbar-center" id="lesson-progress" hidden>
+        <span id="lesson-topic">Tavus interview English</span>
+        <b id="sentence-count">第 1 / 3 句</b>
       </div>
+      <button class="text-button" id="exit-button" type="button" hidden>退出练习</button>
     </header>
 
     <main>
-      <section class="setup-screen" id="setup-screen" aria-labelledby="setup-title">
-        <div class="setup-copy">
-          <p class="overline">Live speaking practice</p>
-          <h1 id="setup-title">What do you want to get better at?</h1>
-          <p>Say a real answer. Get one useful note. Try it again while it is still fresh.</p>
-        </div>
+      <section class="welcome" id="welcome" aria-labelledby="welcome-title">
+        <div class="welcome-copy">
+          <p class="eyebrow">5-minute English lesson</p>
+          <h1 id="welcome-title">三句话，<br>真正说出口。</h1>
+          <p class="welcome-lede">先听教练示范，再跟读、纠正、脱稿，最后把它用进一段真实对话。</p>
 
-        <div class="setup-grid">
-          <section class="prompt-builder" aria-label="Choose a practice goal">
-            <label for="practice-goal">Today I want to practice</label>
-            <textarea id="practice-goal" rows="3" maxlength="240">Explain a product I built from zero to one</textarea>
-
-            <div class="prompt-suggestions" role="group" aria-label="Suggested practice goals">
-              <button class="prompt-chip selected" type="button" data-focus="interview" data-prompt="Explain a product I built from zero to one">
-                <span>01</span><b>Zero to one</b><small>Explain what you owned and why it mattered</small>
-              </button>
-              <button class="prompt-chip" type="button" data-focus="interview" data-prompt="Describe how I understand the AI ecosystem">
-                <span>02</span><b>AI ecosystem</b><small>Models, infrastructure, products, and distribution</small>
-              </button>
-              <button class="prompt-chip" type="button" data-focus="interview" data-prompt="Explain why Tavus is more than a digital face">
-                <span>03</span><b>Tavus interview</b><small>Perception, turn-taking, memory, and interaction</small>
-              </button>
-              <button class="prompt-chip" type="button" data-focus="conversation" data-prompt="Have a natural conversation about what I am building">
-                <span>04</span><b>Open conversation</b><small>Practice without a script</small>
-              </button>
-            </div>
-          </section>
-
-          <aside class="session-card">
-            <div class="session-card-top">
-              <span class="mode-icon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-              <div><p id="mode-kicker">60-second practice</p><h2 id="mode-title">Ready on this device</h2></div>
-            </div>
-            <ol class="session-steps">
-              <li><span>1</span><div><b>Speak naturally</b><small>Use your microphone or type if speech recognition is unavailable.</small></div></li>
-              <li><span>2</span><div><b>See real evidence</b><small>Your words, pace, fillers, and answer structure—not a made-up score.</small></div></li>
-              <li><span>3</span><div><b>Try it once more</b><small>Carry one specific improvement into the second attempt.</small></div></li>
-            </ol>
-            <label class="camera-setting" id="camera-setting" hidden>
-              <input id="camera-enabled" type="checkbox" checked>
-              <span><b>Use my camera</b><small>Optional. Visible context is never used for grading.</small></span>
-            </label>
-            <button class="start-button" id="start-button" type="button" disabled>
-              <span id="start-label">Preparing practice</span><i aria-hidden="true">→</i>
-            </button>
-            <p class="privacy-note" id="privacy-note"><span aria-hidden="true">●</span> Microphone access starts only after you continue.</p>
-          </aside>
-        </div>
-
-        <section class="recent-practice" id="recent-practice" hidden aria-labelledby="recent-title">
-          <div><p class="overline">Last practice</p><h2 id="recent-title">Pick up where you left off</h2></div>
-          <div class="recent-summary"><span id="recent-goal"></span><b id="recent-result"></b></div>
-          <button id="recent-retry" type="button">Practice again <span>→</span></button>
-        </section>
-      </section>
-
-      <section class="practice-screen" id="practice-screen" hidden aria-label="Speaking practice room">
-        <header class="room-bar">
-          <div class="room-goal"><span>Goal</span><b id="room-goal"></b></div>
-          <div class="room-status"><i></i><span id="room-status">Ready</span><time id="room-timer">00:00</time></div>
-          <button class="end-session" id="end-session" type="button">End</button>
-        </header>
-
-        <div class="room-layout">
-          <section class="conversation-stage" id="conversation-stage">
-            <div class="browser-stage" id="browser-stage">
-              <div class="stage-topline"><span id="attempt-label">Attempt 1 of 2</span><span id="stage-mode">On-device practice</span></div>
-              <div class="prompt-display">
-                <p id="stage-kicker">Your prompt</p>
-                <h2 id="stage-prompt"></h2>
-                <p id="stage-instruction">Take a breath. Start when you are ready.</p>
-              </div>
-              <canvas class="voice-canvas" id="voice-canvas" width="1200" height="240" aria-label="Live microphone level"></canvas>
-              <div class="live-words" id="live-words" aria-live="polite">Your words will appear here as you speak.</div>
-              <div class="text-fallback" id="text-fallback" hidden>
-                <label for="fallback-answer">Speech recognition is unavailable. Type the answer you would say aloud.</label>
-                <textarea id="fallback-answer" rows="6" maxlength="2400" placeholder="Type your answer here…"></textarea>
-              </div>
-              <div class="stage-message" id="stage-message" hidden></div>
-            </div>
-            <div class="video-stage" id="video-stage" hidden></div>
-            <div class="caption-strip" id="caption-strip" hidden><span id="caption-speaker">You</span><p id="caption-text"></p></div>
-          </section>
-
-          <aside class="coach-panel">
-            <div class="panel-tabs" role="tablist" aria-label="Practice insights">
-              <button class="panel-tab active" id="coaching-tab" type="button" role="tab" aria-selected="true" data-panel="coaching">Coaching</button>
-              <button class="panel-tab" id="perception-tab" type="button" role="tab" aria-selected="false" data-panel="perception" disabled>Perception</button>
-            </div>
-
-            <div class="panel-content" id="coaching-panel" role="tabpanel">
-              <section class="goal-card"><span>Your goal</span><p id="panel-goal"></p></section>
-
-              <section class="coach-note" id="coach-note">
-                <div class="note-empty" id="note-empty">
-                  <span class="listening-orb" aria-hidden="true"><i></i></span>
-                  <h3>Your most useful note will appear here.</h3>
-                  <p>We wait until you finish. Nothing interrupts your answer.</p>
-                </div>
-                <div class="note-result" id="note-result" hidden>
-                  <p class="panel-eyebrow">One thing to try</p>
-                  <h3 id="note-title"></h3>
-                  <p id="note-body"></p>
-                  <blockquote id="note-target"></blockquote>
-                  <button class="listen-button" id="listen-button" type="button" hidden><span>▶</span><b id="listen-label">Listen to the rewrite</b></button>
-                </div>
-              </section>
-
-              <section class="evidence" id="evidence" aria-label="Answer evidence">
-                <div><span>Time</span><b id="metric-time">—</b></div>
-                <div><span>Pace</span><b id="metric-wpm">—</b></div>
-                <div><span>Fillers</span><b id="metric-fillers">—</b></div>
-              </section>
-
-              <section class="attempt-compare" id="attempt-compare" hidden>
-                <span>Second attempt</span><h3 id="compare-title"></h3><p id="compare-copy"></p>
-              </section>
-            </div>
-
-            <div class="panel-content" id="perception-panel" role="tabpanel" hidden>
-              <p class="perception-intro">Observations are tentative conversational context. They never affect your language feedback.</p>
-              <section class="perception-item"><span>Voice delivery</span><p id="audio-perception">Waiting for a complete turn.</p></section>
-              <section class="perception-item"><span>Visible context</span><p id="visual-perception">Waiting for camera context.</p></section>
-              <div class="perception-footnote"><i></i><span>Context only · not used in scoring</span></div>
-            </div>
-          </aside>
-        </div>
-
-        <footer class="room-controls">
-          <div class="media-controls">
-            <button class="round-control" id="mic-toggle" type="button" aria-label="Mute microphone" hidden>Mic</button>
-            <button class="round-control" id="camera-toggle" type="button" aria-label="Turn camera off" hidden>Camera</button>
+          <div class="lesson-preview" aria-label="今天的课程步骤">
+            <div><span>01</span><b>听一句</b><small>看着教练，听自然表达</small></div>
+            <div><span>02</span><b>说出来</b><small>跟读，只改最关键的一处</small></div>
+            <div><span>03</span><b>用进去</b><small>脱稿后放进真实回答</small></div>
           </div>
-          <button class="record-control" id="record-control" type="button"><span class="record-dot"></span><b id="record-label">Start answer</b></button>
-          <button class="quiet-control" id="transcript-toggle" type="button">Transcript</button>
-        </footer>
-      </section>
 
-      <section class="review-screen" id="review-screen" hidden aria-labelledby="review-title">
-        <div class="review-mark" aria-hidden="true"><span>✓</span></div>
-        <p class="overline">Practice complete</p>
-        <h1 id="review-title">You said it better the second time.</h1>
-        <p class="review-lede" id="review-lede"></p>
-
-        <div class="review-grid">
-          <section class="review-main">
-            <p class="panel-eyebrow">Carry this forward</p>
-            <h2 id="review-note-title"></h2>
-            <p id="review-note-body"></p>
-            <blockquote id="review-target"></blockquote>
-          </section>
-          <section class="review-evidence">
-            <div><span>Attempts</span><b id="review-attempts">1</b></div>
-            <div><span>Latest pace</span><b id="review-wpm">—</b></div>
-            <div><span>Latest fillers</span><b id="review-fillers">—</b></div>
-            <div><span>Practice time</span><b id="review-time">—</b></div>
-          </section>
+          <button class="primary-button welcome-start" id="start-lesson" type="button">
+            <span>连接 Tavus 教练</span><i aria-hidden="true">→</i>
+          </button>
+          <p class="welcome-note">今天主题：如何解释 Tavus 不只是一个数字人脸</p>
         </div>
 
-        <details class="transcript-details" id="transcript-details">
-          <summary>Review what I said <span>＋</span></summary>
-          <div id="review-transcript"></div>
-        </details>
+        <aside class="welcome-coach" aria-label="Tavus 视频教练预览">
+          <div class="coach-preview-frame">
+            <div class="tavus-waiting-canvas" aria-label="等待连接真实 Tavus 视频">
+              <span>TAVUS</span><i></i><b>LIVE VIDEO</b>
+            </div>
+            <div class="coach-preview-badge"><i></i><span>等待连接真实 Tavus 视频</span></div>
+            <div class="coach-preview-copy">
+              <p>YOUR VIDEO COACH</p>
+              <h2>点击开始，直接连接 Tavus。</h2>
+              <span>这里不放静态人脸；远端视频轨道出现后才显示教练。</span>
+            </div>
+          </div>
+          <div class="coach-readiness" id="welcome-readiness" aria-live="polite">
+            <span class="status-dot"></span>
+            <div><b id="welcome-status">正在检查 Tavus 连接…</b><small id="welcome-status-detail">不会在未连接时假装在线</small></div>
+          </div>
+        </aside>
+      </section>
 
-        <div class="review-actions">
-          <button class="start-button compact" id="practice-again" type="button"><span>Practice this again</span><i>→</i></button>
-          <button class="secondary-button" id="new-goal" type="button">Choose a new goal</button>
+      <section class="lesson" id="lesson" hidden aria-label="英语练习课程">
+        <nav class="stepper" aria-label="课程步骤">
+          <ol>
+            <li data-step="listen"><span>1</span><div><b>先听</b><small>Listen</small></div></li>
+            <li data-step="repeat"><span>2</span><div><b>跟读</b><small>Repeat</small></div></li>
+            <li data-step="fix"><span>3</span><div><b>改一处</b><small>Fix</small></div></li>
+            <li data-step="recall"><span>4</span><div><b>脱稿</b><small>Recall</small></div></li>
+            <li data-step="use"><span>5</span><div><b>对话</b><small>Use</small></div></li>
+          </ol>
+        </nav>
+
+        <div class="lesson-grid">
+          <section class="coach-stage" aria-label="视频教练">
+            <div class="coach-still tavus-waiting-canvas" id="coach-still" aria-label="等待连接真实 Tavus 视频">
+              <span>TAVUS</span><i></i><b>CONNECTING</b>
+            </div>
+            <div class="daily-stage" id="daily-stage" hidden></div>
+
+            <div class="coach-state" id="coach-state">
+              <span class="coach-state-dot"></span>
+              <b id="coach-state-label">正在连接视频教练</b>
+            </div>
+            <div class="preview-ribbon" id="preview-ribbon">等待真实 TAVUS 视频</div>
+            <div class="coach-caption" id="coach-caption" aria-live="polite">
+              <span id="caption-speaker">教练</span>
+              <p id="caption-text">连接后，教练会在这里示范并与你对话。</p>
+            </div>
+
+            <div class="connection-card" id="connection-card" hidden>
+              <p id="connection-title">视频教练暂未连接</p>
+              <span id="connection-copy">这不是预览模式。请重新连接真实 Tavus 视频教练。</span>
+              <div>
+                <button class="small-button strong" id="retry-tavus" type="button">重新连接 Tavus</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="task-panel" aria-labelledby="task-title">
+            <div class="task-heading">
+              <p class="task-index" id="task-index">第 1 / 5 步 · LISTEN</p>
+              <h2 id="task-title">先听教练说，不用开口。</h2>
+              <p id="task-instruction">注意句子里两个自然的意群。</p>
+            </div>
+
+            <div class="phrase-card" id="phrase-card">
+              <p class="target-phrase" id="target-phrase">Tavus is more than a digital face.</p>
+              <p class="translation" id="translation">Tavus 不只是一个数字人脸。</p>
+              <div class="chunks" id="chunks" aria-label="句子意群"></div>
+            </div>
+
+            <div class="capture-result" id="capture-result" hidden aria-live="polite">
+              <span id="capture-label">我听到你说</span>
+              <p id="capture-text"></p>
+              <div class="capture-actions">
+                <button class="inline-button" id="play-recording" type="button" hidden>▶ 听我的录音</button>
+                <button class="inline-button" id="edit-transcript" type="button">文字不对？修改</button>
+              </div>
+            </div>
+
+            <div class="text-entry" id="text-entry" hidden>
+              <label for="typed-answer">输入你刚才说的英文</label>
+              <textarea id="typed-answer" rows="3" maxlength="500" placeholder="Type what you said…"></textarea>
+              <button class="small-button strong" id="submit-text" type="button">使用这句话</button>
+            </div>
+
+            <div class="task-note" id="task-note" hidden>
+              <span id="task-note-label">只改这一处</span>
+              <b id="task-note-title"></b>
+              <p id="task-note-copy"></p>
+            </div>
+
+            <div class="task-actions">
+              <button class="secondary-button" id="secondary-action" type="button">再听一遍</button>
+              <button class="primary-button" id="primary-action" type="button">
+                <span>轮到我</span><i aria-hidden="true">→</i>
+              </button>
+            </div>
+            <div class="action-meta">
+              <p class="action-help" id="action-help">点击“轮到我”后，再开始说。</p>
+              <button class="type-instead" id="type-instead" type="button" hidden>没有麦克风？输入英文</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="complete" id="complete" hidden aria-labelledby="complete-title">
+        <div class="complete-copy">
+          <p class="eyebrow">Lesson complete</p>
+          <h1 id="complete-title">这三句话，<br>你已经用出来了。</h1>
+          <p>明天不要先看原句。换一个问题，把它们从记忆里叫回来。</p>
+        </div>
+        <div class="learned-list" id="learned-list"></div>
+        <div class="complete-actions">
+          <button class="primary-button" id="practice-again" type="button"><span>再练一遍</span><i>↻</i></button>
+          <button class="secondary-button" id="back-home" type="button">回到首页</button>
         </div>
       </section>
     </main>
+  </div>
+
+  <div class="recording-toast" id="recording-toast" hidden>
+    <span class="recording-pulse"></span>
+    <div><b>正在听你说</b><small id="recording-hint">说完后点“完成”</small></div>
+    <button id="stop-recording" type="button">完成</button>
   </div>
 
   <script src="/static/live.js" defer></script>

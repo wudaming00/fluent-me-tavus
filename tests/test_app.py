@@ -13,22 +13,32 @@ import app as app_module  # noqa: E402
 client = TestClient(app_module.app)
 
 
-def test_home_is_conversation_first_practice_room():
+def test_home_is_a_clear_language_lesson_with_visible_tavus_stage():
     response = client.get("/")
     assert response.status_code == 200
-    assert "What do you want to get better at?" in response.text
-    assert "Start speaking practice" not in response.text  # capability copy is set at runtime
+    assert "三句话" in response.text
+    assert "连接 Tavus 教练" in response.text
+    assert "Tavus 视频教练" in response.text
+    assert "tavus-coach-preview.png" not in response.text
+    assert "等待连接真实 Tavus 视频" in response.text
+    assert "先听" in response.text
+    assert "跟读" in response.text
+    assert "脱稿" in response.text
+    assert "对话" in response.text
+    assert "Pace" not in response.text
+    assert "Fillers" not in response.text
+    assert "Perception" not in response.text
     assert "Kai" not in response.text
     assert "/static/live.js" in response.text
 
 
-def test_unconfigured_status_selects_real_browser_practice(monkeypatch):
+def test_unconfigured_status_requires_real_tavus(monkeypatch):
     monkeypatch.delenv("TAVUS_API_KEY", raising=False)
     response = client.get("/api/tavus/status")
     assert response.status_code == 200
     assert response.json()["configured"] is False
-    assert response.json()["mode"] == "browser_practice"
-    assert response.json()["experience_mode"] == "browser_practice"
+    assert response.json()["mode"] == "tavus_required"
+    assert response.json()["experience_mode"] == "tavus_required"
 
 
 def test_browser_practice_uses_real_input_not_fixed_sample():
@@ -37,6 +47,11 @@ def test_browser_practice_uses_real_input_not_fixed_sample():
     assert "SpeechRecognition" in response.text
     assert "getUserMedia" in response.text
     assert "localStorage" in response.text
+    assert "conversation.echo" in response.text
+    assert "Listen, Repeat, Fix, Recall, and Use" not in response.text  # copy lives in the PAL prompt
+    assert "Tavus is more than a digital face." in response.text
+    assert "pace" not in response.text.lower()
+    assert "fillers" not in response.text.lower()
     assert "const SAMPLE" not in response.text
     assert "guided preview" not in response.text.lower()
 

@@ -1,153 +1,57 @@
-# Fluent Me — a tutor that remembers you, in your own voice
+# Fluent Me × Tavus
 
-## Fluent Me × Tavus — embodied practice room
+Fluent Me is a face-to-face English lesson built around a real Tavus CVI room. The default experience does not use a static person or a simulated call: after the learner clicks **连接 Tavus 教练**, the server creates a private Tavus conversation and the UI waits for a playable remote video track before showing the coach.
 
-The default route is now a face-to-face practice room built around a strict division of responsibility:
+## The lesson
 
-- **Tavus CVI** supplies the coach's Face, full-duplex conversation, Raven-1 visual/audio context, and Sparrow-1 turn-taking.
-- **Fluent Me** supplies the pedagogical layer: per-turn language evidence, mistake-card retrieval, spaced repetition, learner memory, and the private “hear the fluent me” correction loop.
-- **The learner's cloned voice stays separate from the coach.** A Tavus Face uses its own voice (and a video-trained Face can reproduce that person's voice); Fluent Me uses ElevenLabs or local TTS only for the learner's correction card. The tutor's face therefore never speaks with the learner's identity.
+Each of the three phrases follows the same visible loop:
 
-Raven observations are treated as uncertain conversational context. They are displayed transparently and never used to calculate grammar, vocabulary, CEFR, pronunciation, confidence, personality, or hiring signals. The managed PAL sets biometric emotion recognition to `limited` for this educational experience.
+1. **Listen** — the Tavus coach models the sentence.
+2. **Repeat** — the learner says the complete sentence.
+3. **Fix** — Fluent Me isolates one useful chunk.
+4. **Recall** — the English is removed and the learner retrieves it from the Chinese meaning.
+5. **Use** — the coach asks a real question and the learner uses the phrase in an answer.
 
-### Run the new experience
+Tavus owns the embodied interface: Phoenix face, live video, Raven perception configuration, Sparrow turn-taking, and spoken delivery. Fluent Me owns the pedagogy: the sentence sequence, recording/transcription, one-focus feedback, recall, and local lesson history.
 
-```bash
+## Run locally
+
+```powershell
 python -m pip install -r requirements.txt
-copy .env.example .env
+Copy-Item .env.example .env
 cd server
 python -m uvicorn app:app --host 127.0.0.1 --port 8901
 ```
 
-Open `http://127.0.0.1:8901/`. Without Tavus credentials it runs a real on-device speaking loop: microphone transcription when supported, observable pace/filler/structure evidence, a focused retry, and local practice history. It never invents Tavus perception or language scores.
-
-For a live private room, put a newly rotated key in `.env`:
+Set a newly rotated credential in `.env`:
 
 ```dotenv
 TAVUS_API_KEY=...
-# Optional: reuse existing resources. Otherwise Fluent Me selects a ready stock Face
-# and creates one cached PAL with Raven-1 + Sparrow-1 on the first live session.
 TAVUS_PAL_ID=
 TAVUS_FACE_ID=
 ```
 
-The key remains server-side. The browser receives only the private conversation URL and its meeting token. `ELEVENLABS_API_KEY` is optional and powers the learner's cloned-voice Mirror card; it is not passed to Tavus.
+Open `http://127.0.0.1:8901/`. The API key stays server-side. If `TAVUS_PAL_ID` is absent, the server reuses or creates the versioned Fluent Me PAL. If no valid Tavus key is available, the page reports that real video cannot connect; it does not substitute a fake face.
 
-### Live data flow
+For the hosted Sites build, store `TAVUS_API_KEY` as a secret runtime environment variable. Never commit it to source or paste it into client-side code. Rotate any credential that has appeared in chat or logs.
+
+## Runtime flow
 
 ```text
-Tavus Face + Raven + Sparrow ── conversation.utterance ──▶ Fluent Me
-          │                                                ├─ language judge
-          └─ natural live reply                            ├─ FSRS-lite memory
-                                                           └─ cloned-voice recast
+learner clicks connect
+        │
+        ▼
+Sites Worker / FastAPI ── server-side x-api-key ──▶ Tavus /conversations
+        │                                      private room + meeting token
+        ▼
+Daily iframe joins with camera and microphone off
+        │
+        ├─ waits for the remote coach video track to become playable
+        └─ conversation.echo makes the Tavus coach model exact lesson phrases
 ```
 
-Fluent Me consumes final user utterance events asynchronously. `seq` / `inference_id` dedupe reconnect replays, and each Tavus `conversation_id` owns separate session state. Current `replica` and compatible `pal` roles normalize to one coach identity before deduplication.
+Connection failures end the remote conversation to avoid orphaned rooms. Hosted deployment is private by default.
 
-The earlier sentence-only practice experience remains available at `/studio`; the existing conversation modes remain at `/talk`.
+The older hack-night practice surfaces remain in the repository, but `/` is now the Tavus language lesson described above.
 
-Built for **ElevenLabs x Sauna Hack Night** (2026-07-16, SF). The prompt was "AI with
-memory and voice" — this is the literal answer: a spoken-English tutor with real memory.
-
-**The idea.** Hold a button and chat with the coach. Every mistake becomes a spaced-repetition
-memory card — and instead of flashcards, the coach *engineers the conversation* so the natural answer
-to his next question forces you to face that exact pattern again, right before you'd forget it.
-Corrections are spoken back **in your own cloned voice**: you literally hear the fluent version
-of yourself, already existing. Then the ECHO loop asks you to try it on — and scores you against
-*yourself five seconds ago*, the only comparison that can't hurt.
-
-**Why it's different.**
-- *Conversational spaced repetition* — FSRS-inspired scheduling (per-card stability + live
-  retrievability decay), hidden inside small talk. Never a flashcard. Duolingo drills everyone
-  the same; Fluent Me remembers *you* and creates useful retrieval moments.
-- *Your life is the curriculum* — identity facts Fluent Me learns (or you toggle on /me) generate
-  personalized roleplay scenes: "coffee chat with a Google recruiter — because you mentioned
-  about your friend there." Plus full **Interview prep** (STAR feedback + the killer moment:
-  *your own answer, polished, in your own voice*) and **Presentation rehearsal** (per-section
-  timing, clarity coaching, skeptical-audience Q&A).
-- *Honest scoring* — grammar/vocab by an LLM judge; fluency from pace/pauses/fillers;
-  pronunciation is an **ASR-confidence proxy and labeled as such** (Scribe v2 word-level
-  logprobs — it even flags which words came out fuzzy).
-- *Anti-grinding XP* — XP = score × sentence-ambition(1-5). Attempting conditionals beats
-  repeating "Yes, I like it." Echoing the coach's correction back? Detected, zero SRS credit —
-  only genuine retrieval in later conversation levels a card up.
-
-**Stack.** ElevenLabs end-to-end for voice (Scribe v2 STT in — word timestamps + confidence,
-flash v2.5 TTS + instant voice clone out), Claude haiku judging in ONE call per turn
-(NDJSON-streamed: transcript on screen in ~1.5s, scores follow), Sauna integration via its
-documented extension point (**we expose an MCP server** with the learner's memory + mirror it
-in Sauna's dual-memory workspace-markdown format). FastAPI + vanilla JS, zero build, zero CDN.
-
-## Quickstart
-
-```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # + ffmpeg on PATH
-cp .env.example .env                       # put ELEVENLABS_API_KEY / ANTHROPIC_API_KEY here
-cd server && ../.venv/bin/uvicorn app:app --port 8901                # → http://localhost:8901
-```
-
-First run walks you through onboarding: name/goals → 60s voice enrollment (fun script) →
-**the payoff: you hear yourself, fluent, within seconds.** Then talk.
-
-No keys at all? `FLUENTME_MOCK=1` runs the entire product with stub STT/judge/TTS — every
-screen and flow works for development.
-
-### Judge tiers (auto-selected)
-`ANTHROPIC_API_KEY` direct API (primary) → `claude` CLI (`--strict-mcp-config`, no MCP boot
-tax) → `FLUENTME_MOCK`. A hung judge degrades to a canned in-scene reply + honest badge —
-conversation never dies on stage.
-
-### Sauna (no public memory API — the integration direction is inverted)
-Sauna consumes MCP servers you bring. So:
-```bash
-.venv/bin/python server/sauna_mcp.py            # MCP (streamable-http) on :8902/mcp
-cloudflared tunnel --url http://localhost:8902  # public URL → Sauna → connect MCP server
-```
-Tools: `get_learner_profile · get_due_cards · get_recent_sessions · get_progress_summary ·
-add_identity_fact` (that last one writes back — tell Sauna a fact, Fluent Me uses it next session).
-`data/sauna_export/` also mirrors all memory in Sauna's documented workspace format
-(ABOUT.md + memory/*.md + sessions/*.md). Badge says "local · Sauna-ready" — never fakes a sync.
-
-## 现场 runbook (venue)
-
-```bash
-# 开门前
-.venv/bin/python server/seed_demo.py --force   # 满血种子数据 (页面自带 "demo data" 角标)
-cp -r data data.bak                            # 一键还原: rm -rf data && cp -r data.bak data
-export ELEVENLABS_API_KEY=...  ANTHROPIC_API_KEY=...
-# 安静房间录声纹 (/, onboarding O2) → 升级 Starter 或现场促销 key 后:
-curl -X POST :8901/api/enroll/eleven           # IVC 克隆 (free tier 会 402, 界面有诚实降级)
-# 预生成: 打开 Scenario tab 一次 (建议缓存) + Interview intake 一次
-curl -X POST :8901/api/dev/expire              # 上台前: 全部卡片到期 + 强度条掉到红色
-```
-
-Demo 弧线 (≈4 分钟): 录声纹→立刻听到流利的自己 → Free talk 犯错→一条 focus 纠错 + 自己声音的
-修正 → ECHO 跟读→"vs 你自己"的进步 → Scenario: 从你的真实生活生成的场景 → /progress: 每张卡的
-遗忘曲线实时衰减 → /me: "这就是 Sauna 式记忆, 我控制它" + MCP server 现场连 Sauna。
-
-### 已知降级路径 (全部诚实标注)
-- 无 IVC 权限 (free tier) → 修正句用标准练习声 + 徽章 "your twin is offline"
-- 判卷挂 → canned 回复 + "judge offline" 徽章, 对话继续, 该轮不计分不落卡
-- Scribe 挂 → 本地 whisper (:8123, 家里 GPU 机) → 都挂才报错
-- 断网 → FLUENTME_MOCK=1 全流程照跑 (演 UI, 不演智能)
-
-## Architecture
-
-```
-browser (vanilla JS, no CDN) ── NDJSON stream ──▶ FastAPI :8901
-  /          practice: onboarding · 5 modes · echo loop · live hunt bars
-  /progress  trends · streak calendar · CEFR gauge · card wall (live R decay) · trophies
-  /me        identity facts (per-fact toggle) · goals · voice · Sauna panel
-        ├─ stt.py     Scribe v2 (word logprobs → pron proxy + fuzzy-word flags) / whisper / mock
-        ├─ brain.py   1 haiku call/turn: reply+errors+scores+pattern-keys+elicit check
-        │             (+scenario beats / interview STAR+polished / presentation clarity)
-        ├─ scenes.py  scene engine: personalized suggestions · interview/present intake · reports
-        ├─ scoring.py 4 dims (honest signal split) · echo comparison · anti-parrot overlap
-        ├─ memory.py  FSRS-lite SRS (S/D, R=1/(1+t/9S)) · facts/goals · sessions history · XP/Lv
-        └─ sauna.py   workspace-markdown export ─┐
-           sauna_mcp.py MCP server :8902 ◀───────┴── Sauna plugs in here
-```
-
-Design doc: [DESIGN.md](DESIGN.md) — the adversarial-review rulings and the honesty ledger
-(what we deliberately do NOT claim: no "best method" claims, no fake sync badges, pron is a
-proxy, CEFR is an estimate, FSRS constants are hand-picked defaults, seeded data is labeled).
+Product decisions and state semantics are documented in [DESIGN.md](DESIGN.md).
