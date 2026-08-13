@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -18,9 +19,10 @@ from typing import Any
 
 
 BASE = Path(__file__).resolve().parent.parent
-CACHE_FILE = BASE / "data" / "tavus_pal_v4.json"
+CACHE_FILE = BASE / "data" / "tavus_pal_v5.json"
 DEFAULT_API_BASE = "https://tavusapi.com/v2"
 DEFAULT_FACE_ID = "r987f6e6f73c"  # Nathan - Bookshelf, account-available Phoenix-4 stock Face
+RESOURCE_ID = re.compile(r"^[A-Za-z0-9_-]{6,128}$")
 
 
 class TavusAPIError(RuntimeError):
@@ -48,6 +50,8 @@ def _friendly_error(status: int, raw: bytes) -> str:
         pass
     if status in (401, 403):
         return "Tavus rejected the server credential. Rotate the key and try again."
+    if status == 402:
+        return "This Tavus account needs more conversation minutes before a new coach session can start."
     if status == 429:
         return "Tavus is at its current concurrency or rate limit. Try again shortly."
     return message[:240]
@@ -80,7 +84,7 @@ def _request(method: str, path: str, payload: dict | None = None,
 def _cached_pal_id() -> str:
     try:
         cached = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-        if cached.get("schema") == 3:
+        if cached.get("schema") == 4:
             return str(cached.get("pal_id") or "")
     except (OSError, ValueError, AttributeError):
         pass
@@ -89,12 +93,19 @@ def _cached_pal_id() -> str:
 
 def _save_pal_id(pal_id: str, face_id: str) -> None:
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_text(json.dumps({"schema": 3, "pal_id": pal_id,
+    CACHE_FILE.write_text(json.dumps({"schema": 4, "pal_id": pal_id,
                                       "face_id": face_id}, indent=2), encoding="utf-8")
 
 
 def _select_face_id() -> str:
     return os.environ.get("TAVUS_FACE_ID", "").strip() or DEFAULT_FACE_ID
+
+
+def _resource_id(value: str, label: str) -> str:
+    cleaned = str(value or "").strip()
+    if cleaned and not RESOURCE_ID.fullmatch(cleaned):
+        raise TavusAPIError(400, f"Invalid {label} identifier.")
+    return cleaned
 
 
 PAL_SYSTEM_PROMPT = """You are the visible personal English coach inside Fluent Me. This is a
@@ -108,6 +119,15 @@ more natural version of their last completed thought. Do not give a numeric scor
 metrics. When they ask you to say something naturally, speak the improved version clearly and
 invite them to try it. Exact model phrases may arrive through conversation.echo; say those exactly.
 
+The product can ask you to compare two attempts of the same phrase. Compare only the evidence
+provided for those attempts. Name one concrete improvement first, then one next detail to practice,
+and finish by speaking the strongest version once. Never invent an attempt, a signal, or a numeric
+score. If either attempt is missing, say what is missing instead of pretending to compare it.
+
+When the learner asks to wrap up, give a compact session reflection with exactly three parts: one
+thing they communicated well, one useful natural phrase from the conversation, and one specific
+thing to practice next. Ground every part in the conversation that actually happened.
+
 When the learner asks about emotion, presence, or how they are coming across, use only observable
 signals that were actually available in the current turn: words, pace, pauses, clarity, vocal tone,
 and visible delivery cues only when camera input exists. Cite the cue, state uncertainty, and ask
@@ -120,9 +140,9 @@ English coach, not a human, therapist, examiner, or hiring evaluator."""
 
 
 def ensure_pal() -> tuple[str, str]:
-    # A dedicated v4 variable prevents a previously configured scripted PAL
+    # A dedicated v5 variable prevents a previously configured scripted PAL
     # from silently bypassing the conversation-first prompt.
-    explicit = os.environ.get("TAVUS_CONVERSATION_PAL_ID", "").strip()
+    explicit = os.environ.get("TAVUS_CONVERSATION_PAL_V5_ID", "").strip()
     if explicit:
         return explicit, "configured"
     cached = _cached_pal_id()
@@ -131,7 +151,7 @@ def ensure_pal() -> tuple[str, str]:
 
     face_id = _select_face_id()
     payload = {
-        "pal_name": "Fluent Me Conversation Coach v4",
+        "pal_name": "Fluent Me Conversation Coach v5",
         "pipeline_mode": "full",
         "system_prompt": PAL_SYSTEM_PROMPT,
         "default_face_id": face_id,
@@ -170,13 +190,19 @@ def ensure_pal() -> tuple[str, str]:
     return pal_id, "created"
 
 
-def create_conversation(context: str, greeting: str, focus: str = "conversation") -> dict:
-    pal_id, pal_source = ensure_pal()
+def create_conversation(context: str, greeting: str, focus: str = "conversation",
+                        pal_id: str = "", face_id: str = "") -> dict:
+    selected_pal = _resource_id(pal_id, "PAL")
+    selected_face = _resource_id(face_id, "face")
+    if selected_pal:
+        pal_id, pal_source = selected_pal, "personal"
+    else:
+        pal_id, pal_source = ensure_pal()
     payload: dict[str, Any] = {
         "pal_id": pal_id,
         # A conversation-level Face wins over an older PAL default. This keeps
         # cached/configured PALs while making the visible coach deterministic.
-        "face_id": _select_face_id(),
+        "face_id": selected_face or _select_face_id(),
         "conversation_name": f"Fluent Me · {focus[:40]}",
         "conversational_context": context[:12_000],
         "custom_greeting": greeting[:500],

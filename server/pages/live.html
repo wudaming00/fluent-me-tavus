@@ -11,7 +11,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <title>Fluent Me — your personal English coach</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b10'/%3E%3Cpath d='M8 17v-4m5 9V8m6 17V5m5 16V9' stroke='%239a8cff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/live.css?v=11">
+  <link rel="stylesheet" href="/static/live.css?v=13">
   <script src="/static/daily-0.91.0.js"></script>
 </head>
 <body data-view="welcome" data-coach-mode="checking">
@@ -26,7 +26,13 @@
         <b id="session-status-label">Connecting…</b>
         <time id="session-timer">00:00</time>
       </div>
-      <button class="text-button" id="end-session" type="button" hidden>End session</button>
+      <div class="topbar-actions">
+        <button class="personalize-trigger" id="open-personalization" type="button" aria-haspopup="dialog" aria-controls="personalization-dialog">
+          <span class="personalize-trigger-mark" aria-hidden="true">◎</span>
+          <span><b>Create your coach</b><small>Optional</small></span>
+        </button>
+        <button class="text-button" id="end-session" type="button" hidden>End session</button>
+      </div>
     </header>
 
     <main>
@@ -41,6 +47,7 @@
             <div><span>02</span><b>English feedback</b><small>Ask how you sounded</small></div>
             <div><span>03</span><b>Delivery signals</b><small>Explore what came across</small></div>
             <div><span>04</span><b>Phrase practice</b><small>Hear it, then say it</small></div>
+            <div><span>05</span><b>Compare attempts</b><small>Notice what changed</small></div>
           </div>
 
           <button class="primary-button welcome-start" id="start-conversation" type="button">
@@ -98,15 +105,16 @@
 
           <aside class="coach-console" aria-label="Conversation controls">
             <div class="console-tabs" role="tablist" aria-label="Coach console">
-              <button id="tools-tab" class="console-tab active" type="button" role="tab" aria-selected="true" aria-controls="tools-panel">Coach tools</button>
-              <button id="log-tab" class="console-tab" type="button" role="tab" aria-selected="false" aria-controls="log-panel">Session log <span id="log-count">0</span></button>
+              <button id="tools-tab" class="console-tab active" type="button" role="tab" aria-selected="true" aria-controls="tools-panel">Coach</button>
+              <button id="practice-tab" class="console-tab" type="button" role="tab" aria-selected="false" aria-controls="practice-panel">Practice</button>
+              <button id="log-tab" class="console-tab" type="button" role="tab" aria-selected="false" aria-controls="log-panel">Session <span id="log-count">0</span></button>
             </div>
 
             <section class="tools-panel" id="tools-panel" role="tabpanel" aria-labelledby="tools-tab">
               <div class="console-intro">
-                <p class="eyebrow">TALK NATURALLY</p>
-                <h2>What do you want from this turn?</h2>
-                <p>Just speak to your coach. These shortcuts are optional—you can ask the same questions out loud.</p>
+                <p class="eyebrow">OPEN CONVERSATION</p>
+                <h2>Stay in the conversation.</h2>
+                <p>Speak naturally. Ask for help whenever you want, or use a shortcut after any turn.</p>
               </div>
 
               <div class="quick-actions">
@@ -119,16 +127,14 @@
                 <button class="coach-tool" type="button" data-coach-request="signals">
                   <span>DELIVERY</span><b>What did you notice?</b><small>Ask about tone, pace, pauses, and visible cues</small><i>→</i>
                 </button>
-                <button class="coach-tool" id="open-phrase-lab" type="button">
+                <button class="coach-tool" id="open-practice" type="button">
                   <span>PRACTICE</span><b>Practice a phrase</b><small>Choose exactly what your coach should model</small><i>→</i>
                 </button>
               </div>
 
-              <form class="phrase-lab" id="phrase-lab" hidden>
-                <label for="phrase-input">What should your coach say?</label>
-                <div><input id="phrase-input" type="text" maxlength="240" autocomplete="off" placeholder="Let me tell you about a project I’m proud of."><button type="submit">Hear it</button></div>
-                <p>Your coach will say the exact phrase once. Then repeat it naturally and ask for feedback.</p>
-              </form>
+              <button class="request-summary" id="request-summary" type="button" disabled>
+                <span><b>Wrap up this session</b><small>Get one useful takeaway from what you actually said.</small></span><i aria-hidden="true">→</i>
+              </button>
 
               <div class="media-card">
                 <div class="media-copy">
@@ -148,11 +154,82 @@
               </form>
             </section>
 
+            <section class="practice-panel" id="practice-panel" role="tabpanel" aria-labelledby="practice-tab" hidden>
+              <div class="practice-heading">
+                <div>
+                  <p class="eyebrow">VOICE PRACTICE</p>
+                  <h2>Hear it. Try it. Compare.</h2>
+                </div>
+                <span class="practice-step" id="practice-step" aria-live="polite">Choose a phrase</span>
+              </div>
+
+              <ol class="practice-flow" aria-label="Phrase practice progress">
+                <li class="active" data-practice-step="choose"><span>1</span><b>Choose</b></li>
+                <li data-practice-step="hear"><span>2</span><b>Hear</b></li>
+                <li data-practice-step="attempt-one"><span>3</span><b>Attempt 1</b></li>
+                <li data-practice-step="attempt-two"><span>4</span><b>Attempt 2</b></li>
+                <li data-practice-step="compare"><span>5</span><b>Compare</b></li>
+              </ol>
+
+              <form class="practice-form" id="practice-form">
+                <label for="practice-input">What do you want to practice?</label>
+                <textarea id="practice-input" maxlength="240" rows="3" autocomplete="off" placeholder="Type a sentence or use your last turn."></textarea>
+                <div class="practice-form-actions">
+                  <button class="quiet-button" id="practice-use-last" type="button">Use my last turn</button>
+                  <button class="accent-button" type="submit">Start practice <span aria-hidden="true">→</span></button>
+                </div>
+              </form>
+
+              <section class="practice-target-card" aria-labelledby="practice-target-label">
+                <span id="practice-target-label">YOUR PHRASE</span>
+                <p id="practice-target" aria-live="polite">Choose a phrase to begin.</p>
+                <small id="practice-instruction">Your coach will model it exactly. Then say it twice and compare what changed.</small>
+              </section>
+
+              <div class="practice-model-actions" aria-label="Phrase playback controls">
+                <button class="quiet-button" id="practice-hear-again" type="button" disabled><span class="play-mark" aria-hidden="true">▶</span> Hear model</button>
+                <button class="quiet-button" id="practice-reset" type="button" disabled>Choose another phrase</button>
+              </div>
+
+              <div class="attempt-stack">
+                <article class="attempt-card" id="attempt-one-card" data-state="waiting" aria-live="polite">
+                  <header><span>ATTEMPT 1</span><b>First take</b><i>Waiting</i></header>
+                  <p id="attempt-one-text">Your first spoken attempt will appear here.</p>
+                  <small id="attempt-one-signals">Observable delivery signals will appear when available.</small>
+                </article>
+
+                <div class="attempt-bridge" aria-hidden="true"><span></span><b>Change one thing</b><span></span></div>
+
+                <article class="attempt-card" id="attempt-two-card" data-state="locked" aria-live="polite">
+                  <header><span>ATTEMPT 2</span><b>Second take</b><i>Locked</i></header>
+                  <p id="attempt-two-text">Try the phrase once before recording a second attempt.</p>
+                  <small id="attempt-two-signals">Your second set of observable signals will appear here.</small>
+                </article>
+              </div>
+
+              <div class="practice-actions">
+                <button class="quiet-button" id="practice-retry" type="button" disabled>Try again</button>
+                <button class="accent-button" id="practice-compare" type="button" disabled>Compare attempts <span aria-hidden="true">→</span></button>
+              </div>
+
+              <section class="comparison-card" id="comparison-card" hidden aria-live="polite">
+                <span>WHAT CHANGED</span>
+                <h3>Your two attempts, side by side.</h3>
+                <p id="comparison-text">Your coach will highlight one useful change after both attempts.</p>
+              </section>
+            </section>
+
             <section class="log-panel" id="log-panel" role="tabpanel" aria-labelledby="log-tab" hidden>
               <div class="log-heading">
-                <div><p class="eyebrow">THIS SESSION</p><h2>What was actually heard</h2></div>
+                <div><p class="eyebrow">THIS SESSION</p><h2>Your conversation, turn by turn.</h2></div>
                 <button id="clear-log" type="button">Clear view</button>
               </div>
+
+              <section class="session-summary-card" id="session-summary-card" data-state="waiting" aria-live="polite">
+                <div><span>WRAP-UP</span><i>After your session</i></div>
+                <p id="session-summary-text">Keep talking. A short, evidence-based wrap-up will appear here when the session ends.</p>
+              </section>
+
               <p class="log-privacy">This view stays in this browser tab. Fluent Me does not create a second server-side transcript log.</p>
               <div class="event-log" id="event-log" aria-live="polite">
                 <div class="empty-log" id="empty-log"><b>No turns yet</b><span>Start speaking. Your words and your coach’s reply will appear here.</span></div>
@@ -164,6 +241,175 @@
     </main>
   </div>
 
-  <script src="/static/live.js?v=11" defer></script>
+  <dialog class="personalization-dialog" id="personalization-dialog" aria-labelledby="personalization-title" aria-describedby="personalization-intro">
+    <div class="personalization-shell">
+      <header class="personalization-header">
+        <div class="personalization-title-group">
+          <p class="eyebrow">OPTIONAL PERSONALIZATION</p>
+          <h2 id="personalization-title">Create your coach</h2>
+          <p id="personalization-intro">Practice face to face with a coach that uses your own face and voice—or keep the stock male coach and start immediately.</p>
+        </div>
+        <div class="personalization-header-actions">
+          <span class="personalization-status" id="personalization-status" role="status" aria-live="polite">Stock coach active</span>
+          <button class="personalization-close" id="close-personalization" type="button" aria-label="Close coach setup">×</button>
+        </div>
+      </header>
+
+      <div class="personalization-scroll">
+        <section class="privacy-banner" aria-label="Recording privacy">
+          <span class="privacy-banner-icon" aria-hidden="true">●</span>
+          <div>
+            <b>Your recording begins only when you press Record.</b>
+            <p>Video and audio stay on this device until you explicitly create a voice clone or submit a hosted training URL. Nothing is uploaded merely by opening this setup.</p>
+          </div>
+        </section>
+
+        <div class="personalization-grid">
+          <section class="setup-card setup-consent" aria-labelledby="consent-heading">
+            <div class="setup-card-number" aria-hidden="true">01</div>
+            <div class="setup-card-heading">
+              <span>IDENTITY &amp; CONSENT</span>
+              <h3 id="consent-heading">Confirm this is you.</h3>
+              <p>Only create a coach from your own likeness and voice, or content you have explicit permission to use.</p>
+            </div>
+
+            <label class="setup-field" for="clone-full-name">
+              <span>Full legal name</span>
+              <input id="clone-full-name" name="clone-full-name" type="text" autocomplete="name" maxlength="120" placeholder="Your first and last name">
+            </label>
+
+            <div class="consent-script-wrap">
+              <span class="field-label">Read this at the beginning of the recording</span>
+              <blockquote id="consent-script">“I, [FULL NAME], am currently speaking and give consent to Tavus to create an AI clone of me by using the audio and video samples I provide. I understand that this AI clone can be used to create videos that look and sound like me.”</blockquote>
+              <small>Your name will replace the bracketed placeholder before recording.</small>
+            </div>
+
+            <label class="consent-check" for="consent-checkbox">
+              <input id="consent-checkbox" name="consent-checkbox" type="checkbox">
+              <span><b>I am the person being recorded and I consent.</b><small>I understand this creates reusable biometric voice and face models.</small></span>
+            </label>
+          </section>
+
+          <section class="setup-card setup-recording" aria-labelledby="recording-heading">
+            <div class="setup-card-number" aria-hidden="true">02</div>
+            <div class="setup-card-heading">
+              <span>CAPTURE ON THIS DEVICE</span>
+              <h3 id="recording-heading">Record one clean minute.</h3>
+              <p>This browser capture is a convenient draft/export. Tavus recommends a desktop recorder or PAL Maker for reliable 1080p at 25 fps or higher.</p>
+            </div>
+
+            <div class="setup-camera-stage" data-state="idle">
+              <video id="setup-camera-preview" playsinline muted aria-label="Live camera preview for coach training"></video>
+              <div class="setup-camera-placeholder">
+                <span aria-hidden="true">◎</span>
+                <b>Camera is off</b>
+                <small>Press Record when you are framed and ready.</small>
+              </div>
+              <div class="setup-recording-indicator" aria-live="polite"><i></i><span id="setup-timer" role="timer">00:00 / 01:00</span></div>
+            </div>
+
+            <ol class="setup-recording-guide" id="setup-recording-guide" aria-label="Recording guide">
+              <li data-segment="consent"><span>First</span><b>Read the consent phrase clearly</b></li>
+              <li data-segment="speaking"><span>0–30 sec</span><b>Speak naturally with minimal movement</b></li>
+              <li data-segment="still"><span>30–60 sec</span><b>Stay still, lips closed, eyes on camera</b></li>
+            </ol>
+
+            <div class="setup-button-row">
+              <button class="accent-button" id="setup-record-button" type="button">Start recording <span aria-hidden="true">●</span></button>
+              <button class="quiet-button" id="setup-stop-button" type="button" disabled>Stop</button>
+            </div>
+
+            <div class="setup-playback" aria-live="polite">
+              <video id="setup-recording-playback" controls playsinline hidden aria-label="Recorded coach training video playback"></video>
+              <a class="download-recording" id="setup-download-video" href="#" download="fluent-me-coach-training.webm" hidden>Download recording</a>
+              <span class="inline-status" id="setup-audio-status" role="status">No recording yet</span>
+            </div>
+          </section>
+
+          <section class="setup-card setup-voice" aria-labelledby="voice-heading">
+            <div class="setup-card-number" aria-hidden="true">03</div>
+            <div class="setup-card-heading">
+              <span>YOUR VOICE · ELEVENLABS</span>
+              <h3 id="voice-heading">Clone the voice.</h3>
+              <p>Record a separate voice sample so the silent half of your Tavus face video never dilutes voice quality.</p>
+            </div>
+
+            <div class="voice-sample-card" data-state="idle">
+              <div class="voice-sample-copy">
+                <span>VOICE SAMPLE</span>
+                <b>Speak continuously for 60–90 seconds.</b>
+                <small>Use a quiet room, stay close to the microphone, and vary your pace naturally. This recording stays on this device until you press Create my voice clone.</small>
+              </div>
+              <time id="voice-timer" role="timer">00:00 / 01:30</time>
+              <div class="voice-sample-actions">
+                <button class="accent-button" id="voice-record-button" type="button">Record voice <span aria-hidden="true">●</span></button>
+                <button class="quiet-button" id="voice-stop-button" type="button" disabled>Stop</button>
+              </div>
+              <audio id="voice-playback" controls hidden aria-label="Recorded voice clone sample"></audio>
+            </div>
+
+            <dl class="credit-meter" aria-label="ElevenLabs account allowance">
+              <div><dt>Plan</dt><dd id="eleven-plan">Checking…</dd></div>
+              <div><dt>Character usage</dt><dd id="eleven-usage">Checking…</dd></div>
+            </dl>
+
+            <button class="accent-button setup-wide-button" id="clone-voice-button" type="button" disabled>
+              <span>Create my voice clone</span><i aria-hidden="true">→</i>
+            </button>
+            <p class="setup-action-note">Nothing uploads before this step. Pressing it explicitly sends the reviewed sample to ElevenLabs. Connecting that private voice to your video coach also gives Tavus the dedicated ElevenLabs integration key required for synthesis.</p>
+            <div class="setup-progress-status" id="voice-clone-status" role="status" aria-live="polite" data-state="waiting">
+              <i aria-hidden="true"></i><span>Record and review a sample to continue.</span>
+            </div>
+          </section>
+
+          <section class="setup-card setup-face" aria-labelledby="face-heading">
+            <div class="setup-card-number" aria-hidden="true">04</div>
+            <div class="setup-card-heading">
+              <span>YOUR FACE · TAVUS</span>
+              <h3 id="face-heading">Train the face.</h3>
+              <p>Browser capture can be downloaded for your review. The Tavus API requires a secure, publicly downloadable training URL that remains valid for at least 24 hours.</p>
+            </div>
+
+            <label class="setup-field" for="face-name">
+              <span>Coach face name</span>
+              <input id="face-name" name="face-name" type="text" maxlength="80" autocomplete="off" placeholder="My Fluent Me coach">
+            </label>
+            <label class="setup-field" for="training-url">
+              <span>Secure training video URL</span>
+              <input id="training-url" name="training-url" type="url" inputmode="url" autocomplete="url" placeholder="https://…/training-video.mp4" aria-describedby="training-url-help">
+              <small id="training-url-help">Direct HTTPS download; no login page; valid for 24+ hours.</small>
+            </label>
+
+            <button class="accent-button setup-wide-button" id="create-face-button" type="button" disabled>
+              <span>Submit face training</span><i aria-hidden="true">→</i>
+            </button>
+            <div class="setup-progress-status" id="face-training-status" role="status" aria-live="polite" data-state="waiting">
+              <i aria-hidden="true"></i><span>Add an eligible hosted video URL to continue.</span>
+            </div>
+
+            <div class="pal-maker-option">
+              <div><b>Prefer a guided upload?</b><span>PAL Maker is the supported alternative for recording, quality checks, and face training.</span></div>
+              <a id="open-pal-maker" href="https://maker.tavus.io" target="_blank" rel="noopener noreferrer">Open PAL Maker <span aria-hidden="true">↗</span></a>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="personalization-footer">
+        <div>
+          <b>Use either model—or combine both</b>
+          <span>Your voice can use the stock male face; your Face can use the stock voice. The stock coach always remains available.</span>
+        </div>
+        <div class="personalization-footer-actions">
+          <button class="quiet-button" id="reset-personal-coach" type="button" aria-describedby="reset-personal-coach-note">Use stock coach</button>
+          <button class="accent-button" id="use-personal-coach" type="button" disabled>Use my personal coach <span aria-hidden="true">→</span></button>
+        </div>
+      </footer>
+      <p class="sr-only" id="reset-personal-coach-note">Using the stock coach clears this browser's saved selection. It does not delete your Tavus Face, ElevenLabs voice, or personal PAL from either provider.</p>
+    </div>
+  </dialog>
+
+  <script src="/static/personalize.js?v=1" defer></script>
+  <script src="/static/live.js?v=12" defer></script>
 </body>
 </html>

@@ -25,6 +25,13 @@
     failureInProgress: false,
     seenEvents: new Set(),
     turns: [],
+    lastUserTurn: null,
+    pendingCoachCapture: null,
+    practice: {
+      target: "",
+      armedAttempt: 0,
+      attempts: [null, null]
+    },
     timer: null,
     startedAt: 0,
     remoteReady: false
@@ -55,6 +62,7 @@
     document.body.dataset.coachMode = mode;
     setText("coach-state-label", label);
     setText("session-status-label", label);
+    updateWorkflowControls();
   }
 
   function setCaption(role, text) {
@@ -70,13 +78,17 @@
   }
 
   function setControlsEnabled(enabled) {
-    document.querySelectorAll(".coach-tool").forEach(button => { button.disabled = !enabled; });
-    $("mic-toggle").disabled = !enabled;
-    $("camera-toggle").disabled = !enabled;
-    $("chat-input").disabled = !enabled;
-    $("chat-form").querySelector("button").disabled = !enabled;
-    $("phrase-input").disabled = !enabled;
-    $("phrase-lab").querySelector("button").disabled = !enabled;
+    document.querySelectorAll(".coach-tool").forEach(button => {
+      button.disabled = !enabled || (button.hasAttribute("data-coach-request") && !state.lastUserTurn);
+    });
+    ["mic-toggle", "camera-toggle", "chat-input", "practice-input"].forEach(id => {
+      if ($(id)) $(id).disabled = !enabled;
+    });
+    const chatButton = $("chat-form")?.querySelector("button");
+    if (chatButton) chatButton.disabled = !enabled;
+    const practiceButton = $("practice-form")?.querySelector('button[type="submit"]');
+    if (practiceButton) practiceButton.disabled = !enabled;
+    updateWorkflowControls();
   }
 
   function updateMediaControls() {
@@ -117,13 +129,12 @@
   }
 
   function showTab(name) {
-    const tools = name === "tools";
-    $("tools-panel").hidden = !tools;
-    $("log-panel").hidden = tools;
-    $("tools-tab").classList.toggle("active", tools);
-    $("log-tab").classList.toggle("active", !tools);
-    $("tools-tab").setAttribute("aria-selected", String(tools));
-    $("log-tab").setAttribute("aria-selected", String(!tools));
+    ["tools", "practice", "log"].forEach(tab => {
+      const active = tab === name;
+      $(`${tab}-panel`).hidden = !active;
+      $(`${tab}-tab`).classList.toggle("active", active);
+      $(`${tab}-tab`).setAttribute("aria-selected", String(active));
+    });
   }
 
   function readableTime(raw) {
@@ -140,6 +151,109 @@
     if (typeof value === "string") return value.trim();
     try { return JSON.stringify(value); }
     catch { return String(value); }
+  }
+
+  const PRACTICE_STEPS = ["choose", "hear", "attempt-one", "attempt-two", "compare"];
+
+  function setPracticeStep(step, label) {
+    const current = Math.max(0, PRACTICE_STEPS.indexOf(step));
+    document.querySelectorAll("[data-practice-step]").forEach(item => {
+      const index = PRACTICE_STEPS.indexOf(item.dataset.practiceStep);
+      item.classList.toggle("active", index === current);
+      item.classList.toggle("done", index < current);
+    });
+    setText("practice-step", label);
+  }
+
+  function setAttemptCard(number, status, text, signals) {
+    const word = number === 1 ? "one" : "two";
+    const card = $(`attempt-${word}-card`);
+    if (!card) return;
+    card.dataset.state = status;
+    const badge = card.querySelector("header i");
+    if (badge) badge.textContent = status === "captured" ? "Captured" : status === "listening" ? "Listening" : status === "locked" ? "Locked" : "Waiting";
+    if (text) setText(`attempt-${word}-text`, text);
+    if (signals) setText(`attempt-${word}-signals`, signals);
+  }
+
+  function turnSignals(turn) {
+    const parts = [];
+    const audio = analysisText(turn?.audioAnalysis);
+    const visual = analysisText(turn?.visualAnalysis);
+    if (audio) parts.push(`Audio: ${audio}`);
+    if (visual) parts.push(`Visual: ${visual}`);
+    return parts.join(" · ") || "No delivery analysis was provided for this attempt.";
+  }
+
+  function updateWorkflowControls() {
+    const live = state.baseMode === "live" && Boolean(state.call);
+    const pending = Boolean(state.pendingCoachCapture);
+    const coachBusy = ["thinking", "speaking"].includes(document.body.dataset.coachMode);
+    if ($("practice-use-last")) $("practice-use-last").disabled = !live || !state.lastUserTurn;
+    if ($("practice-hear-again")) $("practice-hear-again").disabled = !live || !state.practice.target || coachBusy;
+    if ($("practice-reset")) $("practice-reset").disabled = !state.practice.target;
+    if ($("practice-retry")) $("practice-retry").disabled = !live || !state.practice.attempts[0] || Boolean(state.practice.attempts[1]) || state.practice.armedAttempt === 2 || coachBusy;
+    if ($("practice-compare")) $("practice-compare").disabled = !live || !state.practice.attempts[0] || !state.practice.attempts[1] || pending || coachBusy;
+    if ($("request-summary")) $("request-summary").disabled = !live || !state.lastUserTurn || pending || coachBusy;
+    document.querySelectorAll("[data-coach-request]").forEach(button => {
+      button.disabled = !live || !state.lastUserTurn || pending || coachBusy;
+    });
+  }
+
+  function resetPractice() {
+    state.practice.target = "";
+    state.practice.armedAttempt = 0;
+    state.practice.attempts = [null, null];
+    if ($("practice-input")) $("practice-input").value = "";
+    setText("practice-target", "Choose a phrase to begin.");
+    setText("practice-instruction", "Your coach will model it exactly. Then say it twice and compare what changed.");
+    setAttemptCard(1, "waiting", "Your first spoken attempt will appear here.", "Observable delivery signals will appear when available.");
+    setAttemptCard(2, "locked", "Try the phrase once before recording a second attempt.", "Your second set of observable signals will appear here.");
+    if ($("comparison-card")) $("comparison-card").hidden = true;
+    setText("comparison-text", "Your coach will highlight one useful change after both attempts.");
+    setPracticeStep("choose", "Choose a phrase");
+    updateWorkflowControls();
+  }
+
+  function resetLiveWorkflow() {
+    state.lastUserTurn = null;
+    state.pendingCoachCapture = null;
+    resetPractice();
+    if ($("session-summary-card")) $("session-summary-card").dataset.state = "waiting";
+    setText("session-summary-text", "Keep talking. Ask for a short, evidence-based wrap-up whenever you are ready.");
+    updateWorkflowControls();
+  }
+
+  function capturePracticeAttempt(turn) {
+    const number = state.practice.armedAttempt;
+    if (number !== 1 && number !== 2) return;
+    state.practice.armedAttempt = 0;
+    state.practice.attempts[number - 1] = turn;
+    setAttemptCard(number, "captured", turn.text, turnSignals(turn));
+    if (number === 1) {
+      setPracticeStep("attempt-two", "Ready for attempt 2");
+      setText("practice-instruction", "Review your first take. Click Try again when you are ready to record attempt 2.");
+    } else {
+      setPracticeStep("compare", "Ready to compare");
+      setText("practice-instruction", "Both real attempts are captured. Ask your coach to compare what changed.");
+    }
+    updateWorkflowControls();
+  }
+
+  function captureCoachResult(speech) {
+    if (state.pendingCoachCapture === "comparison") {
+      state.pendingCoachCapture = null;
+      $("comparison-card").hidden = false;
+      $("comparison-card").dataset.state = "ready";
+      setText("comparison-text", speech);
+      setPracticeStep("compare", "Comparison ready");
+      setText("practice-instruction", "Use the coach's note in your next real conversation turn.");
+    } else if (state.pendingCoachCapture === "summary") {
+      state.pendingCoachCapture = null;
+      $("session-summary-card").dataset.state = "ready";
+      setText("session-summary-text", speech);
+    }
+    updateWorkflowControls();
   }
 
   function appendTurn({ role, text, timestamp, audioAnalysis, visualAnalysis }) {
@@ -252,6 +366,51 @@
       audioAnalysis: properties.user_audio_analysis,
       visualAnalysis: properties.user_visual_analysis
     });
+    if (safeRole === "user") {
+      const turn = {
+        text: speech,
+        timestamp: message.timestamp,
+        audioAnalysis: properties.user_audio_analysis,
+        visualAnalysis: properties.user_visual_analysis
+      };
+      state.lastUserTurn = turn;
+      capturePracticeAttempt(turn);
+      updateWorkflowControls();
+    } else {
+      captureCoachResult(speech);
+    }
+  }
+
+  function localAudioReady(call) {
+    const local = call?.participants?.()?.local;
+    const audio = local?.tracks?.audio;
+    const track = audio?.persistentTrack || local?.audioTrack;
+    return Boolean(track) && ["sendable", "playable"].includes(String(audio?.state || "").toLowerCase());
+  }
+
+  function waitForLocalAudio(call, timeoutMs = 5000) {
+    if (localAudioReady(call)) return Promise.resolve(true);
+    return new Promise((resolve, reject) => {
+      let timer;
+      const finish = ready => {
+        clearTimeout(timer);
+        call.off?.("participant-updated", check);
+        call.off?.("participant-joined", check);
+        ready ? resolve(true) : reject(new Error("Your microphone is connected but is not sending audio. Check browser microphone permission and try again."));
+      };
+      const check = () => { if (localAudioReady(call)) finish(true); };
+      call.on("participant-updated", check);
+      call.on("participant-joined", check);
+      timer = setTimeout(() => finish(false), timeoutMs);
+      check();
+    });
+  }
+
+  async function ensureLocalAudio(call) {
+    if (localAudioReady(call)) return true;
+    await Promise.resolve(call.setLocalAudio(true));
+    await waitForLocalAudio(call);
+    return true;
   }
 
   function remoteTracks(participant) {
@@ -324,9 +483,15 @@
 
       try {
         if (!window.Daily) throw new Error("The secure video client did not load.");
+        const personalCoach = window.FluentMePersonalization?.getProfile?.() || {};
         const room = await fetchJSON("/api/tavus/conversations", {
           method: "POST",
-          body: JSON.stringify({ focus: "conversation", topic: "an open English conversation led by the learner" })
+          body: JSON.stringify({
+            focus: "conversation",
+            topic: "an open English conversation led by the learner",
+            face_id: personalCoach.face_id || "",
+            pal_id: personalCoach.pal_id || ""
+          })
         });
         state.conversationId = room.conversation_id;
 
@@ -385,6 +550,7 @@
           startVideoOff: true,
           startAudioOff: false
         });
+        await ensureLocalAudio(call);
         state.micLive = true;
         state.cameraLive = false;
         updateMediaControls();
@@ -439,6 +605,7 @@
     state.remoteReady = false;
     state.micLive = false;
     state.cameraLive = false;
+    resetLiveWorkflow();
     stopTimer();
     updateMediaControls();
 
@@ -489,13 +656,13 @@
   async function askCoach(text, visibleText = text) {
     setCaption("user", visibleText);
     setCoachState("thinking", "Thinking…");
-    await sendInteraction("conversation.respond", text);
+    return sendInteraction("conversation.respond", text);
   }
 
   async function modelPhrase(text) {
     setCaption("coach", text);
     setCoachState("speaking", "Coach is speaking");
-    await sendInteraction("conversation.echo", text);
+    return sendInteraction("conversation.echo", text);
   }
 
   async function toggleMicrophone() {
@@ -503,6 +670,7 @@
     const next = !state.micLive;
     try {
       await Promise.resolve(state.call.setLocalAudio(next));
+      if (next) await waitForLocalAudio(state.call);
       state.micLive = next;
       updateMediaControls();
       setCoachState(next ? "ready" : "thinking", next ? "Your turn" : "Mic is off");
@@ -532,11 +700,102 @@
     }
   }
 
+  function coachRequestFor(key) {
+    if (!state.lastUserTurn || !COACH_REQUESTS[key]) return "";
+    const turn = state.lastUserTurn;
+    const evidence = turnSignals(turn);
+    return `${COACH_REQUESTS[key]}\n\nLast real user transcript:\n${turn.text}\n\nAvailable observable evidence:\n${evidence}`;
+  }
+
+  async function beginPractice() {
+    const target = $("practice-input").value.trim();
+    if (!target) {
+      $("practice-input").focus();
+      return;
+    }
+    resetPractice();
+    state.practice.target = target;
+    $("practice-input").value = target;
+    setText("practice-target", target);
+    setText("practice-instruction", "Listen to the exact model, then say the same phrase in your own voice.");
+    setPracticeStep("hear", "Hear the model");
+    updateWorkflowControls();
+    const sent = await modelPhrase(target);
+    if (!sent) return;
+    state.practice.armedAttempt = 1;
+    setAttemptCard(1, "listening", "Listening for your first spoken attempt…", "Delivery signals will appear after the final transcript arrives.");
+    setPracticeStep("attempt-one", "Say attempt 1");
+    updateWorkflowControls();
+  }
+
+  async function hearPracticeTarget() {
+    if (!state.practice.target) return;
+    setPracticeStep("hear", "Hear the model");
+    await modelPhrase(state.practice.target);
+    if (state.practice.armedAttempt === 1) setPracticeStep("attempt-one", "Say attempt 1");
+    if (state.practice.armedAttempt === 2) setPracticeStep("attempt-two", "Say attempt 2");
+  }
+
+  function armSecondAttempt() {
+    if (!state.practice.attempts[0] || state.practice.attempts[1]) return;
+    state.practice.armedAttempt = 2;
+    setAttemptCard(2, "listening", "Listening for your second spoken attempt…", "Change one thing, then finish the complete phrase.");
+    setPracticeStep("attempt-two", "Say attempt 2");
+    setText("practice-instruction", "Attempt 2 is armed. Say the complete phrase now.");
+    updateWorkflowControls();
+  }
+
+  function comparisonPrompt() {
+    const first = state.practice.attempts[0];
+    const second = state.practice.attempts[1];
+    return [
+      "Compare these two real spoken attempts of the same English phrase.",
+      `Target phrase: ${state.practice.target}`,
+      `Attempt 1 transcript: ${first.text}`,
+      `Attempt 1 observable evidence: ${turnSignals(first)}`,
+      `Attempt 2 transcript: ${second.text}`,
+      `Attempt 2 observable evidence: ${turnSignals(second)}`,
+      "Use only this evidence. Briefly name what improved, the single best next detail to change, and then say the strongest natural version. If evidence is missing, say so."
+    ].join("\n");
+  }
+
+  async function comparePracticeAttempts() {
+    if (!state.practice.attempts[0] || !state.practice.attempts[1] || state.pendingCoachCapture) return;
+    state.pendingCoachCapture = "comparison";
+    $("comparison-card").hidden = false;
+    $("comparison-card").dataset.state = "loading";
+    setText("comparison-text", "Your coach is comparing the two real attempts…");
+    setPracticeStep("compare", "Coach is comparing");
+    updateWorkflowControls();
+    if (!await askCoach(comparisonPrompt(), "Compare my two attempts")) {
+      state.pendingCoachCapture = null;
+      $("comparison-card").dataset.state = "waiting";
+      setText("comparison-text", "The comparison request did not go through. Please try again.");
+      updateWorkflowControls();
+    }
+  }
+
+  async function requestSessionSummary() {
+    if (!state.lastUserTurn || state.pendingCoachCapture) return;
+    state.pendingCoachCapture = "summary";
+    $("session-summary-card").dataset.state = "loading";
+    setText("session-summary-text", "Your coach is preparing a wrap-up from this real conversation…");
+    updateWorkflowControls();
+    const prompt = "Wrap up this session using only the conversation that actually happened. Give exactly three short parts: one thing I communicated well with evidence, one useful natural phrase from this conversation, and one specific thing to practice next. Do not invent scores or observations.";
+    if (!await askCoach(prompt, "Wrap up this session")) {
+      state.pendingCoachCapture = null;
+      $("session-summary-card").dataset.state = "waiting";
+      setText("session-summary-text", "The wrap-up request did not go through. Please try again.");
+      updateWorkflowControls();
+    }
+  }
+
   async function startConversation() {
     if (!state.configured) return;
     state.ending = false;
     state.seenEvents.clear();
     clearLogView();
+    resetLiveWorkflow();
     showTab("tools");
     setView("conversation");
     setCaption("coach", "Your coach will start with one question. Then the conversation is yours.");
@@ -563,29 +822,39 @@
   $("mic-toggle").addEventListener("click", toggleMicrophone);
   $("camera-toggle").addEventListener("click", toggleCamera);
   $("tools-tab").addEventListener("click", () => showTab("tools"));
+  $("practice-tab").addEventListener("click", () => showTab("practice"));
   $("log-tab").addEventListener("click", () => showTab("log"));
   $("clear-log").addEventListener("click", clearLogView);
-  $("open-phrase-lab").addEventListener("click", () => {
-    $("phrase-lab").hidden = !$("phrase-lab").hidden;
-    if (!$("phrase-lab").hidden) $("phrase-input").focus();
+  $("open-practice").addEventListener("click", () => {
+    showTab("practice");
+    $("practice-input").focus();
   });
 
   document.querySelectorAll("[data-coach-request]").forEach(button => {
     button.addEventListener("click", () => {
       const key = button.dataset.coachRequest;
       const visible = button.querySelector("b")?.textContent || "Coach request";
-      void askCoach(COACH_REQUESTS[key], visible);
+      const prompt = coachRequestFor(key);
+      if (prompt) void askCoach(prompt, visible);
     });
   });
 
-  $("phrase-lab").addEventListener("submit", event => {
+  $("practice-form").addEventListener("submit", event => {
     event.preventDefault();
-    const phrase = $("phrase-input").value.trim();
-    if (!phrase) {
-      $("phrase-input").focus();
-      return;
-    }
-    void modelPhrase(phrase);
+    void beginPractice();
+  });
+  $("practice-use-last").addEventListener("click", () => {
+    if (!state.lastUserTurn) return;
+    $("practice-input").value = state.lastUserTurn.text;
+    $("practice-input").focus();
+  });
+  $("practice-hear-again").addEventListener("click", () => { void hearPracticeTarget(); });
+  $("practice-reset").addEventListener("click", resetPractice);
+  $("practice-retry").addEventListener("click", armSecondAttempt);
+  $("practice-compare").addEventListener("click", () => { void comparePracticeAttempts(); });
+  $("request-summary").addEventListener("click", () => {
+    showTab("log");
+    void requestSessionSummary();
   });
 
   $("chat-form").addEventListener("submit", event => {
@@ -616,5 +885,6 @@
 
   setControlsEnabled(false);
   updateMediaControls();
+  resetLiveWorkflow();
   checkCapability();
 })();

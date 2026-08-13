@@ -7,7 +7,8 @@ const source = await readFile(new URL("../dist/server/index.js", import.meta.url
 const encoded = Buffer.from(source).toString("base64");
 const { default: worker } = await import(`data:text/javascript;base64,${encoded}`);
 
-const responseJson = value => new Response(JSON.stringify(value), {
+const responseJson = (value, status = 200) => new Response(JSON.stringify(value), {
+  status,
   headers: { "content-type": "application/json" },
 });
 
@@ -21,7 +22,7 @@ for (const [label, faceId, expected] of [
     globalThis.fetch = async (url, options = {}) => {
       if (String(url).endsWith("/pals?limit=100")) {
         return responseJson({
-          data: [{ pal_name: "Fluent Me Conversation Coach v4", pal_id: "pal-existing" }],
+          data: [{ pal_name: "Fluent Me Conversation Coach v5", pal_id: "pal-existing" }],
         });
       }
       if (String(url).endsWith("/conversations")) {
@@ -61,6 +62,8 @@ test("Sites Worker enables explicit microphone and optional camera access", asyn
   const response = await worker.fetch(new Request("https://fluent-me.test/"), {});
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("permissions-policy"), "camera=(self), microphone=(self), geolocation=()");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'");
   const html = await response.text();
   assert.match(html, /Start talking/);
   assert.doesNotMatch(html, /Step 1 of 5|Hear the model/);
@@ -75,14 +78,14 @@ test("Sites Worker does not reuse the old scripted v3 PAL", async () => {
     }
     if (String(url).endsWith("/pals")) {
       createdPal = JSON.parse(options.body);
-      return responseJson({ pal_id: "pal-v4" });
+      return responseJson({ pal_id: "pal-v5" });
     }
     if (String(url).endsWith("/conversations")) {
       const body = JSON.parse(options.body);
-      assert.equal(body.pal_id, "pal-v4");
+      assert.equal(body.pal_id, "pal-v5");
       return responseJson({
-        conversation_id: "c-v4",
-        conversation_url: "https://tavus.daily.co/c-v4",
+        conversation_id: "c-v5",
+        conversation_url: "https://tavus.daily.co/c-v5",
         meeting_token: "short-lived-token",
       });
     }
@@ -95,9 +98,218 @@ test("Sites Worker does not reuse the old scripted v3 PAL", async () => {
       { method: "POST" },
     ), { TAVUS_API_KEY: "server-secret" });
     assert.equal(response.status, 200);
-    assert.equal(createdPal.pal_name, "Fluent Me Conversation Coach v4");
+    assert.equal(createdPal.pal_name, "Fluent Me Conversation Coach v5");
     assert.match(createdPal.system_prompt, /learner-led conversation/);
+    assert.match(createdPal.system_prompt, /compare two attempts/);
+    assert.match(createdPal.system_prompt, /compact session reflection/);
     assert.equal(createdPal.layers.perception.emotion_recognition, "limited");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker returns an actionable Tavus credit error", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    if (String(url).endsWith("/pals?limit=100")) {
+      return responseJson({ data: [{ pal_name: "Fluent Me Conversation Coach v5", pal_id: "pal-existing" }] });
+    }
+    if (String(url).endsWith("/conversations")) {
+      return new Response(JSON.stringify({ message: "payment required" }), {
+        status: 402,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`Unexpected Tavus request: ${url}`);
+  };
+
+  try {
+    const response = await worker.fetch(new Request(
+      "https://fluent-me.test/api/tavus/conversations",
+      { method: "POST" },
+    ), { TAVUS_API_KEY: "server-secret" });
+    const body = await response.json();
+    assert.equal(response.status, 402);
+    assert.equal(body.reason, "credits");
+    assert.match(body.error, /conversation minutes/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker rejects cross-origin mutation requests", async () => {
+  const response = await worker.fetch(new Request(
+    "https://fluent-me.test/api/tavus/conversations",
+    {
+      method: "POST",
+      headers: { origin: "https://malicious.example", "content-type": "text/plain" },
+      body: "{}",
+    },
+  ), { TAVUS_API_KEY: "server-secret" });
+  assert.equal(response.status, 403);
+  assert.match((await response.json()).error, /Cross-origin/);
+});
+
+test("Sites Worker reports sanitized ElevenLabs subscription usage", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    assert.equal(String(url), "https://api.elevenlabs.io/v1/user/subscription");
+    assert.equal(options.headers["xi-api-key"], "eleven-secret");
+    return responseJson({
+      tier: "starter",
+      status: "active",
+      character_count: 1200,
+      character_limit: 30000,
+      voice_slots_used: 1,
+      voice_limit: 10,
+      can_use_instant_voice_cloning: true,
+      private_account_field: "must-not-leak",
+    });
+  };
+  try {
+    const response = await worker.fetch(new Request("https://fluent-me.test/api/personalization/status"), {
+      ELEVENLABS_API_KEY: "eleven-secret",
+      TAVUS_API_KEY: "tavus-secret",
+    });
+    const body = await response.json();
+    assert.equal(body.elevenlabs.tier, "starter");
+    assert.equal(body.elevenlabs.character_limit, 30000);
+    assert.equal(body.elevenlabs.can_use_instant_voice_cloning, true);
+    assert.equal(body.tavus.configured, true);
+    assert.doesNotMatch(JSON.stringify(body), /secret|private_account_field/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker creates a consented voice clone and private-voice PAL", async () => {
+  const originalFetch = globalThis.fetch;
+  let voiceForm;
+  let palBody;
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).endsWith("/voices/add")) {
+      voiceForm = options.body;
+      assert.equal(options.headers["xi-api-key"], "eleven-secret");
+      return responseJson({ voice_id: "voice_personal_123", requires_verification: false });
+    }
+    if (String(url).endsWith("/pals")) {
+      palBody = JSON.parse(options.body);
+      assert.equal(options.headers["x-api-key"], "tavus-secret");
+      return responseJson({ pal_id: "pal_personal_123" });
+    }
+    throw new Error(`Unexpected provider request: ${url}`);
+  };
+  try {
+    const form = new FormData();
+    form.append("name", "Daming's voice");
+    form.append("consent", "true");
+    form.append("audio", new Blob([new Uint8Array(2000)], { type: "audio/webm" }), "voice.webm");
+    const voiceResponse = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/voice",
+      { method: "POST", body: form },
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+    const voice = await voiceResponse.json();
+    assert.equal(voice.voice_id, "voice_personal_123");
+    assert.equal(voiceForm.get("name"), "Daming's voice");
+    assert.equal(voiceForm.get("files").size, 2000);
+
+    const palResponse = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/pal",
+      { method: "POST", body: JSON.stringify({ voice_id: voice.voice_id }) },
+    ), { ELEVENLABS_API_KEY: "eleven-secret", TAVUS_API_KEY: "tavus-secret" });
+    const pal = await palResponse.json();
+    assert.equal(pal.pal_id, "pal_personal_123");
+    assert.equal(palBody.layers.tts.tts_engine, "elevenlabs");
+    assert.equal(palBody.layers.tts.external_voice_id, voice.voice_id);
+    assert.equal(palBody.layers.tts.api_key, "eleven-secret");
+    assert.equal(palBody.layers.perception.perception_model, "raven-1");
+    assert.equal(palBody.layers.conversational_flow.turn_detection_model, "sparrow-1");
+    assert.doesNotMatch(JSON.stringify(pal), /eleven-secret|tavus-secret/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker never reflects provider secrets in errors", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => responseJson({
+    message: "invalid config includes eleven-secret and tavus-secret",
+  }, 422);
+  try {
+    const response = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/pal",
+      { method: "POST", body: JSON.stringify({ voice_id: "voice_personal_123" }) },
+    ), { ELEVENLABS_API_KEY: "eleven-secret", TAVUS_API_KEY: "tavus-secret" });
+    const body = await response.text();
+    assert.equal(response.status, 422);
+    assert.doesNotMatch(body, /eleven-secret|tavus-secret|invalid config/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker validates and creates a Phoenix-4 personal face", async () => {
+  const originalFetch = globalThis.fetch;
+  let faceBody;
+  globalThis.fetch = async (url, options = {}) => {
+    assert.equal(String(url), "https://tavusapi.com/v2/faces");
+    faceBody = JSON.parse(options.body);
+    return responseJson({ face_id: "face_personal_123", status: "started" });
+  };
+  try {
+    const invalid = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/face",
+      { method: "POST", body: JSON.stringify({ consent: true, train_video_url: "http://localhost/video.webm" }) },
+    ), { TAVUS_API_KEY: "tavus-secret" });
+    assert.equal(invalid.status, 400);
+
+    for (const unsafeUrl of [
+      "https://127.0.0.1/video.webm",
+      "https://192.168.1.4/video.webm",
+      "https://169.254.169.254/latest/meta-data",
+      "https://user:pass@storage.example/video.webm",
+      "https://host.internal/video.webm",
+    ]) {
+      const unsafe = await worker.fetch(new Request(
+        "https://fluent-me.test/api/personalization/face",
+        { method: "POST", body: JSON.stringify({ consent: true, train_video_url: unsafeUrl }) },
+      ), { TAVUS_API_KEY: "tavus-secret" });
+      assert.equal(unsafe.status, 400, unsafeUrl);
+    }
+
+    const response = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/face",
+      { method: "POST", body: JSON.stringify({ consent: true, face_name: "Daming", train_video_url: "https://storage.example/private-signed-video.webm" }) },
+    ), { TAVUS_API_KEY: "tavus-secret" });
+    const body = await response.json();
+    assert.equal(body.face_id, "face_personal_123");
+    assert.equal(faceBody.model_name, "phoenix-4");
+    assert.equal(faceBody.train_video_url, "https://storage.example/private-signed-video.webm");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker starts a conversation with saved personal face and PAL ids", async () => {
+  const originalFetch = globalThis.fetch;
+  let conversationBody;
+  globalThis.fetch = async (url, options = {}) => {
+    assert.equal(String(url), "https://tavusapi.com/v2/conversations");
+    conversationBody = JSON.parse(options.body);
+    return responseJson({
+      conversation_id: "c-personal",
+      conversation_url: "https://tavus.daily.co/c-personal",
+      meeting_token: "short-lived-token",
+    });
+  };
+  try {
+    const response = await worker.fetch(new Request(
+      "https://fluent-me.test/api/tavus/conversations",
+      { method: "POST", body: JSON.stringify({ face_id: "face_personal_123", pal_id: "pal_personal_123" }) },
+    ), { TAVUS_API_KEY: "tavus-secret" });
+    assert.equal(response.status, 200);
+    assert.equal(conversationBody.face_id, "face_personal_123");
+    assert.equal(conversationBody.pal_id, "pal_personal_123");
   } finally {
     globalThis.fetch = originalFetch;
   }

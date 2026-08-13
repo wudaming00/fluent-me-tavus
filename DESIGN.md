@@ -10,7 +10,8 @@ Start talking → open conversation ──────────────�
                          ├─ ask for English feedback
                          ├─ ask about delivery signals
                          ├─ request a natural recast
-                         └─ practice one exact phrase
+                         ├─ practice one exact phrase twice and compare
+                         └─ request a grounded session reflection
 ```
 
 ## Screen contract
@@ -31,9 +32,44 @@ Start talking → open conversation ──────────────�
 | How did I sound? | Give one specific English note and one natural recast. |
 | Say it naturally | Speak a concise improved version, then invite a retry. |
 | What did you notice? | Cite only observable cues, preserve uncertainty, and ask whether the impression matches. |
-| Practice a phrase | Model the exact supplied phrase once; let the learner repeat it in the same conversation. |
+| Practice a phrase | Model the exact supplied phrase once; capture two learner attempts in the same conversation. |
+| Compare attempts | Use only the two captured transcripts and available delivery analyses; name one improvement and one next detail. |
+| Wrap up | Return one communication win, one useful phrase, and one next practice grounded in this session. |
 
 These are callable abilities, not locked modes. Direct spoken questions must behave the same as buttons.
+
+## Optional identity setup contract
+
+**Create your coach** is a separate, optional onboarding flow. Skipping or abandoning it always leaves the stock coach available. Permission to use the microphone or camera for a live lesson is not permission to clone an identity.
+
+```text
+Explicit consent
+  ├─ Face: record about 60s locally → review/discard
+  │          └─ user-owned public/signed HTTPS URL (valid ≥24h)
+  │               or PAL Maker → Tavus Phoenix-4 training (~3–4h)
+  └─ Voice: record 60–90s locally → review/discard → explicit submit
+             └─ server relay → ElevenLabs Instant Voice Cloning
+
+face_id only → stock voice + personal Face
+voice_id only → personal PAL with stock male Face
+face_id + voice_id → full personal PAL → start a new call
+```
+
+The two samples stay separate because a clear, low-noise voice sample has different requirements from a face-training performance. The UI must:
+
+- require an affirmative confirmation that the learner owns or is authorized to use the likeness and voice;
+- explain which provider receives each sample before submission;
+- keep capture local by default and provide review, retry, and discard actions;
+- never upload merely because recording stopped;
+- show asynchronous Face states honestly rather than implying that capture created a usable Face;
+- allow either completed model to improve the coach while the other remains pending;
+- preserve the stock coach as the fallback when cloning is unavailable or incomplete.
+
+Tavus Face creation currently accepts a public or signed HTTPS training-video URL, not an in-memory browser `Blob`. Fluent Me does not yet include object storage or a signed-upload service, so browser capture must be exported to user-owned storage with a URL valid for at least 24 hours, or the Face must be created through PAL Maker. This gap is a product dependency, not a completed upload feature.
+
+The hosted site also still requires a verified `ELEVENLABS_API_KEY` and an active ElevenLabs plan or grant that permits Instant Voice Cloning. Phoenix-4 training generally takes around 3–4 hours. Until those dependencies and the full manual checklist are verified, personalization must not be described as end-to-end complete.
+
+The Tavus private-voice TTS layer requires the ElevenLabs `api_key` alongside the external `voice_id`. The server therefore supplies a dedicated, least-privilege ElevenLabs integration key to Tavus when it creates the personal PAL. The browser never receives this key, but the UI and privacy documentation must not imply that ElevenLabs is the only provider receiving it.
 
 ## Tavus boundary
 
@@ -43,6 +79,8 @@ Raven is configured with `emotion_recognition: limited` for an education product
 
 ## Logging and privacy
 
-The `Session log` reconstructs turns from live `conversation.utterance` events and de-duplicates replica/PAL aliases by inference and content. Optional `user_audio_analysis` and `user_visual_analysis` appear as expandable observable signals when Tavus provides them.
+The `Session` view reconstructs turns from live `conversation.utterance` events and de-duplicates replica/PAL aliases by inference and content. Optional `user_audio_analysis` and `user_visual_analysis` appear as expandable observable signals when Tavus provides them. The `Practice` view holds the current target, two captured attempts, their observable evidence, and the coach's grounded comparison in the current browser tab.
 
 The hosted Worker records room creation/end lifecycle events but does not create an extra server-side speech log. Fluent Me does not save raw audio or video. A future durable learning-memory feature requires a separate retention choice and explicit user-facing privacy design.
+
+For **Create your coach**, raw capture lives in transient browser memory until the learner discards it or explicitly submits it. The ElevenLabs voice request passes through the server in memory; Fluent Me does not create a media archive. Face video remains in the learner's chosen external storage or PAL Maker workflow. Only `face_id`, `voice_id`, and `pal_id` are written to `localStorage`—never media blobs, base64 recordings, transcripts, consent recordings, or API credentials. Clearing those IDs disconnects the personal coach locally; it does not itself delete provider-side Face, voice, PAL, or training data.

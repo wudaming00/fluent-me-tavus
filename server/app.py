@@ -13,7 +13,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -30,6 +30,7 @@ if _envf.exists():
 
 import brain          # noqa: E402
 import memory         # noqa: E402
+import personalization  # noqa: E402
 import sauna          # noqa: E402
 import scenes         # noqa: E402
 import scoring        # noqa: E402
@@ -47,6 +48,15 @@ app.mount("/audio", StaticFiles(directory=str(AUDIO)), name="audio")
 
 store = memory.make_store()
 EX = ThreadPoolExecutor(max_workers=4)          # 模块级复用, TTS 双路并行
+
+
+@app.middleware("http")
+async def reject_cross_origin_mutations(request: Request, call_next):
+    if request.method == "POST" and request.url.path.startswith("/api/"):
+        origin = request.headers.get("origin")
+        if origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
+            return JSONResponse({"error": "Cross-origin requests are not allowed."}, status_code=403)
+    return await call_next(request)
 
 FRESH_SESSION = {"active": False, "mode": "free", "scene": None, "cursor": 0, "phase": "main",
                  "convo": [], "turns": [], "xp_gained": 0, "cards_created": 0, "cards_advanced": 0,
@@ -81,7 +91,9 @@ def _page(name: str):
     # no-store: 今晚频繁热更, 浏览器缓存旧 UI 是 demo 隐形杀手
     return FileResponse(str(PAGES / name), media_type="text/html",
                         headers={"Cache-Control": "no-store",
-                                 "Permissions-Policy": "camera=(self), microphone=(self)"})
+                                 "Permissions-Policy": "camera=(self), microphone=(self)",
+                                 "Content-Security-Policy": "frame-ancestors 'none'",
+                                 "X-Frame-Options": "DENY"})
 
 
 @app.get("/")
@@ -205,9 +217,103 @@ def _tavus_greeting(briefing: dict, focus: str, topic: str = "") -> str:
 
 def _safe_tavus_error(exc: tavus.TavusAPIError):
     status = exc.status if 400 <= exc.status < 600 else 502
-    message = ("Your coach is busy right now. Try again shortly." if status == 429
-               else "I couldn't bring your coach into the conversation. Try again.")
-    return JSONResponse({"error": message, "reason": "tavus"}, status_code=status)
+    if status == 402:
+        message = "This coach needs more Tavus conversation minutes before a new session can start."
+        reason = "credits"
+    elif status == 429:
+        message = "Your coach is busy right now. Try again shortly."
+        reason = "capacity"
+    else:
+        message = "I couldn't bring your coach into the conversation. Try again."
+        reason = "tavus"
+    return JSONResponse({"error": message, "reason": reason}, status_code=status)
+
+
+def _safe_personalization_error(exc: Exception):
+    if isinstance(exc, personalization.PersonalizationAPIError):
+        status = exc.status if 400 <= exc.status < 600 else 502
+        return JSONResponse({"error": str(exc)}, status_code=status)
+    return JSONResponse({"error": str(exc)}, status_code=400)
+
+
+@app.get("/api/personalization/status")
+def personalization_status():
+    eleven = {
+        "configured": personalization.eleven_configured(),
+        "tier": None,
+        "status": None,
+        "character_count": None,
+        "character_limit": None,
+        "voice_slots_used": None,
+        "voice_limit": None,
+        "can_use_instant_voice_cloning": None,
+    }
+    if eleven["configured"]:
+        try:
+            eleven.update(personalization.get_eleven_subscription())
+        except personalization.PersonalizationAPIError as exc:
+            eleven["error"] = str(exc)
+    return {
+        "elevenlabs": eleven,
+        "tavus": {"configured": tavus.configured()},
+    }
+
+
+@app.post("/api/personalization/voice")
+async def create_personal_voice(
+    audio: UploadFile = File(...),
+    name: str = Form(...),
+    consent: bool = Form(False),
+):
+    if not consent:
+        return JSONResponse(
+            {"error": "Confirm that this is your voice and you consent to creating its AI clone."},
+            status_code=400,
+        )
+    try:
+        return personalization.create_eleven_voice(
+            name,
+            await audio.read(personalization.MAX_VOICE_SAMPLE_BYTES + 1),
+            filename=audio.filename or "voice.webm",
+            content_type=audio.content_type or "audio/webm",
+        )
+    except (ValueError, personalization.PersonalizationAPIError) as exc:
+        return _safe_personalization_error(exc)
+
+
+@app.post("/api/personalization/face")
+def create_personal_face(payload: dict):
+    if payload.get("consent") is not True:
+        return JSONResponse(
+            {"error": "Confirm that this is your face and you consent to creating its AI clone."},
+            status_code=400,
+        )
+    try:
+        return personalization.create_tavus_face(
+            str(payload.get("face_name") or ""),
+            str(payload.get("train_video_url") or ""),
+        )
+    except (ValueError, personalization.PersonalizationAPIError) as exc:
+        return _safe_personalization_error(exc)
+
+
+@app.get("/api/personalization/face/{face_id}")
+def personal_face_status(face_id: str):
+    try:
+        return personalization.get_tavus_face(face_id)
+    except (ValueError, personalization.PersonalizationAPIError) as exc:
+        return _safe_personalization_error(exc)
+
+
+@app.post("/api/personalization/pal")
+def create_personal_coach(payload: dict):
+    try:
+        return personalization.create_personal_pal(
+            str(payload.get("face_id") or ""),
+            str(payload.get("voice_id") or ""),
+        )
+    except (ValueError, personalization.PersonalizationAPIError) as exc:
+        return _safe_personalization_error(exc)
 
 
 def _event_conversation(session: dict, before_order: float | None = None) -> list:
@@ -234,7 +340,7 @@ def _report_snapshot(session: dict) -> dict:
 
 @app.get("/api/tavus/status")
 def tavus_status():
-    cache_ready = bool(os.environ.get("TAVUS_CONVERSATION_PAL_ID")) or (BASE / "data" / "tavus_pal_v4.json").exists()
+    cache_ready = bool(os.environ.get("TAVUS_CONVERSATION_PAL_V5_ID")) or (BASE / "data" / "tavus_pal_v5.json").exists()
     return {
         "configured": tavus.configured(),
         "mode": "live" if tavus.configured() else "tavus_required",
@@ -255,6 +361,8 @@ def start_tavus_conversation(payload: dict | None = None):
     body = payload or {}
     focus = str(body.get("focus") or "conversation")
     topic = " ".join(str(body.get("topic") or "").split())[:240]
+    personal_pal_id = str(body.get("pal_id") or "").strip()
+    personal_face_id = str(body.get("face_id") or "").strip()
     if focus not in TAVUS_FOCUS:
         return JSONResponse({"error": "unknown practice focus"}, status_code=400)
     if not tavus.configured():
@@ -263,8 +371,13 @@ def start_tavus_conversation(payload: dict | None = None):
     with STORE_LOCK:
         briefing = store.briefing()
     try:
-        remote = tavus.create_conversation(_tavus_context(briefing, focus, topic),
-                                           _tavus_greeting(briefing, focus, topic), focus)
+        remote = tavus.create_conversation(
+            _tavus_context(briefing, focus, topic),
+            _tavus_greeting(briefing, focus, topic),
+            focus,
+            pal_id=personal_pal_id,
+            face_id=personal_face_id,
+        )
     except tavus.TavusAPIError as exc:
         return _safe_tavus_error(exc)
 
@@ -299,6 +412,7 @@ def start_tavus_conversation(payload: dict | None = None):
         "status": remote.get("status", "active"),
         "pal_source": remote.get("pal_source"),
         "focus": focus,
+        "personalized": bool(personal_pal_id or personal_face_id),
     }
 
 

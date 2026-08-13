@@ -24,7 +24,13 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert "How did I sound?" in response.text
     assert "What did you notice?" in response.text
     assert "Practice a phrase" in response.text
-    assert "Session log" in response.text
+    assert "Compare attempts" in response.text
+    assert "Wrap up this session" in response.text
+    assert "Create your coach" in response.text
+    assert 'id="personalization-dialog"' in response.text
+    assert "/static/personalize.js" in response.text
+    assert 'id="practice-panel"' in response.text
+    assert 'id="log-panel"' in response.text
     assert "tavus-coach-preview.png" not in response.text
     assert "Your video coach will appear here" in response.text
     assert "id=\"tavus-video\"" in response.text
@@ -43,6 +49,8 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert "Fillers" not in response.text
     assert "Kai" not in response.text
     assert "/static/live.js" in response.text
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["content-security-policy"] == "frame-ancestors 'none'"
 
 
 def test_daily_sdk_is_served_from_the_same_origin():
@@ -78,6 +86,12 @@ def test_browser_publishes_daily_audio_and_supports_conversational_tools():
     assert "conversation.echo" in response.text
     assert "conversation.respond" in response.text
     assert "conversation.utterance" in response.text
+    assert "ensureLocalAudio" in response.text
+    assert "waitForLocalAudio" in response.text
+    assert "comparisonPrompt" in response.text
+    assert "capturePracticeAttempt" in response.text
+    assert "requestSessionSummary" in response.text
+    assert "No delivery analysis was provided" in response.text
     assert "createCallObject" in response.text
     assert "persistentTrack" in response.text
     assert "startAudioOff: false" in response.text
@@ -92,6 +106,8 @@ def test_browser_publishes_daily_audio_and_supports_conversational_tools():
     assert "fillers" not in response.text.lower()
     assert "const SAMPLE" not in response.text
     assert "guided preview" not in response.text.lower()
+    assert "phrase-lab" not in response.text
+    assert "phrase-input" not in response.text
     assert not re.search(r"[\u4e00-\u9fff]", response.text)
 
 
@@ -100,6 +116,110 @@ def test_live_conversation_refuses_to_fake_without_server_key(monkeypatch):
     response = client.post("/api/tavus/conversations", json={"focus": "conversation"})
     assert response.status_code == 503
     assert response.json()["reason"] == "not_configured"
+
+
+def test_cross_origin_api_mutations_are_rejected_before_work_starts():
+    response = client.post(
+        "/api/tavus/conversations",
+        headers={"origin": "https://malicious.example"},
+        json={"focus": "conversation"},
+    )
+    assert response.status_code == 403
+    assert "Cross-origin" in response.json()["error"]
+
+
+def test_personalization_status_is_sanitized(monkeypatch):
+    monkeypatch.setattr(app_module.personalization, "eleven_configured", lambda: True)
+    monkeypatch.setattr(app_module.tavus, "configured", lambda: True)
+    monkeypatch.setattr(
+        app_module.personalization,
+        "get_eleven_subscription",
+        lambda: {
+            "tier": "starter",
+            "status": "active",
+            "character_count": 1200,
+            "character_limit": 30000,
+            "voice_slots_used": 1,
+            "voice_limit": 10,
+            "can_use_instant_voice_cloning": True,
+        },
+    )
+
+    response = client.get("/api/personalization/status")
+
+    assert response.status_code == 200
+    assert response.json()["elevenlabs"]["tier"] == "starter"
+    assert response.json()["elevenlabs"]["can_use_instant_voice_cloning"] is True
+    assert response.json()["tavus"]["configured"] is True
+    assert "api_key" not in response.text.lower()
+
+
+def test_voice_clone_requires_consent_and_returns_only_provider_result(monkeypatch):
+    denied = client.post(
+        "/api/personalization/voice",
+        data={"name": "My voice", "consent": "false"},
+        files={"audio": ("voice.webm", b"voice-sample", "audio/webm")},
+    )
+    assert denied.status_code == 400
+    assert "consent" in denied.json()["error"].lower()
+
+    seen = {}
+
+    def fake_create(name, data, filename, content_type):
+        seen.update(name=name, data=data, filename=filename, content_type=content_type)
+        return {"voice_id": "voice_personal_123", "requires_verification": False}
+
+    monkeypatch.setattr(app_module.personalization, "create_eleven_voice", fake_create)
+    response = client.post(
+        "/api/personalization/voice",
+        data={"name": "My voice", "consent": "true"},
+        files={"audio": ("voice.webm", b"voice-sample", "audio/webm")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"voice_id": "voice_personal_123", "requires_verification": False}
+    assert seen == {
+        "name": "My voice",
+        "data": b"voice-sample",
+        "filename": "voice.webm",
+        "content_type": "audio/webm",
+    }
+
+
+def test_face_training_and_personal_pal_require_consent_and_ids(monkeypatch):
+    denied = client.post(
+        "/api/personalization/face",
+        json={"face_name": "My face", "train_video_url": "https://example.com/face.webm"},
+    )
+    assert denied.status_code == 400
+
+    monkeypatch.setattr(
+        app_module.personalization,
+        "create_tavus_face",
+        lambda name, url: {"face_id": "face_personal_123", "status": "started"},
+    )
+    face = client.post(
+        "/api/personalization/face",
+        json={
+            "consent": True,
+            "face_name": "My face",
+            "train_video_url": "https://example.com/face.webm",
+        },
+    )
+    assert face.status_code == 200
+    assert face.json()["face_id"] == "face_personal_123"
+
+    monkeypatch.setattr(
+        app_module.personalization,
+        "create_personal_pal",
+        lambda face_id, voice_id: {"pal_id": "pal_personal_123", "pal_name": "Personal"},
+    )
+    pal = client.post(
+        "/api/personalization/pal",
+        json={"face_id": "face_personal_123", "voice_id": "voice_personal_123"},
+    )
+    assert pal.status_code == 200
+    assert pal.json()["pal_id"] == "pal_personal_123"
 
 
 def test_replica_and_pal_events_normalize_to_one_coach_turn():
