@@ -623,20 +623,25 @@ def end_tavus_conversation(conversation_id: str):
             return JSONResponse({"error": "unknown conversation"}, status_code=404)
         already_ended = session["remote_ended"]
     remote_warning = ""
+    remote_end_succeeded = already_ended
     if not already_ended:
         try:
             tavus.end_conversation(conversation_id)
-        except tavus.TavusAPIError as exc:
+            remote_end_succeeded = True
+        except tavus.TavusAPIError:
             # A failed remote teardown must not discard the learner's local
-            # transcript or block recap generation. The endpoint remains
-            # idempotent and exposes the warning without failing the session.
-            remote_warning = str(exc)
+            # transcript or block recap generation. Keep the remote state
+            # retryable and never expose Tavus' raw error text.
+            remote_warning = (
+                "The video room may still be active. Try ending the session again."
+            )
     with TAVUS_LOCK:
         session = TAVUS_SESSIONS[conversation_id]
-        session["remote_ended"] = True
-        session["report_status"] = "finalizing"
+        if remote_end_succeeded:
+            session["remote_ended"] = True
         if not session["finalize_started"]:
             session["finalize_started"] = True
+            session["report_status"] = "finalizing"
             EX.submit(_finalize_tavus, conversation_id)
         snapshot = _report_snapshot(session)
         if remote_warning:

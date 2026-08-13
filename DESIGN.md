@@ -65,7 +65,7 @@ The two samples stay separate because a clear, low-noise voice sample has differ
 - allow either completed model to improve the coach while the other remains pending;
 - preserve the stock coach as the fallback when cloning is unavailable or incomplete.
 
-Tavus Face creation currently accepts a public or signed HTTPS training-video URL, not an in-memory browser `Blob`. Fluent Me does not yet include object storage or a signed-upload service, so browser capture must be exported to user-owned storage with a URL valid for at least 24 hours, or the Face must be created through PAL Maker. This gap is a product dependency, not a completed upload feature.
+PAL Maker is the primary Face-training path because it provides guided recording and quality checks. When training is ready, Fluent Me accepts the Face ID, verifies its Tavus status, and saves it only after the provider reports completion. A public or signed HTTPS training-video URL remains an advanced path; an in-memory browser `Blob` is never presented as a complete upload flow.
 
 The hosted site also still requires a verified `ELEVENLABS_API_KEY` and an active ElevenLabs plan or grant that permits Instant Voice Cloning. Phoenix-4 training generally takes around 3–4 hours. Until those dependencies and the full manual checklist are verified, personalization must not be described as end-to-end complete.
 

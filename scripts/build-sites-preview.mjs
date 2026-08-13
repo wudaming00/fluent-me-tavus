@@ -11,7 +11,7 @@ const css = (await read("server/static/live.css")).toString("utf8");
 const js = (await read("server/static/live.js")).toString("utf8");
 const personalizeJs = (await read("server/static/personalize.js")).toString("utf8");
 const dailyJs = (await read("server/static/daily-0.91.0.js")).toString("utf8");
-const og = (await read("server/static/og-personal-coach.png")).toString("base64");
+const ogV2 = (await read("server/static/og-personal-coach-v2.png")).toString("base64");
 
 const worker = `
 const HTML = ${JSON.stringify(html)};
@@ -19,12 +19,18 @@ const CSS = ${JSON.stringify(css)};
 const JS = ${JSON.stringify(js)};
 const PERSONALIZE_JS = ${JSON.stringify(personalizeJs)};
 const DAILY_JS = ${JSON.stringify(dailyJs)};
-const OG_BASE64 = ${JSON.stringify(og)};
+const OG_V2_BASE64 = ${JSON.stringify(ogV2)};
 const TAVUS_BASE = "https://tavusapi.com/v2";
 const ELEVEN_BASE = "https://api.elevenlabs.io/v1";
 const DEFAULT_FACE_ID = "r987f6e6f73c"; // Nathan - Bookshelf, account-available Phoenix-4 stock Face
 const PAL_NAME = "Fluent Me Conversation Coach v5";
 const SAFE_ID = /^[A-Za-z0-9_-]{6,128}$/;
+const MAX_VOICE_SAMPLE_BYTES = 20 * 1024 * 1024;
+const MAX_VOICE_REQUEST_BYTES = MAX_VOICE_SAMPLE_BYTES + 512 * 1024;
+const VOICE_MIME_TYPES = new Set([
+  "audio/aac", "audio/flac", "audio/mp4", "audio/mpeg", "audio/ogg",
+  "audio/wav", "audio/webm", "audio/x-m4a", "audio/x-wav",
+]);
 
 const PAL_PROMPT = ${JSON.stringify(`You are the visible personal English coach inside Fluent Me. This is a live, learner-led conversation, not a scripted lesson. Respond to what the learner means first. Keep most replies to one to three natural spoken sentences and ask at most one useful follow-up. The learner may change topics, interrupt, or ask a direct question at any time. Never wait for an app-controlled step and never force a curriculum sequence.
 
@@ -60,10 +66,25 @@ const imageResponse = (base64, type = "image/png") => {
   return new Response(bytes, { headers: { "content-type": type, "cache-control": "public, max-age=86400" } });
 };
 
+async function providerFetch(url, init, timeoutMs, provider) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted || error?.name === "AbortError" || error?.name === "TimeoutError") {
+      throw Object.assign(new Error(provider + " did not respond in time."), { status: 504, reason: "timeout" });
+    }
+    throw Object.assign(new Error("Could not reach " + provider + "."), { status: 502, reason: "network" });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function tavusRequest(env, path, options = {}) {
   const key = String(env.TAVUS_API_KEY || "").trim();
   if (!key) throw Object.assign(new Error("Live coaching is unavailable right now."), { status: 503 });
-  const response = await fetch(TAVUS_BASE + path, {
+  const response = await providerFetch(TAVUS_BASE + path, {
     method: options.method || "GET",
     headers: {
       "accept": "application/json",
@@ -71,7 +92,7 @@ async function tavusRequest(env, path, options = {}) {
       "x-api-key": key,
     },
     body: options.body == null ? undefined : JSON.stringify(options.body),
-  });
+  }, options.timeoutMs || 35_000, "Tavus");
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = payload.message || payload.error || "Tavus request failed.";
@@ -84,11 +105,11 @@ async function elevenRequest(env, path, options = {}) {
   const key = String(env.ELEVENLABS_API_KEY || "").trim();
   if (!key) throw Object.assign(new Error("ElevenLabs is not configured for this coach."), { status: 503 });
   const headers = { "accept": "application/json", "xi-api-key": key, ...(options.headers || {}) };
-  const response = await fetch(ELEVEN_BASE + path, {
+  const response = await providerFetch(ELEVEN_BASE + path, {
     method: options.method || "GET",
     headers,
     body: options.body,
-  });
+  }, options.timeoutMs || 45_000, "ElevenLabs");
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = payload.detail?.message || payload.detail || payload.message || payload.error || "ElevenLabs request failed.";
@@ -110,6 +131,7 @@ function safeProviderError(error, provider) {
     ? "This ElevenLabs account needs an active cloning plan or grant credits."
     : "This Tavus account needs more credits before training can start.";
   if (safeStatus === 429) message = (provider === "elevenlabs" ? "ElevenLabs" : "Tavus") + " is busy or rate-limited. Try again shortly.";
+  if (safeStatus === 504) message = (provider === "elevenlabs" ? "ElevenLabs" : "Tavus") + " did not respond in time. Try again.";
   return json({ error: message, reason: provider }, safeStatus);
 }
 
@@ -121,6 +143,11 @@ function cleanName(value, fallback) {
 function validId(value) {
   const cleaned = String(value || "").trim();
   return SAFE_ID.test(cleaned) ? cleaned : "";
+}
+
+function voiceMimeType(value) {
+  const base = String(value || "").split(";", 1)[0].trim().toLowerCase();
+  return VOICE_MIME_TYPES.has(base) ? base : "";
 }
 
 function publicHttpsUrl(value) {
@@ -155,6 +182,7 @@ async function ensurePal(env) {
   const faceId = String(env.TAVUS_FACE_ID || DEFAULT_FACE_ID).trim();
   const created = await tavusRequest(env, "/pals", {
     method: "POST",
+    timeoutMs: 90_000,
     body: {
       pal_name: PAL_NAME,
       pipeline_mode: "full",
@@ -223,18 +251,26 @@ async function personalizationStatus(env) {
 
 async function createVoiceClone(request, env) {
   try {
+    const contentLength = request.headers.get("content-length");
+    if (contentLength != null && !/^\\d+$/.test(contentLength.trim())) {
+      return json({ error: "The voice upload size is invalid.", reason: "audio" }, 400);
+    }
+    if (contentLength != null && Number(contentLength) > MAX_VOICE_REQUEST_BYTES) {
+      return json({ error: "Voice uploads must be 20 MB or smaller.", reason: "audio" }, 413);
+    }
     const input = await request.formData();
     const consent = String(input.get("consent") || "").toLowerCase() === "true";
     const audio = input.get("audio");
     if (!consent) return json({ error: "Confirm that this is your voice and that you consent to cloning it.", reason: "consent" }, 400);
     if (!audio || typeof audio.arrayBuffer !== "function") return json({ error: "Record a voice sample before creating a clone.", reason: "audio" }, 400);
-    if (audio.size < 1000 || audio.size > 20 * 1024 * 1024) return json({ error: "Voice samples must be between 1 KB and 20 MB.", reason: "audio" }, 400);
+    if (audio.size < 1000 || audio.size > MAX_VOICE_SAMPLE_BYTES) return json({ error: "Voice samples must be between 1 KB and 20 MB.", reason: "audio" }, 400);
+    if (!voiceMimeType(audio.type)) return json({ error: "Use a supported audio recording format.", reason: "audio" }, 400);
     const outbound = new FormData();
     outbound.append("name", cleanName(input.get("name"), "Fluent Me personal voice"));
     outbound.append("description", "Consent-confirmed personal voice for the owner's Fluent Me English coach.");
     outbound.append("remove_background_noise", "false");
     outbound.append("files", audio, audio.name || "fluent-me-voice.webm");
-    const result = await elevenRequest(env, "/voices/add", { method: "POST", body: outbound });
+    const result = await elevenRequest(env, "/voices/add", { method: "POST", body: outbound, timeoutMs: 90_000 });
     const voiceId = validId(result.voice_id);
     if (!voiceId) throw Object.assign(new Error("ElevenLabs returned no usable voice identifier."), { status: 502 });
     return json({ voice_id: voiceId, requires_verification: Boolean(result.requires_verification) });
@@ -252,6 +288,7 @@ async function createPersonalPal(request, env) {
     if (!String(env.ELEVENLABS_API_KEY || "").trim()) return json({ error: "ElevenLabs is not configured for this coach.", reason: "not_configured" }, 503);
     const created = await tavusRequest(env, "/pals", {
       method: "POST",
+      timeoutMs: 90_000,
       body: {
         pal_name: "Fluent Me Personal Coach " + Date.now(),
         pipeline_mode: "full",
@@ -300,6 +337,7 @@ async function createPersonalFace(request, env) {
     if (!trainingUrl) return json({ error: "Enter a public HTTPS training-video URL without embedded credentials.", reason: "url" }, 400);
     const created = await tavusRequest(env, "/faces", {
       method: "POST",
+      timeoutMs: 90_000,
       body: {
         face_name: cleanName(body.face_name, "Fluent Me personal face"),
         train_video_url: trainingUrl,
@@ -319,12 +357,13 @@ async function getPersonalFace(faceId, env) {
   if (!safeFaceId) return json({ error: "Invalid face identifier.", reason: "face" }, 400);
   try {
     const face = await tavusRequest(env, "/faces/" + encodeURIComponent(safeFaceId));
+    const failed = Boolean(face.error_message || face.error_details);
     return json({
       face_id: safeFaceId,
       status: String(face.status || face.training_status || "unknown"),
       face_name: String(face.face_name || ""),
-      error: face.error_message || face.error_details
-        ? String(face.error_message || face.error_details).slice(0, 240)
+      error_message: failed
+        ? "Tavus could not train this video. Check the recording and try again."
         : null,
     });
   } catch (error) {
@@ -390,7 +429,7 @@ async function endConversation(conversationId, env) {
     console.log(JSON.stringify({ event: "conversation.ended", conversation_id: conversationId }));
     return json({ status: "ended" });
   } catch (error) {
-    return json({ error: error.message || "Could not end the Tavus room." }, Number(error.status) || 502);
+    return safeProviderError(error, "tavus");
   }
 }
 
@@ -416,7 +455,8 @@ export default {
     if (url.pathname === "/static/daily-0.91.0.js") {
       return new Response(DAILY_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=31536000, immutable" } });
     }
-    if (url.pathname === "/static/og-personal-coach.png") return imageResponse(OG_BASE64);
+    if (url.pathname === "/static/og-personal-coach-v2.png") return imageResponse(OG_V2_BASE64);
+    if (url.pathname === "/static/og-personal-coach.png") return imageResponse(OG_V2_BASE64);
     if (url.pathname === "/api/tavus/status") {
       const configured = Boolean(String(env.TAVUS_API_KEY || "").trim());
       return json({

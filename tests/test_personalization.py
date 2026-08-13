@@ -1,5 +1,6 @@
 import io
 import json
+import socket
 import sys
 from pathlib import Path
 
@@ -125,8 +126,10 @@ def test_create_voice_validates_name_type_and_file_limit(monkeypatch):
         personalization.create_eleven_voice("x" * 101, b"123")
     with pytest.raises(ValueError, match="control"):
         personalization.create_eleven_voice("Voice\r\nInjected", b"123")
-    with pytest.raises(ValueError, match="MIME"):
+    with pytest.raises(ValueError, match="audio MIME"):
         personalization.create_eleven_voice("Voice", b"123", content_type="audio/webm\r\nx: y")
+    with pytest.raises(ValueError, match="audio MIME"):
+        personalization.create_eleven_voice("Voice", b"123", content_type="text/plain")
 
 
 @pytest.mark.parametrize(
@@ -202,6 +205,29 @@ def test_get_face_validates_id_and_sanitizes_response(monkeypatch):
     assert "internal" not in result
     with pytest.raises(ValueError, match="face_id"):
         personalization.get_tavus_face("../faces/other")
+
+
+def test_get_face_replaces_raw_provider_training_error(monkeypatch):
+    monkeypatch.setenv("TAVUS_API_KEY", "tavus-server-secret")
+
+    def fake_urlopen(request, timeout):
+        return FakeResponse({
+            "face_id": "face_abc123",
+            "status": "error",
+            "error_message": (
+                "failed to read https://storage.example/video?signature=private-token "
+                "using tavus-server-secret"
+            ),
+        })
+
+    monkeypatch.setattr(personalization.urllib.request, "urlopen", fake_urlopen)
+    result = personalization.get_tavus_face("face_abc123")
+
+    assert result["error_message"] == (
+        "Tavus could not train this video. Check the recording and try again."
+    )
+    assert "private-token" not in json.dumps(result)
+    assert "tavus-server-secret" not in json.dumps(result)
 
 
 def test_personal_pal_combines_phoenix_eleven_raven_and_sparrow(monkeypatch):
@@ -305,4 +331,19 @@ def test_provider_errors_are_actionable_and_do_not_echo_secrets(monkeypatch, sta
 
     assert error.value.status == status
     assert expected in str(error.value)
+    assert "eleven-server-secret" not in str(error.value)
+
+
+def test_provider_timeout_maps_to_safe_gateway_timeout(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "eleven-server-secret")
+
+    def fake_urlopen(request, timeout):
+        raise socket.timeout("timeout included eleven-server-secret")
+
+    monkeypatch.setattr(personalization.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(personalization.PersonalizationAPIError) as error:
+        personalization.get_eleven_subscription()
+
+    assert error.value.status == 504
+    assert str(error.value) == "ElevenLabs did not respond in time. Try again."
     assert "eleven-server-secret" not in str(error.value)

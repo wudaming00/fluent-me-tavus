@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -40,21 +41,15 @@ def _api_base() -> str:
 
 
 def _friendly_error(status: int, raw: bytes) -> str:
-    message = "Tavus request failed"
-    try:
-        body = json.loads(raw.decode("utf-8", errors="replace"))
-        candidate = body.get("message") or body.get("error")
-        if isinstance(candidate, str) and candidate.strip():
-            message = candidate.strip()
-    except (ValueError, AttributeError):
-        pass
     if status in (401, 403):
         return "Tavus rejected the server credential. Rotate the key and try again."
     if status == 402:
         return "This Tavus account needs more conversation minutes before a new coach session can start."
     if status == 429:
         return "Tavus is at its current concurrency or rate limit. Try again shortly."
-    return message[:240]
+    # Do not expose Tavus' raw response body. Provider messages can include
+    # account details, signed URLs, or configuration fragments.
+    return "Tavus could not complete that request. Try again."
 
 
 def _request(method: str, path: str, payload: dict | None = None,
@@ -77,7 +72,11 @@ def _request(method: str, path: str, payload: dict | None = None,
     except urllib.error.HTTPError as exc:
         raw = exc.read()
         raise TavusAPIError(exc.code, _friendly_error(exc.code, raw)) from exc
+    except (TimeoutError, socket.timeout) as exc:
+        raise TavusAPIError(504, "Tavus did not respond in time. Try again.") from exc
     except urllib.error.URLError as exc:
+        if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+            raise TavusAPIError(504, "Tavus did not respond in time. Try again.") from exc
         raise TavusAPIError(502, "Could not reach Tavus from the server.") from exc
 
 
@@ -209,6 +208,11 @@ def create_conversation(context: str, greeting: str, focus: str = "conversation"
         "require_auth": True,
         "max_participants": 2,
         "audio_only": False,
+        "properties": {
+            "participant_absent_timeout": 60,
+            "participant_left_timeout": 15,
+            "max_call_duration": 900,
+        },
     }
     callback_url = os.environ.get("TAVUS_CALLBACK_URL", "").strip()
     if callback_url:

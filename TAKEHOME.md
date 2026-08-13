@@ -144,7 +144,7 @@ Do not check these items based on mocked tests or UI presence alone. Run them wi
 - [ ] Raw audio/video, base64 media, API keys, and consent recordings never appear in `localStorage`; only `face_id`, `voice_id`, and `pal_id` are stored after successful provider responses.
 - [ ] The voice sample is sent only after explicit submission as multipart media through the server to ElevenLabs IVC; the ElevenLabs key never reaches the browser.
 - [ ] Voice-clone success returns a real `voice_id`; plan/grant, credit, validation, and rate-limit failures remain visible errors rather than a fake ready state.
-- [ ] The Face step explains that browser capture does not itself create a Tavus-ready URL. It accepts a user-owned public or signed HTTPS download URL valid for at least 24 hours, or directs the learner to PAL Maker.
+- [ ] The Face step makes PAL Maker the recommended guided path, accepts its Face ID on return, and saves it only after Tavus reports the Face as completed. The hosted-video URL remains an advanced option.
 - [ ] Face creation rejects HTTP, credential-bearing, localhost, and private-IP URLs before calling Tavus.
 - [ ] A real eligible video starts Phoenix-4 Face training and returns a `face_id`; status polling continues to `completed` or displays the real error. Budget approximately 3–4 hours for this check.
 - [ ] Progressive activation works honestly: Face-only uses the stock voice, voice-only uses the stock male Face, and both real IDs create a full personal PAL with `eleven_flash_v2_5`, Raven-1 limited perception, and Sparrow-1 turn-taking.

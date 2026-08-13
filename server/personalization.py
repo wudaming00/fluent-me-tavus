@@ -11,6 +11,7 @@ import json
 import os
 import re
 import secrets
+import socket
 import time
 import urllib.error
 import urllib.parse
@@ -23,11 +24,21 @@ TAVUS_API_BASE = "https://tavusapi.com/v2"
 DEFAULT_FACE_ID = "r987f6e6f73c"
 MAX_VOICE_SAMPLE_BYTES = 20 * 1024 * 1024
 MAX_NAME_LENGTH = 100
-
-_SAFE_ID = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_-]{2,127}\Z")
-_SAFE_CONTENT_TYPE = re.compile(
-    r"\A[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*\Z"
+ALLOWED_VOICE_MIME_TYPES = frozenset(
+    {
+        "audio/aac",
+        "audio/flac",
+        "audio/mp4",
+        "audio/mpeg",
+        "audio/ogg",
+        "audio/wav",
+        "audio/webm",
+        "audio/x-m4a",
+        "audio/x-wav",
+    }
 )
+
+_SAFE_ID = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_-]{5,127}\Z")
 _SUBSCRIPTION_FIELDS = (
     "tier",
     "character_count",
@@ -112,7 +123,9 @@ def _friendly_error(provider: str, status: int, raw: bytes) -> str:
             f"{provider} could not use the submitted recording or configuration. "
             "Check the media and try again."
         )
-    return _response_message(raw) or f"{provider} request failed."
+    # Provider response text is not part of our public API. It can contain
+    # signed media URLs, account metadata, or other configuration details.
+    return f"{provider} could not complete that request. Try again."
 
 
 def _request_json(
@@ -138,7 +151,15 @@ def _request_json(
         raise PersonalizationAPIError(
             exc.code, _friendly_error(provider, exc.code, raw)
         ) from exc
+    except (TimeoutError, socket.timeout) as exc:
+        raise PersonalizationAPIError(
+            504, f"{provider} did not respond in time. Try again."
+        ) from exc
     except urllib.error.URLError as exc:
+        if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+            raise PersonalizationAPIError(
+                504, f"{provider} did not respond in time. Try again."
+            ) from exc
         raise PersonalizationAPIError(
             502, f"Could not reach {provider} from the server."
         ) from exc
@@ -250,9 +271,13 @@ def create_eleven_voice(
     if len(sample) > MAX_VOICE_SAMPLE_BYTES:
         raise ValueError("Voice recordings must be 20 MB or smaller.")
     safe_filename = _safe_filename(filename)
-    safe_content_type = content_type.strip().lower() if isinstance(content_type, str) else ""
-    if not _SAFE_CONTENT_TYPE.fullmatch(safe_content_type):
-        raise ValueError("content_type must be a safe MIME type.")
+    safe_content_type = (
+        content_type.split(";", 1)[0].strip().lower()
+        if isinstance(content_type, str)
+        else ""
+    )
+    if safe_content_type not in ALLOWED_VOICE_MIME_TYPES:
+        raise ValueError("content_type must be a supported audio MIME type.")
 
     boundary = f"----FluentMe{secrets.token_hex(16)}"
     body = bytearray()
@@ -326,7 +351,12 @@ def get_tavus_face(face_id: str) -> dict[str, Any]:
     result = _request_json(
         "Tavus", "GET", f"{TAVUS_API_BASE}/faces/{safe_face_id}"
     )
-    return {field: result.get(field) for field in _FACE_FIELDS}
+    safe_result = {field: result.get(field) for field in _FACE_FIELDS}
+    if result.get("error_message") or result.get("error_details"):
+        safe_result["error_message"] = (
+            "Tavus could not train this video. Check the recording and try again."
+        )
+    return safe_result
 
 
 PERSONAL_COACH_PROMPT = """You are the visible personal English coach inside Fluent Me. This is a

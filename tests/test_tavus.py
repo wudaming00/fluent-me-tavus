@@ -1,5 +1,6 @@
 import io
 import json
+import socket
 import sys
 from pathlib import Path
 
@@ -62,6 +63,11 @@ def test_create_conversation_is_private_and_does_not_expose_key(monkeypatch, tmp
     assert seen["headers"]["X-api-key"] == "server-secret"
     assert seen["body"]["require_auth"] is True
     assert seen["body"]["max_participants"] == 2
+    assert seen["body"]["properties"] == {
+        "participant_absent_timeout": 60,
+        "participant_left_timeout": 15,
+        "max_call_duration": 900,
+    }
     assert seen["body"]["pal_id"] == "pal-existing"
     assert seen["body"]["face_id"] == tavus.DEFAULT_FACE_ID
     assert "server-secret" not in json.dumps(result)
@@ -165,6 +171,40 @@ def test_payment_required_has_actionable_message(monkeypatch):
 
     assert error.value.status == 402
     assert "conversation minutes" in str(error.value)
+
+
+def test_tavus_timeout_maps_to_safe_gateway_timeout(monkeypatch):
+    monkeypatch.setenv("TAVUS_API_KEY", "server-secret")
+
+    def fake_urlopen(request, timeout):
+        raise socket.timeout("timeout included server-secret")
+
+    monkeypatch.setattr(tavus.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(tavus.TavusAPIError) as error:
+        tavus._request("GET", "/faces")
+
+    assert error.value.status == 504
+    assert str(error.value) == "Tavus did not respond in time. Try again."
+    assert "server-secret" not in str(error.value)
+
+
+def test_tavus_generic_provider_error_does_not_reflect_raw_body(monkeypatch):
+    monkeypatch.setenv("TAVUS_API_KEY", "server-secret")
+
+    def fake_urlopen(request, timeout):
+        raw = b'{"message":"signed-url=private-token server-secret"}'
+        raise tavus.urllib.error.HTTPError(
+            request.full_url, 500, "failure", {}, io.BytesIO(raw)
+        )
+
+    monkeypatch.setattr(tavus.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(tavus.TavusAPIError) as error:
+        tavus._request("GET", "/faces")
+
+    assert error.value.status == 500
+    assert str(error.value) == "Tavus could not complete that request. Try again."
+    assert "private-token" not in str(error.value)
+    assert "server-secret" not in str(error.value)
 
 
 def test_end_conversation_uses_end_endpoint(monkeypatch):

@@ -13,11 +13,14 @@
     signals: "Based only on observable signals from my most recent turn, how am I coming across? Mention specific pace, pauses, clarity, tone, and any visible cues you actually received. Be tentative, say when evidence is missing, and do not claim to know my inner emotion."
   };
 
+  const INTERACTION_TIMEOUT_MS = 20_000;
+
   const state = {
     configured: false,
     call: null,
     conversationId: null,
     connecting: null,
+    connectionGeneration: 0,
     baseMode: "offline",
     micLive: false,
     cameraLive: false,
@@ -27,9 +30,14 @@
     turns: [],
     lastUserTurn: null,
     pendingCoachCapture: null,
+    interaction: null,
+    interactionSequence: 0,
+    finalizing: false,
+    sessionComplete: false,
     practice: {
       target: "",
       armedAttempt: 0,
+      pendingModelAttempt: 0,
       attempts: [null, null]
     },
     timer: null,
@@ -55,7 +63,22 @@
     $("conversation").hidden = view !== "conversation";
     $("session-status").hidden = view !== "conversation";
     $("end-session").hidden = view !== "conversation";
+    updatePersonalizationAvailability();
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function updatePersonalizationAvailability() {
+    const trigger = $("open-personalization");
+    if (!trigger) return;
+    const unavailable = document.body.dataset.view !== "welcome"
+      || Boolean(state.connecting)
+      || Boolean(state.call)
+      || state.finalizing;
+    trigger.disabled = unavailable;
+    trigger.setAttribute("aria-disabled", String(unavailable));
+    trigger.title = unavailable
+      ? "End the current conversation before changing your coach."
+      : "Create or select your personal English coach.";
   }
 
   function setCoachState(mode, label) {
@@ -70,11 +93,36 @@
     setText("caption-text", text);
   }
 
+  function setCoachStill(title, detail) {
+    const still = $("coach-still");
+    if (!still) return;
+    const titleNode = still.querySelector("span");
+    const detailNode = still.querySelector("b");
+    if (titleNode) titleNode.textContent = title;
+    if (detailNode) detailNode.textContent = detail;
+  }
+
   function setWelcomeStatus(mode, title, detail) {
     document.body.dataset.coachMode = mode;
     setText("welcome-status", title);
     setText("welcome-status-detail", detail);
     setText("preview-badge", title);
+  }
+
+  function configuredWelcomeCopy() {
+    const profile = window.FluentMePersonalization?.getProfile?.() || {};
+    if (profile.pal_id || profile.face_id) {
+      return {
+        title: "Your personal coach is set up",
+        detail: profile.pal_id
+          ? "Your personal face and voice selection will be used. Live availability is checked when you start."
+          : "Your personal face will use the stock voice. Live availability is checked when you start.",
+      };
+    }
+    return {
+      title: "Coach is set up",
+      detail: "Live availability is checked when you start. Video and microphone begin only after you enter.",
+    };
   }
 
   function setControlsEnabled(enabled) {
@@ -115,7 +163,8 @@
       const status = await fetchJSON("/api/tavus/status", { headers: {} });
       state.configured = Boolean(status.configured);
       if (state.configured) {
-        setWelcomeStatus("available", "Coach available", "Video and microphone begin when you start.");
+        const copy = configuredWelcomeCopy();
+        setWelcomeStatus("available", copy.title, copy.detail);
       } else if (status.has_key) {
         setWelcomeStatus("unavailable", "Coach unavailable", status.error || "Please try again in a moment.");
       } else {
@@ -134,7 +183,23 @@
       $(`${tab}-panel`).hidden = !active;
       $(`${tab}-tab`).classList.toggle("active", active);
       $(`${tab}-tab`).setAttribute("aria-selected", String(active));
+      $(`${tab}-tab`).tabIndex = active ? 0 : -1;
     });
+  }
+
+  function handleTabKeydown(event) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    const tabs = ["tools", "practice", "log"];
+    const current = tabs.findIndex(name => `${name}-tab` === event.currentTarget.id);
+    if (current < 0) return;
+    event.preventDefault();
+    const next = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? tabs.length - 1
+        : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    showTab(tabs[next]);
+    $(`${tabs[next]}-tab`).focus();
   }
 
   function readableTime(raw) {
@@ -148,9 +213,27 @@
 
   function analysisText(value) {
     if (!value) return "";
-    if (typeof value === "string") return value.trim();
-    try { return JSON.stringify(value); }
-    catch { return String(value); }
+    if (typeof value === "string") {
+      const text = value.trim();
+      if (!text) return "";
+      if (!text.startsWith("{") && !text.startsWith("[")) return text.slice(0, 360);
+      try { return analysisText(JSON.parse(text)); }
+      catch { return text.slice(0, 360); }
+    }
+    if (Array.isArray(value)) {
+      return value.slice(0, 3).map(item => analysisText(item)).filter(Boolean).join(" · ");
+    }
+    if (typeof value === "object") {
+      const parts = [];
+      for (const [key, item] of Object.entries(value)) {
+        if (parts.length >= 4 || item == null || typeof item === "object") continue;
+        const label = key.replace(/[_-]+/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
+        const detail = String(item).trim();
+        if (detail) parts.push(`${label}: ${detail.slice(0, 120)}`);
+      }
+      return parts.join(" · ");
+    }
+    return String(value).slice(0, 360);
   }
 
   const PRACTICE_STEPS = ["choose", "hear", "attempt-one", "attempt-two", "compare"];
@@ -187,22 +270,128 @@
 
   function updateWorkflowControls() {
     const live = state.baseMode === "live" && Boolean(state.call);
-    const pending = Boolean(state.pendingCoachCapture);
+    const pending = Boolean(state.pendingCoachCapture || state.interaction);
     const coachBusy = ["thinking", "speaking"].includes(document.body.dataset.coachMode);
-    if ($("practice-use-last")) $("practice-use-last").disabled = !live || !state.lastUserTurn;
-    if ($("practice-hear-again")) $("practice-hear-again").disabled = !live || !state.practice.target || coachBusy;
-    if ($("practice-reset")) $("practice-reset").disabled = !state.practice.target;
-    if ($("practice-retry")) $("practice-retry").disabled = !live || !state.practice.attempts[0] || Boolean(state.practice.attempts[1]) || state.practice.armedAttempt === 2 || coachBusy;
-    if ($("practice-compare")) $("practice-compare").disabled = !live || !state.practice.attempts[0] || !state.practice.attempts[1] || pending || coachBusy;
-    if ($("request-summary")) $("request-summary").disabled = !live || !state.lastUserTurn || pending || coachBusy;
+    const locked = state.finalizing || state.sessionComplete;
+    if ($("practice-use-last")) $("practice-use-last").disabled = !live || !state.lastUserTurn || pending || locked;
+    if ($("practice-hear-again")) $("practice-hear-again").disabled = !live || !state.practice.target || coachBusy || pending || locked;
+    if ($("practice-reset")) $("practice-reset").disabled = !state.practice.target || pending || locked;
+    if ($("practice-retry")) $("practice-retry").disabled = !live || !state.practice.attempts[0] || Boolean(state.practice.attempts[1]) || state.practice.armedAttempt === 2 || coachBusy || pending || locked;
+    if ($("practice-compare")) $("practice-compare").disabled = !live || !state.practice.attempts[0] || !state.practice.attempts[1] || pending || coachBusy || locked;
+    if ($("request-summary")) $("request-summary").disabled = !live || !state.lastUserTurn || pending || coachBusy || locked;
     document.querySelectorAll("[data-coach-request]").forEach(button => {
-      button.disabled = !live || !state.lastUserTurn || pending || coachBusy;
+      button.disabled = !live || !state.lastUserTurn || pending || coachBusy || locked;
     });
+    if ($("open-practice")) $("open-practice").disabled = !live || pending || coachBusy || locked;
+    const chatInput = $("chat-input");
+    const chatButton = $("chat-form")?.querySelector("button");
+    if (chatInput) chatInput.disabled = !live || pending || locked;
+    if (chatButton) chatButton.disabled = !live || pending || locked;
+    updatePersonalizationAvailability();
+  }
+
+  function restoreReadyState() {
+    if (state.baseMode === "live" && state.call && !state.finalizing) {
+      setCoachState("ready", "Your turn");
+    }
+  }
+
+  function interactionFailure(kind, message) {
+    if (kind === "comparison") {
+      state.pendingCoachCapture = null;
+      $("comparison-card").hidden = false;
+      $("comparison-card").dataset.state = "waiting";
+      setText("comparison-text", message || "The comparison did not arrive. Please try again.");
+      setPracticeStep("compare", "Ready to compare");
+    } else if (kind === "summary" || kind === "recap") {
+      state.pendingCoachCapture = null;
+      $("session-summary-card").dataset.state = "waiting";
+      setText("session-summary-text", message || "The wrap-up did not arrive. You can try again.");
+    } else if (kind === "model") {
+      state.practice.pendingModelAttempt = 0;
+      setPracticeStep("hear", "Hear the model");
+      setText("practice-instruction", message || "The model phrase did not arrive. Press Hear model to try again.");
+    } else {
+      setCaption("coach", message || "Your coach did not answer. Please try again.");
+    }
+  }
+
+  function completeInteraction(id, succeeded, speech = "", failureMessage = "") {
+    const interaction = state.interaction;
+    if (!interaction || interaction.id !== id) return false;
+    clearTimeout(interaction.timer);
+    state.interaction = null;
+
+    if (succeeded) {
+      if (interaction.kind === "comparison") {
+        state.pendingCoachCapture = null;
+        $("comparison-card").hidden = false;
+        $("comparison-card").dataset.state = "ready";
+        setText("comparison-text", speech);
+        setPracticeStep("compare", "Comparison ready");
+        setText("practice-instruction", "Use the coach's note in your next real conversation turn.");
+      } else if (interaction.kind === "summary" || interaction.kind === "recap") {
+        state.pendingCoachCapture = null;
+        $("session-summary-card").dataset.state = "ready";
+        setText("session-summary-text", speech);
+      } else if (interaction.kind === "model") {
+        const attempt = interaction.meta?.attempt;
+        state.practice.pendingModelAttempt = 0;
+        if ((attempt === 1 || attempt === 2) && interaction.meta?.target === state.practice.target) {
+          state.practice.armedAttempt = attempt;
+          setAttemptCard(
+            attempt,
+            "listening",
+            `Listening for your ${attempt === 1 ? "first" : "second"} spoken attempt…`,
+            "Delivery signals will appear after the final transcript arrives.",
+          );
+          setPracticeStep(attempt === 1 ? "attempt-one" : "attempt-two", `Say attempt ${attempt}`);
+        }
+      }
+    } else {
+      interactionFailure(interaction.kind, failureMessage);
+    }
+
+    restoreReadyState();
+    updateWorkflowControls();
+    interaction.resolve(Boolean(succeeded));
+    return true;
+  }
+
+  function beginInteraction(kind, meta = {}) {
+    if (state.interaction) return null;
+    const id = ++state.interactionSequence;
+    let resolve;
+    const promise = new Promise(done => { resolve = done; });
+    const timer = setTimeout(() => {
+      completeInteraction(
+        id,
+        false,
+        "",
+        kind === "comparison"
+          ? "Your coach did not finish the comparison in time. Please try again."
+          : kind === "summary" || kind === "recap"
+            ? "Your coach did not finish the wrap-up in time. Your conversation is still preserved below."
+            : kind === "model"
+              ? "Your coach did not finish the model phrase in time. Press Hear model to try again."
+              : "Your coach did not answer in time. Please try again.",
+      );
+    }, INTERACTION_TIMEOUT_MS);
+    state.interaction = { id, kind, meta, promise, resolve, timer };
+    updateWorkflowControls();
+    return state.interaction;
+  }
+
+  function cancelInteraction(message = "That request was cancelled.") {
+    const interaction = state.interaction;
+    if (!interaction) return;
+    completeInteraction(interaction.id, false, "", message);
   }
 
   function resetPractice() {
     state.practice.target = "";
     state.practice.armedAttempt = 0;
+    state.practice.pendingModelAttempt = 0;
     state.practice.attempts = [null, null];
     if ($("practice-input")) $("practice-input").value = "";
     setText("practice-target", "Choose a phrase to begin.");
@@ -241,19 +430,8 @@
   }
 
   function captureCoachResult(speech) {
-    if (state.pendingCoachCapture === "comparison") {
-      state.pendingCoachCapture = null;
-      $("comparison-card").hidden = false;
-      $("comparison-card").dataset.state = "ready";
-      setText("comparison-text", speech);
-      setPracticeStep("compare", "Comparison ready");
-      setText("practice-instruction", "Use the coach's note in your next real conversation turn.");
-    } else if (state.pendingCoachCapture === "summary") {
-      state.pendingCoachCapture = null;
-      $("session-summary-card").dataset.state = "ready";
-      setText("session-summary-text", speech);
-    }
-    updateWorkflowControls();
+    if (!state.interaction) return;
+    completeInteraction(state.interaction.id, true, speech);
   }
 
   function appendTurn({ role, text, timestamp, audioAnalysis, visualAnalysis }) {
@@ -308,6 +486,10 @@
     setText("log-count", "0");
   }
 
+  function confirmAndClearLog() {
+    if (!state.turns.length || window.confirm("Clear the conversation transcript from this view?")) clearLogView();
+  }
+
   function normalizeRole(role) {
     const value = String(role || "").toLowerCase();
     if (["pal", "replica", "assistant", "agent"].includes(value)) return "coach";
@@ -324,7 +506,12 @@
     return "";
   }
 
-  function handleTavusMessage(event) {
+  function connectionIsCurrent(generation, call = state.call) {
+    return generation === state.connectionGeneration && Boolean(call) && state.call === call;
+  }
+
+  function handleTavusMessage(event, generation, call) {
+    if (!connectionIsCurrent(generation, call)) return;
     const message = event?.data || event;
     if (!message || typeof message !== "object") return;
     if (message.conversation_id && message.conversation_id !== state.conversationId) return;
@@ -469,17 +656,41 @@
     state.timer = setInterval(tick, 1000);
   }
 
+  async function bestEffortEndRemote(conversationId) {
+    if (!conversationId) return;
+    try {
+      await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(conversationId)}/end`, {
+        method: "POST",
+        body: "{}"
+      });
+    } catch {}
+  }
+
+  async function disposeDetachedCall(call) {
+    if (!call) return;
+    try { await call.leave(); } catch {}
+    try { await call.destroy(); } catch {}
+  }
+
   async function connectCoach() {
     if (state.baseMode === "live" && state.call) return true;
-    if (state.connecting) return state.connecting;
+    if (state.connecting) return state.connecting.promise;
+    if (state.finalizing || state.sessionComplete) return false;
 
-    state.connecting = (async () => {
+    const generation = ++state.connectionGeneration;
+    let createdConversationId = "";
+    let createdCall = null;
+    let remoteTimeout = null;
+
+    const promise = (async () => {
       $("connection-card").hidden = true;
       $("daily-stage").hidden = true;
       $("coach-still").hidden = false;
+      setCoachStill("JOINING", "YOUR COACH IS ON THE WAY");
       state.remoteReady = false;
       setCoachState("connecting", "Connecting…");
       setControlsEnabled(false);
+      updatePersonalizationAvailability();
 
       try {
         if (!window.Daily) throw new Error("The secure video client did not load.");
@@ -493,20 +704,34 @@
             pal_id: personalCoach.pal_id || ""
           })
         });
-        state.conversationId = room.conversation_id;
+        createdConversationId = room.conversation_id;
+        if (generation !== state.connectionGeneration) {
+          await bestEffortEndRemote(createdConversationId);
+          return false;
+        }
+        state.conversationId = createdConversationId;
 
         const call = window.Daily.createCallObject({
           subscribeToTracksAutomatically: true
         });
+        createdCall = call;
+        if (generation !== state.connectionGeneration) {
+          await disposeDetachedCall(call);
+          await bestEffortEndRemote(createdConversationId);
+          return false;
+        }
         state.call = call;
-        call.on("app-message", handleTavusMessage);
+        call.on("app-message", event => {
+          if (connectionIsCurrent(generation, call)) handleTavusMessage(event, generation, call);
+        });
         call.on("error", event => {
+          if (!connectionIsCurrent(generation, call)) return;
           const detail = event?.errorMsg || event?.error?.msg || "The video connection failed.";
-          void failConnection(detail);
+          void failConnection(detail, generation);
         });
         call.on("left-meeting", () => {
-          if (!state.ending && document.body.dataset.view === "conversation") {
-            void failConnection("The video room ended. Try reconnecting to continue.");
+          if (connectionIsCurrent(generation, call) && !state.ending && document.body.dataset.view === "conversation") {
+            void failConnection("The video room ended. Try reconnecting to continue.", generation);
           }
         });
 
@@ -516,11 +741,10 @@
           resolveRemote = resolve;
           rejectRemote = reject;
         });
-        // If join itself fails before we await the remote participant, the
-        // timeout rejection is still handled instead of becoming global noise.
         remoteJoined.catch(() => {});
-        const timeout = setTimeout(() => rejectRemote(new Error("Your coach did not appear in time. Try again.")), 30000);
+        remoteTimeout = setTimeout(() => rejectRemote(new Error("Your coach did not appear in time. Try again.")), 30_000);
         const acceptParticipant = participant => {
+          if (!connectionIsCurrent(generation, call)) return;
           if (participant?.local) {
             attachLocalMedia(participant);
             return;
@@ -528,7 +752,8 @@
           if (!attachRemoteMedia(participant)) return;
           if (!state.remoteReady) {
             state.remoteReady = true;
-            clearTimeout(timeout);
+            clearTimeout(remoteTimeout);
+            remoteTimeout = null;
             resolveRemote(true);
           }
         };
@@ -536,8 +761,8 @@
         call.on("participant-joined", event => acceptParticipant(event?.participant));
         call.on("participant-updated", event => acceptParticipant(event?.participant));
         call.on("participant-left", event => {
-          if (!state.ending && event?.participant && !event.participant.local) {
-            void failConnection("Your coach left the room. Try reconnecting to continue.");
+          if (connectionIsCurrent(generation, call) && !state.ending && event?.participant && !event.participant.local) {
+            void failConnection("Your coach left the room. Try reconnecting to continue.", generation);
           }
         });
 
@@ -548,31 +773,51 @@
           token: room.meeting_token,
           userName: "Fluent Me learner",
           startVideoOff: true,
-          startAudioOff: false
+          startAudioOff: true
         });
-        await ensureLocalAudio(call);
-        state.micLive = true;
+        if (!connectionIsCurrent(generation, call)) throw Object.assign(new Error("Connection cancelled."), { cancelled: true });
+        let microphoneUnavailable = false;
+        try {
+          await ensureLocalAudio(call);
+          if (!connectionIsCurrent(generation, call)) throw Object.assign(new Error("Connection cancelled."), { cancelled: true });
+          state.micLive = true;
+        } catch (error) {
+          if (!connectionIsCurrent(generation, call)) throw Object.assign(new Error("Connection cancelled."), { cancelled: true });
+          microphoneUnavailable = true;
+          state.micLive = false;
+        }
         state.cameraLive = false;
         updateMediaControls();
         Object.values(call.participants?.() || {}).forEach(acceptParticipant);
         await remoteJoined;
+        if (!connectionIsCurrent(generation, call)) throw Object.assign(new Error("Connection cancelled."), { cancelled: true });
 
         state.baseMode = "live";
         $("daily-stage").classList.remove("pending");
         $("coach-still").hidden = true;
-        setCoachState("ready", "Your turn");
+        setCoachState("ready", microphoneUnavailable ? "Type or turn mic on" : "Your turn");
         setControlsEnabled(true);
         startTimer();
         return true;
       } catch (error) {
-        await failConnection(error.message || "Your coach could not join.");
+        const stale = generation !== state.connectionGeneration || error?.cancelled;
+        if (stale) {
+          await disposeDetachedCall(createdCall);
+          await bestEffortEndRemote(createdConversationId);
+          return false;
+        }
+        await failConnection(error.message || "Your coach could not join.", generation);
         return false;
       } finally {
-        state.connecting = null;
+        if (remoteTimeout) clearTimeout(remoteTimeout);
+        if (state.connecting?.generation === generation) state.connecting = null;
+        updatePersonalizationAvailability();
       }
     })();
 
-    return state.connecting;
+    state.connecting = { generation, promise };
+    updatePersonalizationAvailability();
+    return promise;
   }
 
   function showConnectionFailure(detail) {
@@ -585,7 +830,20 @@
     setControlsEnabled(false);
   }
 
-  async function failConnection(detail) {
+  async function failConnection(detail, generation = state.connectionGeneration) {
+    if (generation !== state.connectionGeneration) return;
+    if (state.finalizing) {
+      const interaction = state.interaction;
+      if (interaction) {
+        completeInteraction(
+          interaction.id,
+          false,
+          "",
+          "The connection ended before your coach finished the wrap-up. Your conversation is preserved below.",
+        );
+      }
+      return;
+    }
     if (state.failureInProgress || state.ending) return;
     state.failureInProgress = true;
     try {
@@ -596,7 +854,9 @@
     }
   }
 
-  async function destroyCall(endRemote = true) {
+  async function destroyCall(endRemote = true, { preserveWorkflow = false } = {}) {
+    state.connectionGeneration += 1;
+    state.connecting = null;
     const call = state.call;
     const conversationId = state.conversationId;
     state.call = null;
@@ -605,7 +865,8 @@
     state.remoteReady = false;
     state.micLive = false;
     state.cameraLive = false;
-    resetLiveWorkflow();
+    if (state.interaction) cancelInteraction("The conversation ended before that response arrived.");
+    if (!preserveWorkflow) resetLiveWorkflow();
     stopTimer();
     updateMediaControls();
 
@@ -621,48 +882,57 @@
       try { await call.leave(); } catch {}
       try { await call.destroy(); } catch {}
     }
-    if (endRemote && conversationId) {
-      try {
-        await fetchJSON(`/api/tavus/conversations/${encodeURIComponent(conversationId)}/end`, {
-          method: "POST",
-          body: "{}"
-        });
-      } catch {}
-    }
+    if (endRemote && conversationId) await bestEffortEndRemote(conversationId);
+    updatePersonalizationAvailability();
   }
 
   async function sendInteraction(eventType, text) {
     const message = String(text || "").trim();
     if (!message || state.baseMode !== "live" || !state.call || !state.conversationId) {
-      setCaption("coach", "Connect your coach first, or try again in a moment.");
       return false;
     }
+    const call = state.call;
+    const conversationId = state.conversationId;
+    const generation = state.connectionGeneration;
     try {
-      await state.call.sendAppMessage({
+      await call.sendAppMessage({
         message_type: "conversation",
         event_type: eventType,
-        conversation_id: state.conversationId,
+        conversation_id: conversationId,
         properties: eventType === "conversation.echo"
           ? { modality: "text", text: message, done: true }
           : { text: message }
       }, "*");
-      return true;
+      return connectionIsCurrent(generation, call) && state.conversationId === conversationId;
     } catch {
-      setCaption("coach", "That request did not go through. Please say it out loud or try again.");
       return false;
     }
   }
 
-  async function askCoach(text, visibleText = text) {
+  async function askCoach(text, visibleText = text, { kind = "coach", meta = {} } = {}) {
+    const interaction = beginInteraction(kind, meta);
+    if (!interaction) return false;
     setCaption("user", visibleText);
     setCoachState("thinking", "Thinking…");
-    return sendInteraction("conversation.respond", text);
+    const sent = await sendInteraction("conversation.respond", text);
+    if (!sent) {
+      completeInteraction(interaction.id, false, "", "That request did not go through. Please try again.");
+    }
+    return interaction.promise;
   }
 
-  async function modelPhrase(text) {
+  async function modelPhrase(text, attempt = 0) {
+    const interaction = beginInteraction("model", { attempt, target: state.practice.target });
+    if (!interaction) return false;
+    state.practice.pendingModelAttempt = attempt;
+    state.practice.armedAttempt = 0;
     setCaption("coach", text);
     setCoachState("speaking", "Coach is speaking");
-    return sendInteraction("conversation.echo", text);
+    const sent = await sendInteraction("conversation.echo", text);
+    if (!sent) {
+      completeInteraction(interaction.id, false, "", "The model phrase did not start. Press Hear model to try again.");
+    }
+    return interaction.promise;
   }
 
   async function toggleMicrophone() {
@@ -675,6 +945,14 @@
       updateMediaControls();
       setCoachState(next ? "ready" : "thinking", next ? "Your turn" : "Mic is off");
     } catch {
+      if (state.interaction) {
+        completeInteraction(
+          state.interaction.id,
+          false,
+          "",
+          "Microphone access was blocked before your coach finished that response. Please try again.",
+        );
+      }
       setCaption("coach", "Microphone access was blocked. Allow it in your browser or type below.");
     }
   }
@@ -720,20 +998,16 @@
     setText("practice-instruction", "Listen to the exact model, then say the same phrase in your own voice.");
     setPracticeStep("hear", "Hear the model");
     updateWorkflowControls();
-    const sent = await modelPhrase(target);
-    if (!sent) return;
-    state.practice.armedAttempt = 1;
-    setAttemptCard(1, "listening", "Listening for your first spoken attempt…", "Delivery signals will appear after the final transcript arrives.");
-    setPracticeStep("attempt-one", "Say attempt 1");
-    updateWorkflowControls();
+    await modelPhrase(target, 1);
   }
 
   async function hearPracticeTarget() {
     if (!state.practice.target) return;
+    const attempt = state.practice.armedAttempt
+      || state.practice.pendingModelAttempt
+      || (!state.practice.attempts[0] ? 1 : !state.practice.attempts[1] ? 2 : 0);
     setPracticeStep("hear", "Hear the model");
-    await modelPhrase(state.practice.target);
-    if (state.practice.armedAttempt === 1) setPracticeStep("attempt-one", "Say attempt 1");
-    if (state.practice.armedAttempt === 2) setPracticeStep("attempt-two", "Say attempt 2");
+    await modelPhrase(state.practice.target, attempt);
   }
 
   function armSecondAttempt() {
@@ -760,39 +1034,34 @@
   }
 
   async function comparePracticeAttempts() {
-    if (!state.practice.attempts[0] || !state.practice.attempts[1] || state.pendingCoachCapture) return;
+    if (!state.practice.attempts[0] || !state.practice.attempts[1] || state.pendingCoachCapture || state.interaction) return false;
     state.pendingCoachCapture = "comparison";
     $("comparison-card").hidden = false;
     $("comparison-card").dataset.state = "loading";
     setText("comparison-text", "Your coach is comparing the two real attempts…");
     setPracticeStep("compare", "Coach is comparing");
     updateWorkflowControls();
-    if (!await askCoach(comparisonPrompt(), "Compare my two attempts")) {
-      state.pendingCoachCapture = null;
-      $("comparison-card").dataset.state = "waiting";
-      setText("comparison-text", "The comparison request did not go through. Please try again.");
-      updateWorkflowControls();
-    }
+    return askCoach(comparisonPrompt(), "Compare my two attempts", { kind: "comparison" });
   }
 
-  async function requestSessionSummary() {
-    if (!state.lastUserTurn || state.pendingCoachCapture) return;
-    state.pendingCoachCapture = "summary";
+  async function requestSessionSummary({ forEnd = false } = {}) {
+    if (!state.lastUserTurn || state.pendingCoachCapture || state.interaction) return false;
+    const kind = forEnd ? "recap" : "summary";
+    state.pendingCoachCapture = kind;
     $("session-summary-card").dataset.state = "loading";
     setText("session-summary-text", "Your coach is preparing a wrap-up from this real conversation…");
     updateWorkflowControls();
     const prompt = "Wrap up this session using only the conversation that actually happened. Give exactly three short parts: one thing I communicated well with evidence, one useful natural phrase from this conversation, and one specific thing to practice next. Do not invent scores or observations.";
-    if (!await askCoach(prompt, "Wrap up this session")) {
-      state.pendingCoachCapture = null;
-      $("session-summary-card").dataset.state = "waiting";
-      setText("session-summary-text", "The wrap-up request did not go through. Please try again.");
-      updateWorkflowControls();
-    }
+    return askCoach(prompt, "Wrap up this session", { kind });
   }
 
   async function startConversation() {
-    if (!state.configured) return;
+    if (!state.configured || state.finalizing || state.sessionComplete) return;
     state.ending = false;
+    state.finalizing = false;
+    state.sessionComplete = false;
+    $("end-session").disabled = false;
+    $("end-session").textContent = "End session";
     state.seenEvents.clear();
     clearLogView();
     resetLiveWorkflow();
@@ -803,17 +1072,64 @@
   }
 
   async function endSession() {
-    if (state.ending) return;
+    if (state.ending || state.finalizing) return;
+
+    if (state.sessionComplete) {
+      state.ending = true;
+      state.sessionComplete = false;
+      clearLogView();
+      resetLiveWorkflow();
+      $("end-session").textContent = "End session";
+      $("end-session").disabled = false;
+      $("daily-stage").hidden = true;
+      $("coach-still").hidden = false;
+      $("connection-card").hidden = true;
+      setText("session-timer", "00:00");
+      setView("welcome");
+      state.ending = false;
+      await checkCapability();
+      return;
+    }
+
+    const shouldRecap = Boolean(state.lastUserTurn);
+    if (shouldRecap && state.baseMode === "live" && state.call) {
+      state.finalizing = true;
+      $("end-session").disabled = true;
+      $("end-session").textContent = "Wrapping up…";
+      if (state.interaction) cancelInteraction("That request was cancelled so your coach can wrap up the session.");
+      showTab("log");
+      setCoachState("thinking", "Wrapping up…");
+      setControlsEnabled(false);
+      await requestSessionSummary({ forEnd: true });
+    } else if (shouldRecap) {
+      $("session-summary-card").dataset.state = "waiting";
+      setText("session-summary-text", "The connection ended before your coach could prepare a wrap-up. Your conversation is preserved below.");
+      showTab("log");
+    }
+
     state.ending = true;
-    setCoachState("thinking", "Ending session…");
-    await destroyCall(true);
+    await destroyCall(true, { preserveWorkflow: shouldRecap });
     $("daily-stage").hidden = true;
     $("coach-still").hidden = false;
     $("connection-card").hidden = true;
     setText("session-timer", "00:00");
-    setView("welcome");
     state.ending = false;
-    await checkCapability();
+    state.finalizing = false;
+
+    if (!shouldRecap) {
+      setView("welcome");
+      await checkCapability();
+      return;
+    }
+
+    state.sessionComplete = true;
+    setCoachStill("COMPLETE", "YOUR SESSION RECAP IS READY");
+    setCoachState("ready", "Session complete");
+    setCaption("coach", "Your conversation is complete. Review your recap in the Session tab, then go back home when you are ready.");
+    showTab("log");
+    $("end-session").textContent = "Back home";
+    $("end-session").disabled = false;
+    updateWorkflowControls();
   }
 
   $("start-conversation").addEventListener("click", startConversation);
@@ -824,7 +1140,10 @@
   $("tools-tab").addEventListener("click", () => showTab("tools"));
   $("practice-tab").addEventListener("click", () => showTab("practice"));
   $("log-tab").addEventListener("click", () => showTab("log"));
-  $("clear-log").addEventListener("click", clearLogView);
+  ["tools", "practice", "log"].forEach(name => {
+    $(`${name}-tab`).addEventListener("keydown", handleTabKeydown);
+  });
+  $("clear-log").addEventListener("click", confirmAndClearLog);
   $("open-practice").addEventListener("click", () => {
     showTab("practice");
     $("practice-input").focus();
@@ -854,7 +1173,7 @@
   $("practice-compare").addEventListener("click", () => { void comparePracticeAttempts(); });
   $("request-summary").addEventListener("click", () => {
     showTab("log");
-    void requestSessionSummary();
+    void requestSessionSummary({ forEnd: false });
   });
 
   $("chat-form").addEventListener("submit", event => {
@@ -883,7 +1202,14 @@
     }).catch(() => {});
   });
 
+  window.addEventListener("fluentme:personalization-change", () => {
+    if (!state.configured || document.body.dataset.view !== "welcome") return;
+    const copy = configuredWelcomeCopy();
+    setWelcomeStatus("available", copy.title, copy.detail);
+  });
+
   setControlsEnabled(false);
+  showTab("tools");
   updateMediaControls();
   resetLiveWorkflow();
   checkCapability();

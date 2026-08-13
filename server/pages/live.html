@@ -7,11 +7,11 @@
   <meta name="description" content="Have a real English conversation with a personal AI video coach.">
   <meta property="og:title" content="Fluent Me — talk freely, get better as you go">
   <meta property="og:description" content="Talk naturally, ask how you sounded, and practice any phrase face to face.">
-  <meta property="og:image" content="/static/og-personal-coach.png">
+  <meta property="og:image" content="/static/og-personal-coach-v2.png">
   <meta name="twitter:card" content="summary_large_image">
   <title>Fluent Me — your personal English coach</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b10'/%3E%3Cpath d='M8 17v-4m5 9V8m6 17V5m5 16V9' stroke='%239a8cff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/live.css?v=13">
+  <link rel="stylesheet" href="/static/live.css?v=14">
   <script src="/static/daily-0.91.0.js"></script>
 </head>
 <body data-view="welcome" data-coach-mode="checking">
@@ -27,7 +27,7 @@
         <time id="session-timer">00:00</time>
       </div>
       <div class="topbar-actions">
-        <button class="personalize-trigger" id="open-personalization" type="button" aria-haspopup="dialog" aria-controls="personalization-dialog">
+        <button class="personalize-trigger" id="open-personalization" type="button" aria-label="Create your coach (optional)" aria-haspopup="dialog" aria-controls="personalization-dialog">
           <span class="personalize-trigger-mark" aria-hidden="true">◎</span>
           <span><b>Create your coach</b><small>Optional</small></span>
         </button>
@@ -91,7 +91,7 @@
               <b id="coach-state-label">Connecting…</b>
             </div>
 
-            <div class="coach-caption" id="coach-caption" aria-live="polite">
+            <div class="coach-caption" id="coach-caption">
               <span id="caption-speaker">Coach</span>
               <p id="caption-text">Your coach will start with one question. Then the conversation is yours.</p>
             </div>
@@ -264,6 +264,15 @@
           </div>
         </section>
 
+        <fieldset class="personalization-choice" id="personalization-choice">
+          <legend>What would you like to personalize?</legend>
+          <div>
+            <label><input type="radio" name="personalization-path" value="voice"><span><b>My voice</b><small>Keep the stock male face</small></span></label>
+            <label><input type="radio" name="personalization-path" value="face"><span><b>My face</b><small>Keep the stock voice</small></span></label>
+            <label><input type="radio" name="personalization-path" value="both" checked><span><b>Face + voice</b><small>Create the complete coach</small></span></label>
+          </div>
+        </fieldset>
+
         <div class="personalization-grid">
           <section class="setup-card setup-consent" aria-labelledby="consent-heading">
             <div class="setup-card-number" aria-hidden="true">01</div>
@@ -278,7 +287,7 @@
               <input id="clone-full-name" name="clone-full-name" type="text" autocomplete="name" maxlength="120" placeholder="Your first and last name">
             </label>
 
-            <div class="consent-script-wrap">
+            <div class="consent-script-wrap" data-path-element="face">
               <span class="field-label">Read this at the beginning of the recording</span>
               <blockquote id="consent-script">“I, [FULL NAME], am currently speaking and give consent to Tavus to create an AI clone of me by using the audio and video samples I provide. I understand that this AI clone can be used to create videos that look and sound like me.”</blockquote>
               <small>Your name will replace the bracketed placeholder before recording.</small>
@@ -286,11 +295,11 @@
 
             <label class="consent-check" for="consent-checkbox">
               <input id="consent-checkbox" name="consent-checkbox" type="checkbox">
-              <span><b>I am the person being recorded and I consent.</b><small>I understand this creates reusable biometric voice and face models.</small></span>
+              <span><b>I am the person being recorded and I consent.</b><small id="consent-scope-copy">I understand this creates reusable biometric voice and face models.</small></span>
             </label>
           </section>
 
-          <section class="setup-card setup-recording" aria-labelledby="recording-heading">
+          <section class="setup-card setup-recording" data-path-card="face" aria-labelledby="recording-heading">
             <div class="setup-card-number" aria-hidden="true">02</div>
             <div class="setup-card-heading">
               <span>CAPTURE ON THIS DEVICE</span>
@@ -305,12 +314,12 @@
                 <b>Camera is off</b>
                 <small>Press Record when you are framed and ready.</small>
               </div>
-              <div class="setup-recording-indicator" aria-live="polite"><i></i><span id="setup-timer" role="timer">00:00 / 01:00</span></div>
+            <div class="setup-recording-indicator"><i></i><span id="setup-timer" role="timer">00:00 / 01:00</span></div>
             </div>
 
             <ol class="setup-recording-guide" id="setup-recording-guide" aria-label="Recording guide">
-              <li data-segment="consent"><span>First</span><b>Read the consent phrase clearly</b></li>
-              <li data-segment="speaking"><span>0–30 sec</span><b>Speak naturally with minimal movement</b></li>
+              <li data-segment="consent"><span>0–8 sec</span><b>Read the consent phrase clearly</b></li>
+              <li data-segment="speaking"><span>8–30 sec</span><b>Speak naturally with minimal movement</b></li>
               <li data-segment="still"><span>30–60 sec</span><b>Stay still, lips closed, eyes on camera</b></li>
             </ol>
 
@@ -326,7 +335,7 @@
             </div>
           </section>
 
-          <section class="setup-card setup-voice" aria-labelledby="voice-heading">
+          <section class="setup-card setup-voice" data-path-card="voice" aria-labelledby="voice-heading">
             <div class="setup-card-number" aria-hidden="true">03</div>
             <div class="setup-card-heading">
               <span>YOUR VOICE · ELEVENLABS</span>
@@ -351,6 +360,7 @@
             <dl class="credit-meter" aria-label="ElevenLabs account allowance">
               <div><dt>Plan</dt><dd id="eleven-plan">Checking…</dd></div>
               <div><dt>Character usage</dt><dd id="eleven-usage">Checking…</dd></div>
+              <div><dt>Voice limit</dt><dd id="eleven-voices">Checking…</dd></div>
             </dl>
 
             <button class="accent-button setup-wide-button" id="clone-voice-button" type="button" disabled>
@@ -360,36 +370,50 @@
             <div class="setup-progress-status" id="voice-clone-status" role="status" aria-live="polite" data-state="waiting">
               <i aria-hidden="true"></i><span>Record and review a sample to continue.</span>
             </div>
+            <button class="quiet-button setup-wide-button" id="retry-pal-button" type="button" hidden>Connect saved voice to coach</button>
           </section>
 
-          <section class="setup-card setup-face" aria-labelledby="face-heading">
+          <section class="setup-card setup-face" data-path-card="face" aria-labelledby="face-heading">
             <div class="setup-card-number" aria-hidden="true">04</div>
             <div class="setup-card-heading">
               <span>YOUR FACE · TAVUS</span>
-              <h3 id="face-heading">Train the face.</h3>
-              <p>Browser capture can be downloaded for your review. The Tavus API requires a secure, publicly downloadable training URL that remains valid for at least 24 hours.</p>
-            </div>
-
-            <label class="setup-field" for="face-name">
-              <span>Coach face name</span>
-              <input id="face-name" name="face-name" type="text" maxlength="80" autocomplete="off" placeholder="My Fluent Me coach">
-            </label>
-            <label class="setup-field" for="training-url">
-              <span>Secure training video URL</span>
-              <input id="training-url" name="training-url" type="url" inputmode="url" autocomplete="url" placeholder="https://…/training-video.mp4" aria-describedby="training-url-help">
-              <small id="training-url-help">Direct HTTPS download; no login page; valid for 24+ hours.</small>
-            </label>
-
-            <button class="accent-button setup-wide-button" id="create-face-button" type="button" disabled>
-              <span>Submit face training</span><i aria-hidden="true">→</i>
-            </button>
-            <div class="setup-progress-status" id="face-training-status" role="status" aria-live="polite" data-state="waiting">
-              <i aria-hidden="true"></i><span>Add an eligible hosted video URL to continue.</span>
+              <h3 id="face-heading">Connect your trained face.</h3>
+              <p>Use Tavus PAL Maker for guided recording and quality checks. Training usually takes 3–4 hours; return here with the Face ID when it is ready.</p>
             </div>
 
             <div class="pal-maker-option">
-              <div><b>Prefer a guided upload?</b><span>PAL Maker is the supported alternative for recording, quality checks, and face training.</span></div>
+              <div><b>Recommended: train in PAL Maker</b><span>Record, pass the quality checks, and let Tavus train your Face.</span></div>
               <a id="open-pal-maker" href="https://maker.tavus.io" target="_blank" rel="noopener noreferrer">Open PAL Maker <span aria-hidden="true">↗</span></a>
+            </div>
+
+            <label class="setup-field" for="existing-face-id">
+              <span>Face ID from PAL Maker</span>
+              <input id="existing-face-id" name="existing-face-id" type="text" maxlength="128" autocomplete="off" spellcheck="false" placeholder="Paste your Face ID">
+              <small>Only the Face ID is saved in this browser. Never paste an API key here.</small>
+            </label>
+            <button class="accent-button setup-wide-button" id="use-existing-face-button" type="button" disabled>
+              <span>Connect this Face</span><i aria-hidden="true">→</i>
+            </button>
+
+            <details class="advanced-face-training">
+              <summary>Advanced: submit a hosted training video</summary>
+              <p>The Tavus API needs a direct HTTPS download that remains valid for at least 24 hours.</p>
+              <label class="setup-field" for="face-name">
+                <span>Coach face name</span>
+                <input id="face-name" name="face-name" type="text" maxlength="80" autocomplete="off" placeholder="My Fluent Me coach">
+              </label>
+              <label class="setup-field" for="training-url">
+                <span>Secure training video URL</span>
+                <input id="training-url" name="training-url" type="url" inputmode="url" autocomplete="url" placeholder="https://…/training-video.mp4" aria-describedby="training-url-help">
+                <small id="training-url-help">Direct HTTPS download; no login page; valid for 24+ hours.</small>
+              </label>
+              <button class="quiet-button setup-wide-button" id="create-face-button" type="button" disabled>
+                <span>Submit hosted video</span><i aria-hidden="true">→</i>
+              </button>
+            </details>
+
+            <div class="setup-progress-status" id="face-training-status" role="status" aria-live="polite" data-state="waiting">
+              <i aria-hidden="true"></i><span>Train in PAL Maker, then connect the Face ID here.</span>
             </div>
           </section>
         </div>
@@ -409,7 +433,7 @@
     </div>
   </dialog>
 
-  <script src="/static/personalize.js?v=1" defer></script>
-  <script src="/static/live.js?v=12" defer></script>
+  <script src="/static/personalize.js?v=2" defer></script>
+  <script src="/static/live.js?v=13" defer></script>
 </body>
 </html>

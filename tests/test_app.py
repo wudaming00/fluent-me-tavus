@@ -35,7 +35,7 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert "Your video coach will appear here" in response.text
     assert "id=\"tavus-video\"" in response.text
     assert "/static/daily-0.91.0.js" in response.text
-    assert "/static/og-personal-coach.png" in response.text
+    assert "/static/og-personal-coach-v2.png" in response.text
     assert "unpkg.com" not in response.text
     assert "Hear the model" not in response.text
     assert "Match the rhythm" not in response.text
@@ -94,7 +94,7 @@ def test_browser_publishes_daily_audio_and_supports_conversational_tools():
     assert "No delivery analysis was provided" in response.text
     assert "createCallObject" in response.text
     assert "persistentTrack" in response.text
-    assert "startAudioOff: false" in response.text
+    assert "startAudioOff: true" in response.text
     assert "startVideoOff: true" in response.text
     assert "setLocalAudio" in response.text
     assert "setLocalVideo" in response.text
@@ -239,3 +239,53 @@ def test_replica_and_pal_events_normalize_to_one_coach_turn():
     assert second.json()["duplicate"] is True
     assert len(app_module.TAVUS_SESSIONS[conversation_id]["events"]) == 1
     app_module.TAVUS_SESSIONS.pop(conversation_id, None)
+
+
+def test_failed_remote_end_is_sanitized_and_remains_retryable(monkeypatch):
+    conversation_id = "c-end-retry"
+    app_module.TAVUS_SESSIONS[conversation_id] = {
+        "conversation_id": conversation_id,
+        "focus": "conversation",
+        "topic": "",
+        "started_at": 0,
+        "events": [],
+        "local_order": 0,
+        "seen": set(),
+        "processing": set(),
+        "turn_results": {},
+        "turns": [],
+        "xp_gained": 0,
+        "cards_created": 0,
+        "cards_advanced": 0,
+        "new_patterns": [],
+        "advanced_patterns": [],
+        "report_status": "live",
+        # Avoid starting a real background finalizer in this unit test.
+        "finalize_started": True,
+        "remote_ended": False,
+    }
+    calls = []
+
+    def flaky_end(value):
+        calls.append(value)
+        if len(calls) == 1:
+            raise app_module.tavus.TavusAPIError(
+                500, "provider leaked signed-url=private-token"
+            )
+
+    monkeypatch.setattr(app_module.tavus, "end_conversation", flaky_end)
+    try:
+        first = client.post(f"/api/tavus/conversations/{conversation_id}/end")
+        assert first.status_code == 200
+        assert first.json()["remote_warning"] == (
+            "The video room may still be active. Try ending the session again."
+        )
+        assert "private-token" not in first.text
+        assert app_module.TAVUS_SESSIONS[conversation_id]["remote_ended"] is False
+
+        second = client.post(f"/api/tavus/conversations/{conversation_id}/end")
+        assert second.status_code == 200
+        assert len(calls) == 2
+        assert app_module.TAVUS_SESSIONS[conversation_id]["remote_ended"] is True
+    finally:
+        app_module.TAVUS_SESSIONS.pop(conversation_id, None)

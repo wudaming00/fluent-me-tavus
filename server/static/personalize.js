@@ -2,6 +2,7 @@
   "use strict";
 
   const PROFILE_KEY = "fluentMePersonalCoachV1";
+  const JOBS_KEY = "fluentMePersonalCoachJobsV1";
   const FACE_SECONDS = 60;
   const VOICE_MIN_SECONDS = 30;
   const VOICE_RECOMMENDED_SECONDS = 60;
@@ -14,8 +15,11 @@
   const cameraStage = $("setup-camera-preview").closest(".setup-camera-stage");
   const voiceStage = $("voice-record-button").closest(".voice-sample-card");
   const emptyProfile = () => ({ face_id: "", voice_id: "", pal_id: "" });
+  const emptyJobs = () => ({ pending_face_id: "", pending_face_started_at: 0, pending_face_path: "", pending_voice_id: "", voice_verification_required: false });
+  const restoredJobs = loadJobs();
   const state = {
     profile: loadProfile(),
+    path: "both",
     faceStream: null,
     faceRecorder: null,
     faceChunks: [],
@@ -35,11 +39,13 @@
     faceSubmitting: false,
     voiceSubmitting: false,
     palSubmitting: false,
-    pendingFaceId: "",
+    pendingFaceId: restoredJobs.pending_face_id,
+    pendingFaceStartedAt: restoredJobs.pending_face_started_at,
+    pendingFacePath: restoredJobs.pending_face_path,
     captureGeneration: 0,
     facePollGeneration: 0,
-    pendingVoiceId: "",
-    voiceVerificationRequired: false,
+    pendingVoiceId: restoredJobs.pending_voice_id,
+    voiceVerificationRequired: restoredJobs.voice_verification_required,
     captureStarting: false,
     actionGeneration: 0,
   };
@@ -57,9 +63,25 @@
     }
   }
 
+  function loadJobs() {
+    try {
+      const value = JSON.parse(localStorage.getItem(JOBS_KEY) || "{}");
+      const startedAt = Number(value.pending_face_started_at);
+      return {
+        pending_face_id: safeId(value.pending_face_id),
+        pending_face_started_at: Number.isFinite(startedAt) && startedAt > 0 ? startedAt : 0,
+        pending_face_path: ["face", "both"].includes(value.pending_face_path) ? value.pending_face_path : "",
+        pending_voice_id: safeId(value.pending_voice_id),
+        voice_verification_required: value.voice_verification_required === true,
+      };
+    } catch {
+      return emptyJobs();
+    }
+  }
+
   function safeId(value) {
     const text = String(value || "").trim();
-    return /^[A-Za-z0-9_-]{3,128}$/.test(text) ? text : "";
+    return /^[A-Za-z0-9_-]{6,128}$/.test(text) ? text : "";
   }
 
   function saveProfile(next) {
@@ -77,6 +99,19 @@
       detail: { ...state.profile },
     }));
     renderProfile();
+  }
+
+  function saveJobs() {
+    const jobs = {
+      pending_face_id: safeId(state.pendingFaceId),
+      pending_face_started_at: Number(state.pendingFaceStartedAt) || 0,
+      pending_face_path: ["face", "both"].includes(state.pendingFacePath) ? state.pendingFacePath : "",
+      pending_voice_id: safeId(state.pendingVoiceId),
+      voice_verification_required: state.voiceVerificationRequired === true,
+    };
+    if (jobs.pending_face_id || jobs.pending_voice_id) localStorage.setItem(JOBS_KEY, JSON.stringify(jobs));
+    else localStorage.removeItem(JOBS_KEY);
+    renderPendingJobs();
   }
 
   async function fetchJSON(path, options = {}) {
@@ -109,6 +144,12 @@
     state[`${kind}Timer`] = null;
   }
 
+  function clearFacePolling() {
+    clearTimeout(state.facePoll);
+    state.facePoll = null;
+    state.facePollGeneration += 1;
+  }
+
   function revokeUrl(kind) {
     const key = `${kind}Url`;
     if (state[key]) URL.revokeObjectURL(state[key]);
@@ -135,6 +176,23 @@
     return $("consent-checkbox").checked && $("clone-full-name").value.trim().length >= 2;
   }
 
+  function pathIncludes(kind) {
+    return state.path === "both" || state.path === kind;
+  }
+
+  function updatePersonalizationPath() {
+    const selected = document.querySelector('input[name="personalization-path"]:checked');
+    state.path = ["voice", "face", "both"].includes(selected?.value) ? selected.value : "both";
+    document.querySelector(".personalization-shell").dataset.path = state.path;
+    const scope = state.path === "voice"
+      ? "I understand this creates a reusable biometric voice model."
+      : state.path === "face"
+        ? "I understand this creates a reusable biometric face model."
+        : "I understand this creates reusable biometric voice and face models.";
+    $("consent-scope-copy").textContent = scope;
+    updateButtons();
+  }
+
   function updateConsentScript() {
     const name = $("clone-full-name").value.trim() || "[FULL NAME]";
     $("consent-script").textContent = `“I, ${name}, am currently speaking and give consent to Tavus to create an AI clone of me by using the audio and video samples I provide. I understand that this AI clone can be used to create videos that look and sound like me.”`;
@@ -144,33 +202,70 @@
   function updateButtons() {
     const allowed = consentReady();
     const recording = Boolean(state.captureStarting || state.faceRecorder || state.voiceRecorder);
-    $("setup-record-button").disabled = !allowed || recording;
-    $("voice-record-button").disabled = !allowed || recording;
-    $("clone-voice-button").disabled = !allowed || recording || !state.voiceBlob || state.voiceSeconds < VOICE_MIN_SECONDS || state.voiceSubmitting || state.palSubmitting;
-    $("create-face-button").disabled = !allowed || recording || !$("training-url").value.trim() || state.faceSubmitting;
+    $("setup-record-button").disabled = !pathIncludes("face") || !allowed || recording;
+    $("voice-record-button").disabled = !pathIncludes("voice") || !allowed || recording;
+    $("clone-voice-button").disabled = !pathIncludes("voice") || !allowed || recording || !state.voiceBlob || state.voiceSeconds < VOICE_MIN_SECONDS || state.voiceSubmitting || state.palSubmitting;
+    $("create-face-button").disabled = !pathIncludes("face") || !allowed || recording || !$("training-url").value.trim() || state.faceSubmitting;
+    $("use-existing-face-button").disabled = !pathIncludes("face") || !allowed || recording || !safeId($("existing-face-id").value) || state.faceSubmitting || state.palSubmitting;
     $("use-personal-coach").disabled = recording || state.faceSubmitting || state.voiceSubmitting || state.palSubmitting || !(state.profile.face_id || state.profile.pal_id);
+    $("retry-pal-button").disabled = recording || state.faceSubmitting || state.voiceSubmitting || state.palSubmitting;
   }
 
   function renderProfile() {
     const face = Boolean(state.profile.face_id);
     const voice = Boolean(state.profile.voice_id);
     const pal = Boolean(state.profile.pal_id);
+    const active = face || pal;
     const label = face && voice && pal
       ? "Your face + voice ready"
       : pal
         ? "Your voice + stock face ready"
         : face
           ? "Your face + stock voice ready"
+          : voice
+            ? "Voice saved · connection pending"
           : "Stock coach active";
     $("personalization-status").textContent = label;
+    const trigger = $("open-personalization");
+    const triggerTitle = trigger?.querySelector("b");
+    const triggerDetail = trigger?.querySelector("small");
+    if (triggerTitle) triggerTitle.textContent = active ? "Your personal coach" : voice ? "Finish your coach" : "Create your coach";
+    if (triggerDetail) triggerDetail.textContent = active ? "Active" : voice ? "Connection pending" : "Optional";
+    if (trigger) trigger.setAttribute("aria-label", active || voice ? `${label}. Manage your coach` : "Create your coach (optional)");
     if (voice) setProgress("voice-clone-status", "ready", "Your personal voice is ready.");
     if (face) setProgress("face-training-status", "ready", "Your personal Face is trained and ready.");
+    renderPendingJobs();
     updateButtons();
+  }
+
+  function renderPendingJobs() {
+    const retry = $("retry-pal-button");
+    if (state.pendingFaceId) {
+      const age = state.pendingFaceStartedAt ? Math.max(0, Date.now() - state.pendingFaceStartedAt) : 0;
+      const hours = Math.floor(age / 3_600_000);
+      setProgress("face-training-status", "working", hours
+        ? `Face training is still running (${hours}h elapsed). Status tracking resumes automatically.`
+        : "Face training is still running. Status tracking resumes automatically.");
+    }
+    if (state.pendingVoiceId) {
+      if (state.voiceVerificationRequired) {
+        setProgress("voice-clone-status", "error", "Your saved ElevenLabs voice still requires provider verification before Tavus can use it.");
+        retry.hidden = true;
+      } else if (!state.profile.pal_id || state.profile.voice_id !== state.pendingVoiceId) {
+        setProgress("voice-clone-status", "waiting", "A saved voice is waiting to be connected to your video coach.");
+        retry.hidden = false;
+      } else {
+        retry.hidden = true;
+      }
+    } else {
+      retry.hidden = true;
+    }
   }
 
   async function loadProviderStatus() {
     $("eleven-plan").textContent = "Checking…";
     $("eleven-usage").textContent = "Checking…";
+    $("eleven-voices").textContent = "Checking…";
     try {
       const status = await fetchJSON("/api/personalization/status");
       const eleven = status.elevenlabs || {};
@@ -180,6 +275,7 @@
       if (!eleven.configured) {
         $("eleven-plan").textContent = "API key needed";
         $("eleven-usage").textContent = "Grant not verified";
+        $("eleven-voices").textContent = "Unavailable";
         setProgress("voice-clone-status", "error", "Add ELEVENLABS_API_KEY after accepting your grant or enabling an IVC plan.");
         return;
       }
@@ -191,16 +287,22 @@
       $("eleven-usage").textContent = Number.isFinite(used) && Number.isFinite(limit) && limit > 0
         ? `${used.toLocaleString()} / ${limit.toLocaleString()}`
         : "Unavailable";
+      const voiceSlotsUsed = Number(eleven.voice_slots_used);
+      const voiceLimit = Number(eleven.voice_limit);
+      $("eleven-voices").textContent = Number.isFinite(voiceLimit) && voiceLimit > 0
+        ? `${Number.isFinite(voiceSlotsUsed) ? voiceSlotsUsed.toLocaleString() : "?"} / ${voiceLimit.toLocaleString()}`
+        : "Unavailable";
       if (eleven.error) setProgress("voice-clone-status", "error", eleven.error);
     } catch (error) {
       $("eleven-plan").textContent = "Unavailable";
       $("eleven-usage").textContent = "Unavailable";
+      $("eleven-voices").textContent = "Unavailable";
       setProgress("voice-clone-status", "error", error.message);
     }
   }
 
   async function startFaceRecording() {
-    if (!consentReady() || state.captureStarting || state.faceRecorder || state.voiceRecorder) return;
+    if (!pathIncludes("face") || !consentReady() || state.captureStarting || state.faceRecorder || state.voiceRecorder) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       setProgress("face-training-status", "error", "This browser cannot record camera training video.");
       return;
@@ -250,6 +352,10 @@
       tick();
       state.faceTimer = setInterval(tick, 250);
     } catch (error) {
+      if (state.faceRecorder && state.faceRecorder.state !== "inactive") {
+        try { state.faceRecorder.stop(); } catch {}
+      }
+      state.faceRecorder = null;
       stopTracks(state.faceStream);
       state.faceStream = null;
       cameraStage.dataset.state = "idle";
@@ -283,6 +389,7 @@
     }
     if (state.faceChunks.length) {
       state.faceBlob = new Blob(state.faceChunks, { type: recorder?.mimeType || "video/webm" });
+      state.faceChunks = [];
       revokeUrl("face");
       state.faceUrl = URL.createObjectURL(state.faceBlob);
       $("setup-recording-playback").src = state.faceUrl;
@@ -295,7 +402,7 @@
   }
 
   async function startVoiceRecording() {
-    if (!consentReady() || state.captureStarting || state.faceRecorder || state.voiceRecorder) return;
+    if (!pathIncludes("voice") || !consentReady() || state.captureStarting || state.faceRecorder || state.voiceRecorder) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       setProgress("voice-clone-status", "error", "This browser cannot record a voice sample.");
       return;
@@ -335,6 +442,10 @@
       tick();
       state.voiceTimer = setInterval(tick, 250);
     } catch (error) {
+      if (state.voiceRecorder && state.voiceRecorder.state !== "inactive") {
+        try { state.voiceRecorder.stop(); } catch {}
+      }
+      state.voiceRecorder = null;
       stopTracks(state.voiceStream);
       state.voiceStream = null;
       voiceStage.dataset.state = "idle";
@@ -368,6 +479,7 @@
     }
     if (state.voiceChunks.length) {
       state.voiceBlob = new Blob(state.voiceChunks, { type: recorder?.mimeType || "audio/webm" });
+      state.voiceChunks = [];
       revokeUrl("voice");
       state.voiceUrl = URL.createObjectURL(state.voiceBlob);
       $("voice-playback").src = state.voiceUrl;
@@ -385,7 +497,7 @@
   }
 
   async function createVoiceClone() {
-    if (!state.voiceBlob || !consentReady() || state.voiceSeconds < VOICE_MIN_SECONDS || state.voiceSubmitting) return;
+    if (!pathIncludes("voice") || !state.voiceBlob || !consentReady() || state.voiceSeconds < VOICE_MIN_SECONDS || state.voiceSubmitting) return;
     state.voiceSubmitting = true;
     const actionGeneration = state.actionGeneration;
     updateButtons();
@@ -400,17 +512,24 @@
       if (result.requires_verification) {
         state.pendingVoiceId = safeId(result.voice_id);
         state.voiceVerificationRequired = true;
+        saveJobs();
         setProgress("voice-clone-status", "error", "ElevenLabs created the voice, but verification is required before it can be connected. Complete verification in ElevenLabs, then record again or reconnect from the provider dashboard.");
         discardVoiceMedia();
         return;
       }
       state.voiceVerificationRequired = false;
       state.pendingVoiceId = safeId(result.voice_id);
+      saveJobs();
       setProgress("voice-clone-status", "working", "Voice created. Connecting it to your video coach…");
       const connected = await createPal("", state.pendingVoiceId);
       if (actionGeneration !== state.actionGeneration) return;
       if (!connected && !(state.profile.voice_id || state.profile.pal_id)) {
-        saveProfile({ ...state.profile, voice_id: state.pendingVoiceId, pal_id: "" });
+        saveProfile({
+          ...state.profile,
+          face_id: state.path === "voice" ? "" : state.profile.face_id,
+          voice_id: state.pendingVoiceId,
+          pal_id: "",
+        });
         setProgress("voice-clone-status", "error", "Your ElevenLabs voice exists, but it is not connected to a Tavus video coach yet. Reopen setup to retry.");
       }
       discardVoiceMedia();
@@ -423,7 +542,7 @@
   }
 
   async function submitFace() {
-    if (!consentReady() || state.faceSubmitting) return;
+    if (!pathIncludes("face") || !consentReady() || state.faceSubmitting) return;
     state.faceSubmitting = true;
     const actionGeneration = state.actionGeneration;
     updateButtons();
@@ -439,6 +558,9 @@
       });
       if (actionGeneration !== state.actionGeneration) return;
       state.pendingFaceId = safeId(result.face_id);
+      state.pendingFaceStartedAt = Date.now();
+      state.pendingFacePath = state.path === "face" ? "face" : "both";
+      saveJobs();
       setProgress("face-training-status", "working", "Training started. Tavus usually needs 3–4 hours. Keep this browser tab open for automatic tracking.");
       startFacePolling(state.pendingFaceId);
     } catch (error) {
@@ -449,57 +571,127 @@
     }
   }
 
+  async function useExistingFace() {
+    const faceId = safeId($("existing-face-id").value);
+    if (!pathIncludes("face") || !faceId || !consentReady() || state.faceSubmitting) return;
+    state.faceSubmitting = true;
+    const actionGeneration = state.actionGeneration;
+    updateButtons();
+    setProgress("face-training-status", "working", "Checking this Face with Tavus…");
+    try {
+      const face = await fetchJSON(`/api/personalization/face/${encodeURIComponent(faceId)}`);
+      if (actionGeneration !== state.actionGeneration) return;
+      const status = String(face.status || "started").toLowerCase();
+      if (status === "error") {
+        setProgress("face-training-status", "error", face.error || "Tavus reports that this Face could not be trained.");
+        return;
+      }
+      if (status !== "completed") {
+        state.pendingFaceId = faceId;
+        state.pendingFaceStartedAt = Date.now();
+        state.pendingFacePath = state.path === "face" ? "face" : "both";
+        saveJobs();
+        setProgress("face-training-status", "working", "This Face is still training. You can close this tab; tracking will resume automatically.");
+        startFacePolling(faceId);
+        return;
+      }
+      state.pendingFaceId = "";
+      state.pendingFaceStartedAt = 0;
+      const facePath = state.path === "face" ? "face" : "both";
+      state.pendingFacePath = "";
+      saveJobs();
+      saveProfile(facePath === "face"
+        ? { face_id: faceId, voice_id: "", pal_id: "" }
+        : { ...state.profile, face_id: faceId, pal_id: "" });
+      const voiceId = facePath === "both" && !state.voiceVerificationRequired
+        ? (state.pendingVoiceId || state.profile.voice_id)
+        : "";
+      if (voiceId) {
+        const connected = await createPal(faceId, voiceId, { useFace: true });
+        if (!connected) setProgress("face-training-status", "ready", "Your Face is connected with the stock voice. Your personal voice can be retried later.");
+      } else {
+        setProgress("face-training-status", "ready", "Your Face is connected and will use the stock voice.");
+      }
+    } catch (error) {
+      setProgress("face-training-status", "error", error.message);
+    } finally {
+      state.faceSubmitting = false;
+      updateButtons();
+    }
+  }
+
   function startFacePolling(faceId) {
-    clearInterval(state.facePoll);
+    clearFacePolling();
     state.pendingFaceId = safeId(faceId);
+    if (!state.pendingFaceId) return;
+    if (!state.pendingFaceStartedAt) state.pendingFaceStartedAt = Date.now();
+    if (!state.pendingFacePath) state.pendingFacePath = state.path === "face" ? "face" : "both";
+    saveJobs();
     const generation = ++state.facePollGeneration;
     const actionGeneration = state.actionGeneration;
+    const scheduleNext = () => {
+      if (actionGeneration !== state.actionGeneration || generation !== state.facePollGeneration || state.pendingFaceId !== faceId) return;
+      state.facePoll = setTimeout(() => { void poll(); }, FACE_POLL_MS);
+    };
     const poll = async () => {
+      state.facePoll = null;
       try {
         const face = await fetchJSON(`/api/personalization/face/${encodeURIComponent(faceId)}`);
         if (actionGeneration !== state.actionGeneration || generation !== state.facePollGeneration || state.pendingFaceId !== faceId) return;
         const status = String(face.status || "started").toLowerCase();
         if (status === "completed") {
-          clearInterval(state.facePoll);
-          state.facePoll = null;
+          state.pendingFaceId = "";
+          state.pendingFaceStartedAt = 0;
+          const facePath = state.pendingFacePath || "both";
+          state.pendingFacePath = "";
+          saveJobs();
+          saveProfile(facePath === "face"
+            ? { face_id: faceId, voice_id: "", pal_id: "" }
+            : { ...state.profile, face_id: faceId, pal_id: "" });
           setProgress("face-training-status", "ready", "Your Face is trained and ready to use.");
-          if (state.profile.voice_id) {
+          const voiceId = facePath === "both" && !state.voiceVerificationRequired
+            ? (state.pendingVoiceId || state.profile.voice_id)
+            : "";
+          if (voiceId) {
             const connected = await createPal(
               faceId,
-              state.voiceVerificationRequired ? "" : state.pendingVoiceId,
+              voiceId,
+              { useFace: true },
             );
             if (!connected) {
-              setProgress("face-training-status", "error", "Your Face is trained, but it could not be connected to your current voice coach. Your existing coach remains active; retry when you reopen setup.");
+              setProgress("face-training-status", "ready", "Your Face is trained. Voice connection is still pending; your Face can already use the stock voice.");
             }
-          } else {
-            state.pendingFaceId = "";
-            saveProfile({ ...state.profile, face_id: faceId });
           }
+          return;
         } else if (status === "error") {
-          clearInterval(state.facePoll);
-          state.facePoll = null;
           state.pendingFaceId = "";
-          setProgress("face-training-status", "error", face.error_message || face.error || "Tavus could not train this video.");
+          state.pendingFaceStartedAt = 0;
+          state.pendingFacePath = "";
+          saveJobs();
+          setProgress("face-training-status", "error", face.error || "Tavus could not train this video. Review the recording requirements and try again.");
+          return;
         } else {
           setProgress("face-training-status", "working", face.training_progress
-            ? `Face training in progress: ${face.training_progress}. Keep this browser tab open for automatic tracking.`
-            : "Face training is still running. Tavus usually needs 3–4 hours.");
+            ? `Face training in progress: ${face.training_progress}. You can close this tab; tracking resumes next time.`
+            : "Face training is still running. You can close this tab; tracking resumes next time.");
         }
       } catch (error) {
-        setProgress("face-training-status", "error", `Could not refresh Face status: ${error.message}`);
+        setProgress("face-training-status", "working", "Face training is still saved. Status could not refresh just now, so Fluent Me will try again automatically.");
       }
+      scheduleNext();
     };
     void poll();
-    state.facePoll = setInterval(poll, FACE_POLL_MS);
   }
 
-  async function createPal(faceOverride = "", voiceOverride = "") {
+  async function createPal(faceOverride = "", voiceOverride = "", { useFace = state.path !== "voice" } = {}) {
     const nextVoiceId = safeId(voiceOverride) || state.profile.voice_id;
     if (!nextVoiceId || state.palSubmitting) return false;
     state.palSubmitting = true;
     const actionGeneration = state.actionGeneration;
     updateButtons();
-    const nextFaceId = safeId(faceOverride) || state.profile.face_id;
+    const nextFaceId = useFace
+      ? (safeId(faceOverride) || state.profile.face_id)
+      : "";
     setProgress("voice-clone-status", "working", nextFaceId
       ? "Connecting your voice and Face to the coach…"
       : "Connecting your voice to the stock male coach…");
@@ -509,10 +701,22 @@
         body: JSON.stringify({ voice_id: nextVoiceId, face_id: nextFaceId || "" }),
       });
       if (actionGeneration !== state.actionGeneration) return false;
-      saveProfile({ ...state.profile, face_id: nextFaceId, voice_id: nextVoiceId, pal_id: result.pal_id });
-      if (faceOverride) state.pendingFaceId = "";
-      if (voiceOverride) state.pendingVoiceId = "";
-      if (voiceOverride) state.voiceVerificationRequired = false;
+      saveProfile({
+        ...state.profile,
+        face_id: useFace ? nextFaceId : "",
+        voice_id: nextVoiceId,
+        pal_id: result.pal_id,
+      });
+      if (faceOverride) {
+        state.pendingFaceId = "";
+        state.pendingFaceStartedAt = 0;
+        state.pendingFacePath = "";
+      }
+      if (voiceOverride) {
+        state.pendingVoiceId = "";
+        state.voiceVerificationRequired = false;
+      }
+      saveJobs();
       setProgress("voice-clone-status", "ready", nextFaceId
         ? "Your Face and voice are connected."
         : "Your voice is connected to the stock male face.");
@@ -578,9 +782,7 @@
     else dialog.setAttribute("open", "");
     renderProfile();
     void loadProviderStatus();
-    if (state.pendingVoiceId && !state.voiceVerificationRequired) void createPal(state.pendingFaceId, state.pendingVoiceId);
-    else if (state.pendingFaceId && state.profile.voice_id) void createPal(state.pendingFaceId);
-    else if (state.profile.voice_id && !state.profile.pal_id) void createPal();
+    if (state.pendingFaceId && !state.facePoll) startFacePolling(state.pendingFaceId);
     $("clone-full-name").focus();
   }
 
@@ -599,13 +801,20 @@
   });
   $("clone-full-name").addEventListener("input", updateConsentScript);
   $("consent-checkbox").addEventListener("change", updateButtons);
+  document.querySelectorAll('input[name="personalization-path"]').forEach(input => input.addEventListener("change", updatePersonalizationPath));
   $("training-url").addEventListener("input", updateButtons);
+  $("existing-face-id").addEventListener("input", updateButtons);
   $("setup-record-button").addEventListener("click", () => { void startFaceRecording(); });
   $("setup-stop-button").addEventListener("click", stopFaceRecording);
   $("voice-record-button").addEventListener("click", () => { void startVoiceRecording(); });
   $("voice-stop-button").addEventListener("click", stopVoiceRecording);
   $("clone-voice-button").addEventListener("click", () => { void createVoiceClone(); });
   $("create-face-button").addEventListener("click", () => { void submitFace(); });
+  $("use-existing-face-button").addEventListener("click", () => { void useExistingFace(); });
+  $("retry-pal-button").addEventListener("click", () => {
+    if (!state.pendingVoiceId) return;
+    void createPal(state.profile.face_id, state.pendingVoiceId);
+  });
   $("use-personal-coach").addEventListener("click", () => {
     if (!(state.profile.face_id || state.profile.pal_id)) return;
     saveProfile(state.profile);
@@ -614,16 +823,17 @@
   $("reset-personal-coach").addEventListener("click", () => {
     const confirmed = window.confirm("Use the stock coach in this browser? This will not delete your Tavus Face, ElevenLabs voice, or personal PAL from either provider.");
     if (!confirmed) return;
-    clearInterval(state.facePoll);
-    state.facePoll = null;
-    state.facePollGeneration += 1;
+    clearFacePolling();
     state.actionGeneration += 1;
     state.faceSubmitting = false;
     state.voiceSubmitting = false;
     state.palSubmitting = false;
     state.pendingFaceId = "";
+    state.pendingFaceStartedAt = 0;
+    state.pendingFacePath = "";
     state.pendingVoiceId = "";
     state.voiceVerificationRequired = false;
+    saveJobs();
     discardLocalMedia();
     saveProfile(emptyProfile());
     setProgress("voice-clone-status", "waiting", "No personal voice is selected in this browser.");
@@ -635,6 +845,8 @@
     getProfile() { return { ...state.profile }; },
   };
 
+  updatePersonalizationPath();
   updateConsentScript();
   renderProfile();
+  if (state.pendingFaceId) startFacePolling(state.pendingFaceId);
 })();

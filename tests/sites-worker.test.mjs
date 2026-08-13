@@ -314,3 +314,119 @@ test("Sites Worker starts a conversation with saved personal face and PAL ids", 
     globalThis.fetch = originalFetch;
   }
 });
+
+test("Sites Worker serves the v2 social image and keeps the old route compatible", async () => {
+  const current = await worker.fetch(new Request(
+    "https://fluent-me.test/static/og-personal-coach-v2.png",
+  ), {});
+  const legacy = await worker.fetch(new Request(
+    "https://fluent-me.test/static/og-personal-coach.png",
+  ), {});
+
+  assert.equal(current.status, 200);
+  assert.equal(current.headers.get("content-type"), "image/png");
+  assert.ok((await current.arrayBuffer()).byteLength > 1000);
+  assert.deepEqual(
+    Buffer.from(await legacy.arrayBuffer()),
+    Buffer.from(await (await worker.fetch(new Request(
+      "https://fluent-me.test/static/og-personal-coach-v2.png",
+    ), {})).arrayBuffer()),
+  );
+});
+
+test("Sites Worker rejects an oversized voice request before multipart parsing", async () => {
+  const response = await worker.fetch(new Request(
+    "https://fluent-me.test/api/personalization/voice",
+    {
+      method: "POST",
+      headers: {
+        "content-length": String(22 * 1024 * 1024),
+        "content-type": "multipart/form-data; boundary=not-parsed",
+      },
+      body: "this body must not be parsed",
+    },
+  ), { ELEVENLABS_API_KEY: "eleven-secret" });
+
+  assert.equal(response.status, 413);
+  assert.match((await response.json()).error, /20 MB/);
+});
+
+test("Sites Worker rejects non-audio voice uploads", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("provider must not be called for an invalid MIME type");
+  };
+  try {
+    const form = new FormData();
+    form.append("name", "Not audio");
+    form.append("consent", "true");
+    form.append("audio", new Blob([new Uint8Array(2000)], { type: "text/plain" }), "voice.txt");
+    const response = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/voice",
+      { method: "POST", body: form },
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /audio recording format/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker maps provider timeouts to a safe 504", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    const error = new Error("timeout included eleven-secret");
+    error.name = "TimeoutError";
+    throw error;
+  };
+  try {
+    const response = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/status",
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+    const body = await response.text();
+
+    assert.equal(response.status, 504);
+    assert.match(body, /did not respond in time/);
+    assert.doesNotMatch(body, /eleven-secret/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker sanitizes Face training and conversation end errors", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    if (String(url).includes("/faces/")) {
+      return responseJson({
+        face_id: "face_personal_123",
+        status: "error",
+        error_message: "signed-url=private-token tavus-secret",
+      });
+    }
+    if (String(url).endsWith("/conversations/c-private/end")) {
+      return responseJson({ message: "signed-url=private-token tavus-secret" }, 500);
+    }
+    throw new Error(`Unexpected provider request: ${url}`);
+  };
+  try {
+    const faceResponse = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/face/face_personal_123",
+    ), { TAVUS_API_KEY: "tavus-secret" });
+    const faceBody = await faceResponse.text();
+    assert.equal(faceResponse.status, 200);
+    assert.match(faceBody, /could not train this video/);
+    assert.doesNotMatch(faceBody, /private-token|tavus-secret/);
+
+    const endResponse = await worker.fetch(new Request(
+      "https://fluent-me.test/api/tavus/conversations/c-private/end",
+      { method: "POST" },
+    ), { TAVUS_API_KEY: "tavus-secret" });
+    const endBody = await endResponse.text();
+    assert.equal(endResponse.status, 500);
+    assert.match(endBody, /could not complete that request/);
+    assert.doesNotMatch(endBody, /private-token|tavus-secret/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
