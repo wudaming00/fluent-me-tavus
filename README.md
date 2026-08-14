@@ -20,6 +20,7 @@ Do not treat the staging URL as proof of a completed live test. Before submissio
 - **Voice Lab — evidence-based comparison:** after both attempts exist, `conversation.respond` asks the PAL to identify one improvement, one next detail, and the strongest version using only the supplied evidence.
 - **Session — grounded wrap-up:** the product requests three parts from the conversation that actually happened: one thing communicated well, one useful natural phrase, and one specific thing to practice next.
 - **Optional identity setup:** **Create your coach** separates a roughly 60-second face-training recording from a 60–90-second clean voice sample, then combines a Tavus Phoenix-4 Face and an ElevenLabs Instant Voice Clone in a personal PAL.
+- **Experimental Future Me:** an owned voice clone can generate reversible Subtle and Balanced target-accent previews. The learner listens before saving; the chosen preview becomes a new voice and the original clone is never edited.
 
 **Coach**, **Voice Lab**, and **Session** organize one continuous Tavus call. Coach shortcuts can also be requested out loud; Voice Lab adds an explicit capture contract so attempt one and attempt two are real learner turns rather than generated sample data.
 
@@ -32,10 +33,11 @@ Personalization is an opt-in setup path, not a prerequisite for talking to the s
 3. ElevenLabs Instant Voice Cloning receives the explicitly submitted voice sample through the server. The browser never receives the ElevenLabs key. Tavus also receives the dedicated ElevenLabs integration key as part of the personal PAL's private-voice TTS configuration, as required to synthesize that voice.
 4. Tavus trains a **Phoenix-4 Face** through PAL Maker's guided recording flow. When training is ready, the learner pastes the returned Face ID into Fluent Me; the app validates its provider status before saving it. A user-owned public or signed HTTPS training URL remains available as an advanced path.
 5. Personalization is progressive: a ready Face can use the stock Tavus voice, a ready ElevenLabs voice can use the stock male Face, and when both IDs are ready the server creates a full personal PAL using the Phoenix Face, private voice, Raven-1, and Sparrow-1.
+6. After a voice clone exists, **Future Me** can preview General American or General British variants at two strengths. Previewing uses ElevenLabs credits. Saving requires a short-lived server-signed preview handle, creates a separate voice ID, and then creates a new Tavus PAL for the selected voice. The stock coach and original clone remain available if any step fails.
 
-Fluent Me stores only `face_id`, `voice_id`, and `pal_id` in `localStorage`. It does not put raw audio, raw video, API keys, or biometric media in browser storage, and it does not add a server-side media archive. Submitting a sample still sends it to ElevenLabs or Tavus for processing under that provider's retention terms.
+Fluent Me stores only provider IDs plus small selection metadata (`face_id`, active/original/Future-Me `voice_id` values, `pal_id`, target accent, and remix strength) in `localStorage`. It does not put raw audio, raw video, API keys, preview audio, signed preview handles, or biometric media in browser storage, and it does not add a server-side media archive. Submitting a sample still sends it to ElevenLabs or Tavus for processing under that provider's retention terms.
 
-This path is **not yet end-to-end verified on the hosted site**. The deployed environment still needs a verified `ELEVENLABS_API_KEY` and an ElevenLabs plan or grant with Instant Voice Cloning enabled. It also has no built-in browser-video-to-public-URL upload service. Face training is asynchronous and typically takes roughly **3–4 hours**, so a newly recorded Face will not become available during a short demo.
+The private hosted environment has been verified with configured Tavus and ElevenLabs credentials. Actual IVC, Voice Remixing, and Face availability still depends on provider account scope, credits, voice eligibility, and training status. The site has no built-in browser-video-to-public-URL upload service. Face training is asynchronous and typically takes roughly **3–4 hours**, so a newly recorded Face will not become available during a short demo.
 
 ## Why Tavus
 
@@ -67,7 +69,7 @@ Optional Create your coach
   ├─ local face capture ── user-owned 24h HTTPS URL ──▶ Tavus Phoenix-4 Face
   ├─ local voice capture ── explicit submit ──▶ server ──▶ ElevenLabs IVC
   └─ either ID can be used; face_id + voice_id ──▶ full personal PAL
-                                      └─▶ IDs only in localStorage
+                                      └─▶ IDs + selection metadata only in localStorage
 ```
 
 The browser receives only the private room URL and short-lived meeting token. The long-lived `TAVUS_API_KEY` remains in the Worker or FastAPI environment.
@@ -107,6 +109,10 @@ TAVUS_API_KEY=...
 # Instant Voice Cloning enabled through its plan or grant.
 ELEVENLABS_API_KEY=...
 
+# Optional; signs 15-minute Future Me preview handles. If omitted, the server
+# derives a domain-separated signing key from ELEVENLABS_API_KEY.
+REMIX_SIGNING_SECRET=...
+
 # Recommended for a reproducible evaluator build: pin the verified,
 # published v6 evidence-aware PAL rather than an older PAL.
 TAVUS_CONVERSATION_PAL_V6_ID=...
@@ -131,7 +137,7 @@ These tests validate application and Worker behavior with mocks. They do **not**
 
 - The product identifies the coach as AI. Camera sharing is off by default and requires an explicit learner action.
 - Tavus and Daily process media and conversation data to provide the call and may retain service-side conversation data according to their policies. Fluent Me does not create an additional server-side transcript or store raw audio/video in this prototype.
-- **Create your coach** has a separate, explicit consent gate. Its two recordings remain local until the learner chooses to submit them. The app stores only the resulting provider IDs in `localStorage`; it does not persist raw media locally or on the Fluent Me server.
+- **Create your coach** has a separate, explicit consent gate, and Future Me adds a second explicit remix-consent gate. Recordings remain local until the learner submits them. The app stores provider IDs and selection metadata in `localStorage`; it does not persist raw media, preview audio, or signed preview handles locally or on the Fluent Me server.
 - The face recording cannot be handed directly from browser memory to Tavus in the current build. Face training requires a user-owned public or signed HTTPS video URL valid for at least 24 hours, or completion through PAL Maker. Managing and deleting that externally hosted training file remains the learner's responsibility.
 - ElevenLabs IVC and Tavus Phoenix-4 process submitted biometric media under their own policies. Face training can take approximately 3–4 hours. Neither successful mocked tests nor the presence of the setup UI proves that this provider workflow has completed end to end.
 - The private-voice PAL configuration sends Tavus a dedicated ElevenLabs integration API key so Tavus can synthesize the voice. Use a narrowly scoped key created for this integration and rotate it independently.
@@ -149,7 +155,7 @@ These tests validate application and Worker behavior with mocks. They do **not**
 - [server/static/analysis-core.js](server/static/analysis-core.js) — deterministic turn, attempt, and session evidence without a fake overall score.
 - [server/static/live.css](server/static/live.css) — responsive product styling.
 - [server/tavus.py](server/tavus.py) — FastAPI-side PAL and conversation integration.
-- [server/personalization.py](server/personalization.py) — server-only ElevenLabs IVC, Phoenix-4 Face, status, validation, and personal PAL helpers.
+- [server/personalization.py](server/personalization.py) — server-only ElevenLabs IVC/Voice Remixing, signed preview validation, Phoenix-4 Face, status, and personal PAL helpers.
 - [server/app.py](server/app.py) — local API routes and server boundary.
 - [scripts/build-sites-preview.mjs](scripts/build-sites-preview.mjs) — hosted Worker build and Tavus server calls.
 - [tests/sites-worker.test.mjs](tests/sites-worker.test.mjs) — Worker contract tests.

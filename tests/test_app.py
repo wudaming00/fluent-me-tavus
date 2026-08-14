@@ -152,6 +152,9 @@ def test_personalization_status_is_sanitized(monkeypatch):
     assert response.status_code == 200
     assert response.json()["elevenlabs"]["tier"] == "starter"
     assert response.json()["elevenlabs"]["can_use_instant_voice_cloning"] is True
+    assert response.json()["elevenlabs"]["voice_remixing_configured"] is True
+    assert response.json()["elevenlabs"]["voice_remixing_availability"] == "unknown"
+    assert response.json()["elevenlabs"]["voice_remixing_available"] is None
     assert response.json()["tavus"]["configured"] is True
     assert "api_key" not in response.text.lower()
 
@@ -186,6 +189,74 @@ def test_voice_clone_requires_consent_and_returns_only_provider_result(monkeypat
         "filename": "voice.webm",
         "content_type": "audio/webm",
     }
+
+
+def test_voice_remix_preview_and_save_require_consent_and_return_safe_shapes(monkeypatch):
+    denied = client.post(
+        "/api/personalization/voice/remix",
+        json={"voice_id": "voice_personal_123", "consent": False},
+    )
+    assert denied.status_code == 400
+
+    seen = {}
+
+    def fake_remix(voice_id, *, target_accent, strength, text):
+        seen.update(
+            voice_id=voice_id,
+            target_accent=target_accent,
+            strength=strength,
+            text=text,
+        )
+        return {
+            "source_voice_id": voice_id,
+            "original_preserved": True,
+            "target_accent": target_accent,
+            "text": "preview text",
+            "previews": [{
+                "strength": strength,
+                "generated_voice_id": "generated_medium_123",
+                "audio_base_64": "YXVkaW8=",
+                "media_type": "audio/mpeg",
+            }],
+        }
+
+    monkeypatch.setattr(app_module.personalization, "remix_eleven_voice", fake_remix)
+    preview = client.post(
+        "/api/personalization/voice/remix",
+        json={
+            "voice_id": "voice_personal_123",
+            "target_accent": "modern_british",
+            "strength": "medium",
+            "consent": True,
+        },
+    )
+    assert preview.status_code == 200
+    assert preview.json()["original_preserved"] is True
+    assert seen["target_accent"] == "modern_british"
+
+    def fake_save(preview_handle, *, name, played_not_selected_voice_ids):
+        assert preview_handle == "signed-preview-handle"
+        return {
+            "voice_id": "voice_future_123",
+            "name": name,
+            "source": "remix",
+            "original_preserved": True,
+        }
+
+    monkeypatch.setattr(app_module.personalization, "save_eleven_remix", fake_save)
+    saved = client.post(
+        "/api/personalization/voice/remix/save",
+        json={
+            "preview_handle": "signed-preview-handle",
+            "generated_voice_id": "generated_attacker_claim_123",
+            "voice_id": "voice_attacker_claim_123",
+            "name": "Future Me",
+            "consent": True,
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.json()["voice_id"] == "voice_future_123"
+    assert saved.json()["source"] == "remix"
 
 
 def test_face_training_and_personal_pal_require_consent_and_ids(monkeypatch):

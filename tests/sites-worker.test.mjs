@@ -184,8 +184,225 @@ test("Sites Worker reports sanitized ElevenLabs subscription usage", async () =>
     assert.equal(body.elevenlabs.tier, "starter");
     assert.equal(body.elevenlabs.character_limit, 30000);
     assert.equal(body.elevenlabs.can_use_instant_voice_cloning, true);
+    assert.equal(body.elevenlabs.voice_remixing_configured, true);
+    assert.equal(body.elevenlabs.voice_remixing_availability, "unknown");
+    assert.equal(body.elevenlabs.voice_remixing_available, null);
+    assert.deepEqual(body.elevenlabs.remix_strengths, ["low", "medium"]);
     assert.equal(body.tavus.configured, true);
     assert.doesNotMatch(JSON.stringify(body), /secret|private_account_field/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker remixes an owned voice at low and medium strength without changing the original", async () => {
+  const originalFetch = globalThis.fetch;
+  const providerCalls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    providerCalls.push({ url: String(url), method: options.method || "GET", body: options.body });
+    if (String(url).endsWith("/voices/voice_personal_123")) {
+      return responseJson({
+        voice_id: "voice_personal_123",
+        is_owner: true,
+        preview_url: "https://storage.googleapis.com/eleven-public-prod/source.mp3",
+        private_field: "do-not-return",
+      });
+    }
+    if (String(url).endsWith("/text-to-voice/voice_personal_123/remix")) {
+      const requestBody = JSON.parse(options.body);
+      const label = requestBody.prompt_strength === 0.25 ? "low" : "medium";
+      assert.equal(options.headers["xi-api-key"], "eleven-secret");
+      assert.equal(requestBody.stream_previews, false);
+      assert.equal(requestBody.guidance_scale, 2);
+      assert.match(requestBody.voice_description, /General American/);
+      return responseJson({
+        text: requestBody.text,
+        previews: [{
+          generated_voice_id: `generated_${label}_123`,
+          audio_base_64: Buffer.from(`audio-${label}`).toString("base64"),
+          media_type: "audio/mpeg",
+          duration_secs: 1.25,
+          language: "en",
+        }],
+      });
+    }
+    throw new Error(`Unexpected ElevenLabs request: ${url}`);
+  };
+
+  try {
+    const response = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/voice/remix",
+      {
+        method: "POST",
+        headers: { origin: "https://fluent-me.test", "content-type": "application/json" },
+        body: JSON.stringify({
+          voice_id: "voice_personal_123",
+          target_accent: "general_american",
+          consent: true,
+        }),
+      },
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+    const body = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(body.source_voice_id, "voice_personal_123");
+    assert.equal(body.original_preserved, true);
+    assert.equal(body.target_accent, "general_american");
+    assert.equal(body.source_preview_url, "https://storage.googleapis.com/eleven-public-prod/source.mp3");
+    assert.deepEqual(body.previews.map(item => item.strength), ["low", "medium"]);
+    assert.deepEqual(body.previews.map(item => item.prompt_strength), [0.25, 0.55]);
+    assert.ok(body.previews.every(item => item.audio_base_64 && item.media_type === "audio/mpeg"));
+    assert.ok(body.previews.every(item => /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(item.preview_handle)));
+    const signedPayload = JSON.parse(Buffer.from(body.previews[0].preview_handle.split(".")[1], "base64url"));
+    assert.equal(signedPayload.source_voice_id, "voice_personal_123");
+    assert.equal(signedPayload.generated_voice_id, "generated_low_123");
+    assert.equal(signedPayload.target_accent, "general_american");
+    assert.equal(signedPayload.strength, "low");
+    assert.equal(signedPayload.exp - signedPayload.iat, 15 * 60);
+    assert.equal(providerCalls.filter(call => call.url.endsWith("/remix")).length, 2);
+    assert.ok(providerCalls.every(call => !/delete|edit/i.test(call.url) && call.method !== "DELETE"));
+    assert.doesNotMatch(JSON.stringify(body), /eleven-secret|private_field/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker supports a single British remix strength and saves it as a new voice", async () => {
+  const originalFetch = globalThis.fetch;
+  let remixPayload;
+  let savePayload;
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).endsWith("/voices/voice_personal_123")) {
+      return responseJson({
+        voice_id: "voice_personal_123",
+        is_owner: true,
+        preview_url: "https://localhost/private-source.mp3",
+      });
+    }
+    if (String(url).endsWith("/text-to-voice/voice_personal_123/remix")) {
+      remixPayload = JSON.parse(options.body);
+      return responseJson({ previews: [{
+        generated_voice_id: "generated_british_123",
+        audio_base_64: Buffer.from("british-preview").toString("base64"),
+        media_type: "audio/mpeg",
+        duration_secs: 1,
+        language: "en",
+      }] });
+    }
+    if (String(url).endsWith("/text-to-voice")) {
+      savePayload = JSON.parse(options.body);
+      return responseJson({ voice_id: "voice_future_me_123", name: "Future Me British" });
+    }
+    throw new Error(`Unexpected ElevenLabs request: ${url}`);
+  };
+
+  try {
+    const previewResponse = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/voice/remix",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ voice_id: "voice_personal_123", target_accent: "modern_british", strength: "medium", consent: true }),
+      },
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+    const preview = await previewResponse.json();
+    assert.equal(previewResponse.status, 200);
+    assert.equal(preview.previews.length, 1);
+    assert.equal(preview.previews[0].strength, "medium");
+    assert.equal(preview.source_preview_url, null);
+    assert.equal(remixPayload.prompt_strength, 0.55);
+    assert.match(remixPayload.voice_description, /modern British/);
+
+    const handle = preview.previews[0].preview_handle;
+    const tamperedParts = handle.split(".");
+    tamperedParts[2] = (tamperedParts[2].startsWith("A") ? "B" : "A") + tamperedParts[2].slice(1);
+    const tamperedHandle = tamperedParts.join(".");
+    const tamperedResponse = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/voice/remix/save",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ preview_handle: tamperedHandle, consent: true }),
+      },
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+    assert.equal(tamperedResponse.status, 400);
+    assert.match((await tamperedResponse.json()).error, /invalid or has expired/);
+    assert.equal(savePayload, undefined);
+
+    const savedResponse = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/voice/remix/save",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          preview_handle: handle,
+          generated_voice_id: "generated_attacker_claim_123",
+          voice_id: "voice_attacker_claim_123",
+          name: "Future Me British",
+          consent: true,
+        }),
+      },
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+    const saved = await savedResponse.json();
+    assert.equal(savedResponse.status, 200);
+    assert.deepEqual(saved, {
+      voice_id: "voice_future_me_123",
+      name: "Future Me British",
+      source: "remix",
+      source_voice_id: "voice_personal_123",
+      target_accent: "modern_british",
+      strength: "medium",
+      original_preserved: true,
+    });
+    assert.equal(savePayload.generated_voice_id, "generated_british_123");
+    assert.match(savePayload.voice_description, /original voice remains unchanged/);
+    assert.doesNotMatch(JSON.stringify(saved), /eleven-secret/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Sites Worker rejects unowned sources, unsigned save claims, and oversized remix audio", async () => {
+  const originalFetch = globalThis.fetch;
+  let remixCalls = 0;
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).endsWith("/voices/voice_not_owned_123")) {
+      return responseJson({ voice_id: "voice_not_owned_123", is_owner: false });
+    }
+    if (String(url).endsWith("/voices/voice_personal_123")) {
+      return responseJson({ voice_id: "voice_personal_123", is_owner: true });
+    }
+    if (String(url).endsWith("/text-to-voice/voice_personal_123/remix")) {
+      remixCalls += 1;
+      return responseJson({ previews: [{
+        generated_voice_id: "generated_too_big_123",
+        audio_base_64: "A".repeat(4_194_312),
+        media_type: "audio/mpeg",
+      }] });
+    }
+    throw new Error(`Provider must not receive unsafe save request: ${url} ${options.method || "GET"}`);
+  };
+  try {
+    const unowned = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/voice/remix",
+      { method: "POST", body: JSON.stringify({ voice_id: "voice_not_owned_123", consent: true }) },
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+    assert.equal(unowned.status, 403);
+    assert.match((await unowned.json()).error, /owned/);
+    assert.equal(remixCalls, 0);
+
+    const unsafeSave = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/voice/remix/save",
+      { method: "POST", body: JSON.stringify({ generated_voice_id: "generated_unsigned_123", consent: true }) },
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+    assert.equal(unsafeSave.status, 400);
+
+    const oversized = await worker.fetch(new Request(
+      "https://fluent-me.test/api/personalization/voice/remix",
+      { method: "POST", body: JSON.stringify({ voice_id: "voice_personal_123", strength: "low", consent: true }) },
+    ), { ELEVENLABS_API_KEY: "eleven-secret" });
+    assert.equal(oversized.status, 502);
+    assert.doesNotMatch(await oversized.text(), /AAAA|eleven-secret/);
   } finally {
     globalThis.fetch = originalFetch;
   }

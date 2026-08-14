@@ -72,6 +72,18 @@ The hosted site also still requires a verified `ELEVENLABS_API_KEY` and an activ
 
 The Tavus private-voice TTS layer requires the ElevenLabs `api_key` alongside the external `voice_id`. The server therefore supplies a dedicated, least-privilege ElevenLabs integration key to Tavus when it creates the personal PAL. The browser never receives this key, but the UI and privacy documentation must not imply that ElevenLabs is the only provider receiving it.
 
+## Voice identity and target-accent boundary
+
+A raw voice clone is an identity feature, not a pronunciation model. ElevenLabs cloning can reproduce the learner's accent, cadence, pronunciation, and recording artifacts along with their timbre. Fluent Me therefore keeps three roles separate:
+
+- **Original** is the learner's untouched clone and remains recoverable in the browser profile.
+- **Future Me** is an explicitly experimental, newly created voice variant. The learner previews low- and medium-strength target-accent remixes, then chooses whether to save one; the original voice is never edited or deleted.
+- **Standard coach** remains the pronunciation reference. A remixed self-voice is motivational feedback, not proof that every sound is correct.
+
+The default experiment targets General American English, with General British as an opt-in alternative. Preview generation consumes provider credits, while saving the selected preview consumes a custom voice slot and creates a new provider-side voice ID. A saved Future Me voice is connected by creating a new Tavus PAL; failed preview, save, or PAL requests leave the current coach and original clone unchanged.
+
+If ElevenLabs remix quality is insufficient, the next production path is **Cartesia clone + Localize + corrected-text TTS**, because Tavus supports Cartesia directly. For true real-time accent conversion, Sanas is the first evaluation candidate and Krisp the enterprise/on-device candidate; those providers require a separate media path or Tavus Echo Mode and must never sit in front of pronunciation analysis, because conversion would erase the original evidence that the coach needs to diagnose.
+
 ## Tavus boundary
 
 Tavus provides the full conversational video pipeline: Phoenix Face, Raven-1 perception, Sparrow-1 turn-taking, STT, LLM, and spoken response. Native speech uses the full pipeline. Typed user requests use `conversation.respond`. Only exact phrase modeling uses `conversation.echo`.

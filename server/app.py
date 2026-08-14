@@ -247,6 +247,12 @@ def personalization_status():
         "voice_slots_used": None,
         "voice_limit": None,
         "can_use_instant_voice_cloning": None,
+        "voice_remixing_configured": personalization.eleven_configured(),
+        "voice_remixing_availability": (
+            "unknown" if personalization.eleven_configured() else "unavailable"
+        ),
+        "voice_remixing_available": None if personalization.eleven_configured() else False,
+        "remix_strengths": ["low", "medium"],
     }
     if eleven["configured"]:
         try:
@@ -276,6 +282,42 @@ async def create_personal_voice(
             await audio.read(personalization.MAX_VOICE_SAMPLE_BYTES + 1),
             filename=audio.filename or "voice.webm",
             content_type=audio.content_type or "audio/webm",
+        )
+    except (ValueError, personalization.PersonalizationAPIError) as exc:
+        return _safe_personalization_error(exc)
+
+
+@app.post("/api/personalization/voice/remix")
+def remix_personal_voice(payload: dict):
+    if payload.get("consent") is not True:
+        return JSONResponse(
+            {"error": "Confirm that this is your voice and you consent to creating a remixed variant."},
+            status_code=400,
+        )
+    try:
+        return personalization.remix_eleven_voice(
+            str(payload.get("voice_id") or ""),
+            target_accent=str(payload.get("target_accent") or "general_american"),
+            strength=(str(payload["strength"]) if payload.get("strength") else None),
+            text=payload.get("text"),
+        )
+    except (ValueError, personalization.PersonalizationAPIError) as exc:
+        return _safe_personalization_error(exc)
+
+
+@app.post("/api/personalization/voice/remix/save")
+def save_personal_voice_remix(payload: dict):
+    if payload.get("consent") is not True:
+        return JSONResponse(
+            {"error": "Confirm that this is your voice and you want to save this remixed variant."},
+            status_code=400,
+        )
+    played = payload.get("played_not_selected_voice_ids")
+    try:
+        return personalization.save_eleven_remix(
+            payload.get("preview_handle"),
+            name=str(payload.get("name") or "Future Me · Clear English"),
+            played_not_selected_voice_ids=played if isinstance(played, list) else [],
         )
     except (ValueError, personalization.PersonalizationAPIError) as exc:
         return _safe_personalization_error(exc)

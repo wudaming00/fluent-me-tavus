@@ -29,6 +29,21 @@ const PAL_NAME = "Fluent Me Conversation Coach v6";
 const SAFE_ID = /^[A-Za-z0-9_-]{6,128}$/;
 const MAX_VOICE_SAMPLE_BYTES = 20 * 1024 * 1024;
 const MAX_VOICE_REQUEST_BYTES = MAX_VOICE_SAMPLE_BYTES + 512 * 1024;
+const MAX_REMIX_REQUEST_BYTES = 16 * 1024;
+const MAX_REMIX_PROVIDER_RESPONSE_BYTES = 8 * 1024 * 1024;
+const MAX_REMIX_PREVIEW_BYTES = 3 * 1024 * 1024;
+const MAX_REMIX_HANDLE_CHARS = 2048;
+const MAX_REMIX_HANDLE_PAYLOAD_BYTES = 1024;
+const REMIX_HANDLE_TTL_SECONDS = 15 * 60;
+const REMIX_HANDLE_CLOCK_SKEW_SECONDS = 30;
+const REMIX_HANDLE_CONTEXT = "fluent-me/remix-preview/v1";
+const REMIX_STRENGTHS = Object.freeze({ low: 0.25, medium: 0.55 });
+const REMIX_TARGETS = Object.freeze({
+  general_american: "Keep the same recognizable speaker identity, vocal timbre, apparent age, pitch range, and warmth. Change only the English pronunciation and accent toward neutral General American English. Use precise consonants, natural vowel quality, clear word stress, connected speech, and a warm conversational pace. Avoid caricature and do not change the speaker's identity or gender.",
+  modern_british: "Keep the same recognizable speaker identity, vocal timbre, apparent age, pitch range, and warmth. Change only the English pronunciation and accent toward clear modern British English with a neutral contemporary standard accent. Use precise consonants, natural vowel quality, clear word stress, connected speech, and a warm conversational pace. Avoid caricature and do not change the speaker's identity or gender.",
+});
+const DEFAULT_REMIX_TEXT = "I'm learning to speak English more clearly and naturally. Today I want to explain an idea, respond to a question, and tell a short story with calm confidence. I'll focus on clear word stress, connected speech, and a conversational rhythm that is easy to understand.";
+const REMIX_MEDIA_TYPES = new Set(["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/webm", "audio/mp4"]);
 const VOICE_MIME_TYPES = new Set([
   "audio/aac", "audio/flac", "audio/mp4", "audio/mpeg", "audio/ogg",
   "audio/wav", "audio/webm", "audio/x-m4a", "audio/x-wav",
@@ -114,7 +129,21 @@ async function elevenRequest(env, path, options = {}) {
     headers,
     body: options.body,
   }, options.timeoutMs || 45_000, "ElevenLabs");
-  const payload = await response.json().catch(() => ({}));
+  let payload = {};
+  if (options.maxResponseBytes) {
+    const declaredLength = response.headers.get("content-length");
+    if (declaredLength && /^\\d+$/.test(declaredLength) && Number(declaredLength) > options.maxResponseBytes) {
+      throw Object.assign(new Error("ElevenLabs returned an oversized response."), { status: 502 });
+    }
+    const raw = await response.arrayBuffer();
+    if (raw.byteLength > options.maxResponseBytes) {
+      throw Object.assign(new Error("ElevenLabs returned an oversized response."), { status: 502 });
+    }
+    try { payload = JSON.parse(new TextDecoder().decode(raw)); }
+    catch { payload = {}; }
+  } else {
+    payload = await response.json().catch(() => ({}));
+  }
   if (!response.ok) {
     const detail = payload.detail?.message || payload.detail || payload.message || payload.error || "ElevenLabs request failed.";
     throw Object.assign(new Error(String(detail).slice(0, 240)), { status: response.status });
@@ -125,6 +154,9 @@ async function elevenRequest(env, path, options = {}) {
 function safeProviderError(error, provider) {
   const status = Number(error?.status) || 502;
   const safeStatus = status >= 400 && status < 600 ? status : 502;
+  if (error?.safeInput) {
+    return json({ error: String(error.message || "Invalid request."), reason: String(error.reason || "input") }, safeStatus);
+  }
   let message = provider === "elevenlabs"
     ? "ElevenLabs could not complete that request."
     : "Tavus could not complete that request.";
@@ -147,6 +179,187 @@ function cleanName(value, fallback) {
 function validId(value) {
   const cleaned = String(value || "").trim();
   return SAFE_ID.test(cleaned) ? cleaned : "";
+}
+
+function inputError(message, status = 400, reason = "input") {
+  return Object.assign(new Error(message), { status, reason, safeInput: true });
+}
+
+async function readSmallJson(request, maxBytes = MAX_REMIX_REQUEST_BYTES) {
+  const declaredLength = request.headers.get("content-length");
+  if (declaredLength != null && !/^\\d+$/.test(declaredLength.trim())) {
+    throw inputError("The request size is invalid.");
+  }
+  if (declaredLength != null && Number(declaredLength) > maxBytes) {
+    throw inputError("The request is too large.", 413, "size");
+  }
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > maxBytes) {
+    throw inputError("The request is too large.", 413, "size");
+  }
+  let value;
+  try { value = JSON.parse(raw || "{}"); }
+  catch { throw inputError("Send a valid JSON request."); }
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    throw inputError("Send a JSON object.");
+  }
+  return value;
+}
+
+function cleanRemixText(value) {
+  if (value == null || value === "") return DEFAULT_REMIX_TEXT;
+  if (typeof value !== "string") throw inputError("Preview text must be text.");
+  const cleaned = value.trim();
+  if (cleaned.length < 100 || cleaned.length > 600) {
+    throw inputError("Preview text must be between 100 and 600 characters.");
+  }
+  if (/[\\u0000-\\u001f\\u007f]/.test(cleaned)) {
+    throw inputError("Preview text cannot contain control characters.");
+  }
+  return cleaned;
+}
+
+function cleanRemixChoice(body) {
+  const targetAccent = String(body.target_accent || "general_american").trim();
+  if (!Object.prototype.hasOwnProperty.call(REMIX_TARGETS, targetAccent)) {
+    throw inputError("Choose General American or modern British English.", 400, "target_accent");
+  }
+  const requestedStrength = body.strength == null || body.strength === "" ? "" : String(body.strength).trim();
+  if (requestedStrength && !Object.prototype.hasOwnProperty.call(REMIX_STRENGTHS, requestedStrength)) {
+    throw inputError("Choose low or medium remix strength.", 400, "strength");
+  }
+  return { targetAccent, strengths: requestedStrength ? [requestedStrength] : ["low", "medium"] };
+}
+
+function remixHandleError() {
+  return inputError("The remix preview is invalid or has expired. Generate new previews and try again.", 400, "preview_handle");
+}
+
+function base64UrlEncode(bytes) {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 1) binary += String.fromCharCode(bytes[index]);
+  return btoa(binary).split("+").join("-").split("/").join("_").replace(/=+$/, "");
+}
+
+function base64UrlDecode(value, maxBytes) {
+  if (typeof value !== "string" || !value || value.length > Math.ceil(maxBytes * 4 / 3) + 8 || !/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw remixHandleError();
+  }
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  let binary;
+  try { binary = atob(value.split("-").join("+").split("_").join("/") + padding); }
+  catch { throw remixHandleError(); }
+  if (!binary || binary.length > maxBytes) throw remixHandleError();
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function remixSigningKey(env) {
+  const dedicated = String(env.REMIX_SIGNING_SECRET || "").trim();
+  const fallback = String(env.ELEVENLABS_API_KEY || "").trim();
+  const secret = dedicated || fallback;
+  if (!secret) throw Object.assign(new Error("Voice remixing is not configured."), { status: 503 });
+  const encoder = new TextEncoder();
+  const rootKey = await crypto.subtle.importKey(
+    "raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const derived = await crypto.subtle.sign("HMAC", rootKey, encoder.encode(REMIX_HANDLE_CONTEXT));
+  return crypto.subtle.importKey(
+    "raw", derived, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"],
+  );
+}
+
+async function createRemixHandle(env, sourceVoiceId, generatedVoiceId, targetAccent, strength) {
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    v: 1,
+    source_voice_id: sourceVoiceId,
+    generated_voice_id: generatedVoiceId,
+    target_accent: targetAccent,
+    strength,
+    iat: now,
+    exp: now + REMIX_HANDLE_TTL_SECONDS,
+  };
+  const encoder = new TextEncoder();
+  const encodedPayload = base64UrlEncode(encoder.encode(JSON.stringify(payload)));
+  const signingInput = encoder.encode("v1." + encodedPayload);
+  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", await remixSigningKey(env), signingInput));
+  return "v1." + encodedPayload + "." + base64UrlEncode(signature);
+}
+
+async function verifyRemixHandle(env, handle) {
+  if (typeof handle !== "string" || handle.length < 32 || handle.length > MAX_REMIX_HANDLE_CHARS) throw remixHandleError();
+  const parts = handle.split(".");
+  if (parts.length !== 3 || parts[0] !== "v1") throw remixHandleError();
+  const payloadBytes = base64UrlDecode(parts[1], MAX_REMIX_HANDLE_PAYLOAD_BYTES);
+  const signature = base64UrlDecode(parts[2], 32);
+  if (signature.length !== 32) throw remixHandleError();
+  const encoder = new TextEncoder();
+  let valid = false;
+  try {
+    valid = await crypto.subtle.verify(
+      "HMAC", await remixSigningKey(env), signature, encoder.encode("v1." + parts[1]),
+    );
+  } catch {
+    throw remixHandleError();
+  }
+  if (!valid) throw remixHandleError();
+  let payload;
+  try { payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(payloadBytes)); }
+  catch { throw remixHandleError(); }
+  const now = Math.floor(Date.now() / 1000);
+  if (!payload || Array.isArray(payload) || typeof payload !== "object"
+      || payload.v !== 1
+      || !validId(payload.source_voice_id)
+      || !validId(payload.generated_voice_id)
+      || !Object.prototype.hasOwnProperty.call(REMIX_TARGETS, payload.target_accent)
+      || !Object.prototype.hasOwnProperty.call(REMIX_STRENGTHS, payload.strength)
+      || !Number.isSafeInteger(payload.iat)
+      || !Number.isSafeInteger(payload.exp)
+      || payload.exp - payload.iat !== REMIX_HANDLE_TTL_SECONDS
+      || payload.iat > now + REMIX_HANDLE_CLOCK_SKEW_SECONDS
+      || payload.iat < now - REMIX_HANDLE_TTL_SECONDS - REMIX_HANDLE_CLOCK_SKEW_SECONDS
+      || payload.exp <= now
+      || payload.exp > now + REMIX_HANDLE_TTL_SECONDS + REMIX_HANDLE_CLOCK_SKEW_SECONDS) {
+    throw remixHandleError();
+  }
+  return {
+    source_voice_id: validId(payload.source_voice_id),
+    generated_voice_id: validId(payload.generated_voice_id),
+    target_accent: payload.target_accent,
+    strength: payload.strength,
+    expires_at: payload.exp,
+  };
+}
+
+function cleanRemixPreview(result, strength) {
+  const previews = Array.isArray(result?.previews) ? result.previews : [];
+  const preview = previews.find(item => validId(item?.generated_voice_id) && typeof item?.audio_base_64 === "string");
+  if (!preview) throw Object.assign(new Error("ElevenLabs returned no usable remix preview."), { status: 502 });
+  const audioBase64 = preview.audio_base_64.trim();
+  if (!audioBase64 || audioBase64.length % 4 !== 0 || audioBase64.length > Math.ceil(MAX_REMIX_PREVIEW_BYTES / 3) * 4 + 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(audioBase64)) {
+    throw Object.assign(new Error("ElevenLabs returned invalid preview audio."), { status: 502 });
+  }
+  const padding = audioBase64.endsWith("==") ? 2 : audioBase64.endsWith("=") ? 1 : 0;
+  const decodedBytes = Math.floor(audioBase64.length * 3 / 4) - padding;
+  if (decodedBytes <= 0 || decodedBytes > MAX_REMIX_PREVIEW_BYTES) {
+    throw Object.assign(new Error("ElevenLabs returned oversized preview audio."), { status: 502 });
+  }
+  const mediaType = String(preview.media_type || "audio/mpeg").split(";", 1)[0].trim().toLowerCase();
+  if (!REMIX_MEDIA_TYPES.has(mediaType)) {
+    throw Object.assign(new Error("ElevenLabs returned an unsupported preview format."), { status: 502 });
+  }
+  const duration = Number(preview.duration_secs);
+  return {
+    strength,
+    prompt_strength: REMIX_STRENGTHS[strength],
+    generated_voice_id: validId(preview.generated_voice_id),
+    media_type: mediaType,
+    duration_secs: Number.isFinite(duration) && duration > 0 && duration <= 120 ? duration : null,
+    language: String(preview.language || "en").slice(0, 16),
+    audio_base_64: audioBase64,
+  };
 }
 
 function voiceMimeType(value) {
@@ -228,7 +441,13 @@ async function personalizationStatus(env) {
   const tavusConfigured = Boolean(String(env.TAVUS_API_KEY || "").trim());
   if (!elevenConfigured) {
     return json({
-      elevenlabs: { configured: false },
+      elevenlabs: {
+        configured: false,
+        voice_remixing_configured: false,
+        voice_remixing_availability: "unavailable",
+        voice_remixing_available: false,
+        remix_strengths: ["low", "medium"],
+      },
       tavus: { configured: tavusConfigured },
     });
   }
@@ -244,9 +463,113 @@ async function personalizationStatus(env) {
         voice_slots_used: Number(value.voice_slots_used) || 0,
         voice_limit: Number(value.voice_limit) || 0,
         can_use_instant_voice_cloning: Boolean(value.can_use_instant_voice_cloning),
+        voice_remixing_configured: true,
+        voice_remixing_availability: "unknown",
+        voice_remixing_available: null,
+        remix_strengths: ["low", "medium"],
         next_character_count_reset_unix: Number(value.next_character_count_reset_unix) || null,
       },
       tavus: { configured: tavusConfigured },
+    });
+  } catch (error) {
+    return safeProviderError(error, "elevenlabs");
+  }
+}
+
+async function remixVoice(request, env) {
+  try {
+    const body = await readSmallJson(request);
+    if (body.consent !== true) {
+      throw inputError("Confirm that this is your voice and that you consent to creating a remixed variant.", 400, "consent");
+    }
+    const sourceVoiceId = validId(body.voice_id);
+    if (!sourceVoiceId) throw inputError("A valid source voice is required.", 400, "voice");
+    const { targetAccent, strengths } = cleanRemixChoice(body);
+    const text = cleanRemixText(body.text);
+
+    const sourceVoice = await elevenRequest(env, "/voices/" + encodeURIComponent(sourceVoiceId), {
+      maxResponseBytes: 512 * 1024,
+    });
+    if (validId(sourceVoice.voice_id) !== sourceVoiceId || sourceVoice.is_owner !== true) {
+      throw inputError("Only a voice owned by this ElevenLabs account can be remixed.", 403, "ownership");
+    }
+    const sourcePreviewUrl = publicHttpsUrl(sourceVoice.preview_url) || null;
+
+    const seedArray = new Uint32Array(1);
+    crypto.getRandomValues(seedArray);
+    const seed = seedArray[0] & 0x7fffffff;
+    const previews = await Promise.all(strengths.map(async strength => {
+      const result = await elevenRequest(env, "/text-to-voice/" + encodeURIComponent(sourceVoiceId) + "/remix", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          voice_description: REMIX_TARGETS[targetAccent],
+          text,
+          auto_generate_text: false,
+          guidance_scale: 2,
+          prompt_strength: REMIX_STRENGTHS[strength],
+          seed,
+          stream_previews: false,
+        }),
+        timeoutMs: 90_000,
+        maxResponseBytes: MAX_REMIX_PROVIDER_RESPONSE_BYTES,
+      });
+      const preview = cleanRemixPreview(result, strength);
+      return {
+        ...preview,
+        preview_handle: await createRemixHandle(
+          env, sourceVoiceId, preview.generated_voice_id, targetAccent, strength,
+        ),
+      };
+    }));
+    return json({
+      source_voice_id: sourceVoiceId,
+      original_preserved: true,
+      target_accent: targetAccent,
+      source_preview_url: sourcePreviewUrl,
+      text,
+      previews,
+    });
+  } catch (error) {
+    return safeProviderError(error, "elevenlabs");
+  }
+}
+
+async function saveRemixedVoice(request, env) {
+  try {
+    const body = await readSmallJson(request);
+    if (body.consent !== true) {
+      throw inputError("Confirm that this is your voice and that you want to save this remixed variant.", 400, "consent");
+    }
+    const selectedPreview = await verifyRemixHandle(env, body.preview_handle);
+    const generatedVoiceId = selectedPreview.generated_voice_id;
+    const voiceName = cleanName(body.name, "Future Me · Clear English");
+    const playedIds = Array.isArray(body.played_not_selected_voice_ids)
+      ? [...new Set(body.played_not_selected_voice_ids.map(validId).filter(Boolean))].filter(id => id !== generatedVoiceId).slice(0, 8)
+      : [];
+    const result = await elevenRequest(env, "/text-to-voice", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        voice_name: voiceName,
+        voice_description: "A consent-confirmed remixed variant of the owner's voice for clearer English practice. The original voice remains unchanged.",
+        generated_voice_id: generatedVoiceId,
+        labels: { product: "Fluent Me", purpose: "Future Me English practice" },
+        played_not_selected_voice_ids: playedIds,
+      }),
+      timeoutMs: 90_000,
+      maxResponseBytes: 2 * 1024 * 1024,
+    });
+    const voiceId = validId(result.voice_id);
+    if (!voiceId) throw Object.assign(new Error("ElevenLabs returned no usable saved voice identifier."), { status: 502 });
+    return json({
+      voice_id: voiceId,
+      name: cleanName(result.name, voiceName),
+      source: "remix",
+      source_voice_id: selectedPreview.source_voice_id,
+      target_accent: selectedPreview.target_accent,
+      strength: selectedPreview.strength,
+      original_preserved: true,
     });
   } catch (error) {
     return safeProviderError(error, "elevenlabs");
@@ -484,6 +807,12 @@ export default {
     }
     if (url.pathname === "/api/personalization/voice" && request.method === "POST") {
       return createVoiceClone(request, env);
+    }
+    if (url.pathname === "/api/personalization/voice/remix" && request.method === "POST") {
+      return remixVoice(request, env);
+    }
+    if (url.pathname === "/api/personalization/voice/remix/save" && request.method === "POST") {
+      return saveRemixedVoice(request, env);
     }
     if (url.pathname === "/api/personalization/pal" && request.method === "POST") {
       return createPersonalPal(request, env);

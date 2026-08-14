@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import socket
@@ -23,10 +24,11 @@ class FakeResponse:
     def __exit__(self, *args):
         return False
 
-    def read(self):
+    def read(self, size=-1):
         if self.payload is None:
             return b""
-        return json.dumps(self.payload).encode("utf-8")
+        raw = json.dumps(self.payload).encode("utf-8")
+        return raw if size is None or size < 0 else raw[:size]
 
 
 def lower_headers(request):
@@ -130,6 +132,146 @@ def test_create_voice_validates_name_type_and_file_limit(monkeypatch):
         personalization.create_eleven_voice("Voice", b"123", content_type="audio/webm\r\nx: y")
     with pytest.raises(ValueError, match="audio MIME"):
         personalization.create_eleven_voice("Voice", b"123", content_type="text/plain")
+
+
+def test_remix_owned_voice_returns_two_bounded_previews_and_preserves_source(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "eleven-server-secret")
+    seen = []
+
+    def fake_urlopen(request, timeout):
+        seen.append(request)
+        if request.get_method() == "GET":
+            return FakeResponse({
+                "voice_id": "voice_abc123",
+                "is_owner": True,
+                "preview_url": "https://storage.googleapis.com/eleven-public-prod/source.mp3",
+            })
+        payload = json.loads(request.data)
+        label = "low" if payload["prompt_strength"] == 0.25 else "medium"
+        return FakeResponse({
+            "text": payload["text"],
+            "previews": [{
+                "generated_voice_id": f"generated_{label}_123",
+                "audio_base_64": base64.b64encode(f"audio-{label}".encode()).decode(),
+                "media_type": "audio/mpeg",
+                "duration_secs": 1.5,
+                "language": "en",
+            }],
+        })
+
+    monkeypatch.setattr(personalization.urllib.request, "urlopen", fake_urlopen)
+    result = personalization.remix_eleven_voice(
+        "voice_abc123", target_accent="general_american"
+    )
+
+    assert result["source_voice_id"] == "voice_abc123"
+    assert result["original_preserved"] is True
+    assert result["source_preview_url"] == "https://storage.googleapis.com/eleven-public-prod/source.mp3"
+    assert [preview["strength"] for preview in result["previews"]] == ["low", "medium"]
+    assert [preview["prompt_strength"] for preview in result["previews"]] == [0.25, 0.55]
+    assert all(preview["audio_base_64"] for preview in result["previews"])
+    assert all(preview["preview_handle"].startswith("v1.") for preview in result["previews"])
+    payload_segment = result["previews"][0]["preview_handle"].split(".")[1]
+    handle_payload = json.loads(
+        base64.urlsafe_b64decode(payload_segment + "=" * (-len(payload_segment) % 4))
+    )
+    assert handle_payload["source_voice_id"] == "voice_abc123"
+    assert handle_payload["generated_voice_id"] == "generated_low_123"
+    assert handle_payload["target_accent"] == "general_american"
+    assert handle_payload["strength"] == "low"
+    assert handle_payload["exp"] - handle_payload["iat"] == 15 * 60
+    assert len(seen) == 3
+    assert seen[0].full_url.endswith("/voices/voice_abc123")
+    assert all(request.get_method() != "DELETE" and "/edit" not in request.full_url for request in seen)
+    for request in seen[1:]:
+        payload = json.loads(request.data)
+        assert "General American" in payload["voice_description"]
+        assert payload["stream_previews"] is False
+        assert "eleven-server-secret" not in request.data.decode()
+
+
+def test_remix_rejects_unowned_voice_before_generation(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "eleven-server-secret")
+    seen = []
+
+    def fake_urlopen(request, timeout):
+        seen.append(request)
+        return FakeResponse({"voice_id": "voice_abc123", "is_owner": False})
+
+    monkeypatch.setattr(personalization.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(personalization.PersonalizationAPIError, match="owned") as error:
+        personalization.remix_eleven_voice("voice_abc123", strength="low")
+
+    assert error.value.status == 403
+    assert len(seen) == 1
+
+
+def test_save_remix_requires_signed_unexpired_preview_handle(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "eleven-server-secret")
+    monkeypatch.setattr(personalization.time, "time", lambda: 1_700_000_000)
+    seen = {}
+
+    def fake_urlopen(request, timeout):
+        seen["request"] = request
+        return FakeResponse({"voice_id": "voice_future_123", "name": "Future Me"})
+
+    monkeypatch.setattr(personalization.urllib.request, "urlopen", fake_urlopen)
+    handle = personalization._create_remix_handle(
+        "voice_abc123", "generated_medium_123", "general_american", "medium"
+    )
+    result = personalization.save_eleven_remix(
+        handle,
+        name="Future Me",
+        played_not_selected_voice_ids=["generated_low_123", "generated_low_123"],
+    )
+
+    request = seen["request"]
+    payload = json.loads(request.data)
+    assert request.full_url == "https://api.elevenlabs.io/v1/text-to-voice"
+    assert payload["generated_voice_id"] == "generated_medium_123"
+    assert payload["played_not_selected_voice_ids"] == ["generated_low_123"]
+    assert "original voice remains unchanged" in payload["voice_description"]
+    assert result == {
+        "voice_id": "voice_future_123",
+        "name": "Future Me",
+        "source": "remix",
+        "source_voice_id": "voice_abc123",
+        "target_accent": "general_american",
+        "strength": "medium",
+        "original_preserved": True,
+    }
+
+    handle_parts = handle.split(".")
+    handle_parts[2] = ("B" if handle_parts[2][0] == "A" else "A") + handle_parts[2][1:]
+    with pytest.raises(ValueError, match="preview_handle"):
+        personalization.save_eleven_remix(".".join(handle_parts))
+
+    monkeypatch.setattr(
+        personalization.time,
+        "time",
+        lambda: 1_700_000_000 + personalization.REMIX_HANDLE_TTL_SECONDS + 1,
+    )
+    with pytest.raises(ValueError, match="preview_handle"):
+        personalization.save_eleven_remix(handle)
+
+
+def test_remix_rejects_invalid_or_oversized_preview_audio(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "eleven-server-secret")
+
+    def fake_urlopen(request, timeout):
+        if request.get_method() == "GET":
+            return FakeResponse({"voice_id": "voice_abc123", "is_owner": True})
+        return FakeResponse({
+            "previews": [{
+                "generated_voice_id": "generated_low_123",
+                "audio_base_64": "%%%not-base64%%%",
+                "media_type": "audio/mpeg",
+            }],
+        })
+
+    monkeypatch.setattr(personalization.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(personalization.PersonalizationAPIError, match="invalid preview audio"):
+        personalization.remix_eleven_voice("voice_abc123", strength="low")
 
 
 @pytest.mark.parametrize(
@@ -332,6 +474,28 @@ def test_provider_errors_are_actionable_and_do_not_echo_secrets(monkeypatch, sta
     assert error.value.status == status
     assert expected in str(error.value)
     assert "eleven-server-secret" not in str(error.value)
+
+
+def test_provider_http_error_body_read_is_bounded(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "eleven-server-secret")
+    seen = {}
+
+    class TrackingBody(io.BytesIO):
+        def read(self, size=-1):
+            seen["read_size"] = size
+            return super().read(size)
+
+    def fake_urlopen(request, timeout):
+        raw = b"x" * (personalization.MAX_PROVIDER_ERROR_RESPONSE_BYTES + 512)
+        raise personalization.urllib.error.HTTPError(
+            request.full_url, 500, "failure", {}, TrackingBody(raw)
+        )
+
+    monkeypatch.setattr(personalization.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(personalization.PersonalizationAPIError, match="could not complete"):
+        personalization.get_eleven_subscription()
+
+    assert seen["read_size"] == personalization.MAX_PROVIDER_ERROR_RESPONSE_BYTES + 1
 
 
 def test_provider_timeout_maps_to_safe_gateway_timeout(monkeypatch):

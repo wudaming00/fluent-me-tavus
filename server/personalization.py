@@ -6,6 +6,9 @@ credential is ever returned to client code.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import ipaddress
 import json
 import os
@@ -24,6 +27,39 @@ TAVUS_API_BASE = "https://tavusapi.com/v2"
 DEFAULT_FACE_ID = "r987f6e6f73c"
 MAX_VOICE_SAMPLE_BYTES = 20 * 1024 * 1024
 MAX_NAME_LENGTH = 100
+MAX_REMIX_PROVIDER_RESPONSE_BYTES = 8 * 1024 * 1024
+MAX_REMIX_PREVIEW_BYTES = 3 * 1024 * 1024
+MAX_PROVIDER_ERROR_RESPONSE_BYTES = 64 * 1024
+MAX_REMIX_HANDLE_CHARS = 2048
+MAX_REMIX_HANDLE_PAYLOAD_BYTES = 1024
+REMIX_HANDLE_TTL_SECONDS = 15 * 60
+REMIX_HANDLE_CLOCK_SKEW_SECONDS = 30
+REMIX_HANDLE_CONTEXT = b"fluent-me/remix-preview/v1"
+REMIX_STRENGTHS = {"low": 0.25, "medium": 0.55}
+REMIX_TARGETS = {
+    "general_american": (
+        "Keep the same recognizable speaker identity, vocal timbre, apparent age, pitch range, "
+        "and warmth. Change only the English pronunciation and accent toward neutral General "
+        "American English. Use precise consonants, natural vowel quality, clear word stress, "
+        "connected speech, and a warm conversational pace. Avoid caricature and do not change "
+        "the speaker's identity or gender."
+    ),
+    "modern_british": (
+        "Keep the same recognizable speaker identity, vocal timbre, apparent age, pitch range, "
+        "and warmth. Change only the English pronunciation and accent toward clear modern British "
+        "English with a neutral contemporary standard accent. Use precise consonants, natural "
+        "vowel quality, clear word stress, connected speech, and a warm conversational pace. "
+        "Avoid caricature and do not change the speaker's identity or gender."
+    ),
+}
+DEFAULT_REMIX_TEXT = (
+    "I'm learning to speak English more clearly and naturally. Today I want to explain an idea, "
+    "respond to a question, and tell a short story with calm confidence. I'll focus on clear word "
+    "stress, connected speech, and a conversational rhythm that is easy to understand."
+)
+REMIX_MEDIA_TYPES = frozenset(
+    {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/webm", "audio/mp4"}
+)
 ALLOWED_VOICE_MIME_TYPES = frozenset(
     {
         "audio/aac",
@@ -136,6 +172,7 @@ def _request_json(
     data: bytes | None = None,
     content_type: str | None = None,
     timeout: int = 45,
+    max_response_bytes: int | None = None,
 ) -> dict[str, Any]:
     key = _provider_key(provider)
     key_header = "xi-api-key" if provider == "ElevenLabs" else "x-api-key"
@@ -145,9 +182,11 @@ def _request_json(
     request = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = response.read()
+            raw = response.read(max_response_bytes + 1) if max_response_bytes else response.read()
     except urllib.error.HTTPError as exc:
-        raw = exc.read()
+        raw = exc.read(MAX_PROVIDER_ERROR_RESPONSE_BYTES + 1)
+        if len(raw) > MAX_PROVIDER_ERROR_RESPONSE_BYTES:
+            raw = b""
         raise PersonalizationAPIError(
             exc.code, _friendly_error(provider, exc.code, raw)
         ) from exc
@@ -164,6 +203,8 @@ def _request_json(
             502, f"Could not reach {provider} from the server."
         ) from exc
 
+    if max_response_bytes and len(raw) > max_response_bytes:
+        raise PersonalizationAPIError(502, f"{provider} returned an oversized response.")
     if not raw:
         return {}
     try:
@@ -315,6 +356,306 @@ def create_eleven_voice(
     return {
         "voice_id": voice_id,
         "requires_verification": bool(result.get("requires_verification", False)),
+    }
+
+
+def _safe_remix_text(value: str | None) -> str:
+    if value is None or value == "":
+        return DEFAULT_REMIX_TEXT
+    if not isinstance(value, str):
+        raise ValueError("preview text must be text.")
+    clean = value.strip()
+    if not 100 <= len(clean) <= 600:
+        raise ValueError("preview text must be between 100 and 600 characters.")
+    if any(ord(character) < 32 or ord(character) == 127 for character in clean):
+        raise ValueError("preview text cannot contain control characters.")
+    return clean
+
+
+def _safe_remix_choices(target_accent: str, strength: str | None) -> tuple[str, list[str]]:
+    if target_accent not in REMIX_TARGETS:
+        raise ValueError("target_accent must be 'general_american' or 'modern_british'.")
+    if strength in (None, ""):
+        return target_accent, ["low", "medium"]
+    if strength not in REMIX_STRENGTHS:
+        raise ValueError("strength must be 'low' or 'medium'.")
+    return target_accent, [strength]
+
+
+def _remix_handle_error() -> ValueError:
+    return ValueError(
+        "preview_handle is invalid or expired; generate new remix previews and try again."
+    )
+
+
+def _remix_signing_key() -> bytes:
+    dedicated = os.environ.get("REMIX_SIGNING_SECRET", "").strip()
+    fallback = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    secret = dedicated or fallback
+    if not secret:
+        raise PersonalizationAPIError(503, "Voice remixing is not configured on this server.")
+    return hmac.new(secret.encode("utf-8"), REMIX_HANDLE_CONTEXT, hashlib.sha256).digest()
+
+
+def _base64url_encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def _base64url_decode(value: str, max_bytes: int) -> bytes:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > ((max_bytes * 4 + 2) // 3) + 8
+        or re.fullmatch(r"[A-Za-z0-9_-]+", value) is None
+    ):
+        raise _remix_handle_error()
+    padding = b"=" * ((4 - len(value) % 4) % 4)
+    try:
+        decoded = base64.b64decode(
+            value.encode("ascii") + padding, altchars=b"-_", validate=True
+        )
+    except (ValueError, TypeError) as exc:
+        raise _remix_handle_error() from exc
+    if not decoded or len(decoded) > max_bytes:
+        raise _remix_handle_error()
+    return decoded
+
+
+def _create_remix_handle(
+    source_voice_id: str,
+    generated_voice_id: str,
+    target_accent: str,
+    strength: str,
+) -> str:
+    now = int(time.time())
+    payload = {
+        "v": 1,
+        "source_voice_id": source_voice_id,
+        "generated_voice_id": generated_voice_id,
+        "target_accent": target_accent,
+        "strength": strength,
+        "iat": now,
+        "exp": now + REMIX_HANDLE_TTL_SECONDS,
+    }
+    encoded_payload = _base64url_encode(_json_body(payload))
+    signing_input = f"v1.{encoded_payload}".encode("ascii")
+    signature = hmac.new(_remix_signing_key(), signing_input, hashlib.sha256).digest()
+    return f"v1.{encoded_payload}.{_base64url_encode(signature)}"
+
+
+def _verify_remix_handle(handle: str) -> dict[str, Any]:
+    if not isinstance(handle, str) or not 32 <= len(handle) <= MAX_REMIX_HANDLE_CHARS:
+        raise _remix_handle_error()
+    parts = handle.split(".")
+    if len(parts) != 3 or parts[0] != "v1":
+        raise _remix_handle_error()
+    payload_bytes = _base64url_decode(parts[1], MAX_REMIX_HANDLE_PAYLOAD_BYTES)
+    supplied_signature = _base64url_decode(parts[2], hashlib.sha256().digest_size)
+    if len(supplied_signature) != hashlib.sha256().digest_size:
+        raise _remix_handle_error()
+    signing_input = f"v1.{parts[1]}".encode("ascii")
+    expected_signature = hmac.new(
+        _remix_signing_key(), signing_input, hashlib.sha256
+    ).digest()
+    if not hmac.compare_digest(supplied_signature, expected_signature):
+        raise _remix_handle_error()
+    try:
+        payload = json.loads(payload_bytes.decode("utf-8"))
+    except (UnicodeError, ValueError) as exc:
+        raise _remix_handle_error() from exc
+    now = int(time.time())
+    if (
+        not isinstance(payload, dict)
+        or payload.get("v") != 1
+        or not isinstance(payload.get("source_voice_id"), str)
+        or _SAFE_ID.fullmatch(payload["source_voice_id"]) is None
+        or not isinstance(payload.get("generated_voice_id"), str)
+        or _SAFE_ID.fullmatch(payload["generated_voice_id"]) is None
+        or payload.get("target_accent") not in REMIX_TARGETS
+        or payload.get("strength") not in REMIX_STRENGTHS
+        or isinstance(payload.get("iat"), bool)
+        or not isinstance(payload.get("iat"), int)
+        or isinstance(payload.get("exp"), bool)
+        or not isinstance(payload.get("exp"), int)
+        or payload["exp"] - payload["iat"] != REMIX_HANDLE_TTL_SECONDS
+        or payload["iat"] > now + REMIX_HANDLE_CLOCK_SKEW_SECONDS
+        or payload["iat"] < now - REMIX_HANDLE_TTL_SECONDS - REMIX_HANDLE_CLOCK_SKEW_SECONDS
+        or payload["exp"] <= now
+        or payload["exp"] > now + REMIX_HANDLE_TTL_SECONDS + REMIX_HANDLE_CLOCK_SKEW_SECONDS
+    ):
+        raise _remix_handle_error()
+    return {
+        "source_voice_id": payload["source_voice_id"],
+        "generated_voice_id": payload["generated_voice_id"],
+        "target_accent": payload["target_accent"],
+        "strength": payload["strength"],
+        "expires_at": payload["exp"],
+    }
+
+
+def _safe_remix_preview(result: dict[str, Any], strength: str) -> dict[str, Any]:
+    previews = result.get("previews")
+    if not isinstance(previews, list):
+        raise PersonalizationAPIError(502, "ElevenLabs returned no usable remix preview.")
+    preview = next(
+        (
+            value
+            for value in previews
+            if isinstance(value, dict)
+            and isinstance(value.get("generated_voice_id"), str)
+            and _SAFE_ID.fullmatch(value["generated_voice_id"])
+            and isinstance(value.get("audio_base_64"), str)
+        ),
+        None,
+    )
+    if preview is None:
+        raise PersonalizationAPIError(502, "ElevenLabs returned no usable remix preview.")
+    audio_base_64 = preview["audio_base_64"].strip()
+    if not audio_base_64 or len(audio_base_64) > ((MAX_REMIX_PREVIEW_BYTES + 2) // 3) * 4:
+        raise PersonalizationAPIError(502, "ElevenLabs returned oversized preview audio.")
+    try:
+        decoded_audio = base64.b64decode(audio_base_64, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise PersonalizationAPIError(502, "ElevenLabs returned invalid preview audio.") from exc
+    if not decoded_audio or len(decoded_audio) > MAX_REMIX_PREVIEW_BYTES:
+        raise PersonalizationAPIError(502, "ElevenLabs returned oversized preview audio.")
+    media_type = str(preview.get("media_type") or "audio/mpeg").split(";", 1)[0].strip().lower()
+    if media_type not in REMIX_MEDIA_TYPES:
+        raise PersonalizationAPIError(502, "ElevenLabs returned an unsupported preview format.")
+    raw_duration = preview.get("duration_secs")
+    duration = float(raw_duration) if isinstance(raw_duration, (int, float)) else None
+    if duration is not None and not 0 < duration <= 120:
+        duration = None
+    return {
+        "strength": strength,
+        "prompt_strength": REMIX_STRENGTHS[strength],
+        "generated_voice_id": preview["generated_voice_id"],
+        "media_type": media_type,
+        "duration_secs": duration,
+        "language": str(preview.get("language") or "en")[:16],
+        "audio_base_64": audio_base_64,
+    }
+
+
+def remix_eleven_voice(
+    voice_id: str,
+    *,
+    target_accent: str = "general_american",
+    strength: str | None = None,
+    text: str | None = None,
+) -> dict[str, Any]:
+    """Create one or two accent-remix previews while preserving the owned source voice."""
+
+    safe_voice_id = _safe_id(voice_id, "voice_id")
+    safe_target, strengths = _safe_remix_choices(target_accent, strength)
+    safe_text = _safe_remix_text(text)
+    source = _request_json(
+        "ElevenLabs",
+        "GET",
+        f"{ELEVEN_API_BASE}/voices/{safe_voice_id}",
+        max_response_bytes=512 * 1024,
+    )
+    if source.get("voice_id") != safe_voice_id or source.get("is_owner") is not True:
+        raise PersonalizationAPIError(
+            403, "Only a voice owned by this ElevenLabs account can be remixed."
+        )
+    source_preview_url: str | None = None
+    if isinstance(source.get("preview_url"), str):
+        try:
+            source_preview_url = _public_https_url(
+                source["preview_url"], "source voice preview_url"
+            )
+        except ValueError:
+            source_preview_url = None
+
+    seed = secrets.randbelow(2_147_483_648)
+    previews: list[dict[str, Any]] = []
+    for selected_strength in strengths:
+        payload = {
+            "voice_description": REMIX_TARGETS[safe_target],
+            "text": safe_text,
+            "auto_generate_text": False,
+            "guidance_scale": 2,
+            "prompt_strength": REMIX_STRENGTHS[selected_strength],
+            "seed": seed,
+            "stream_previews": False,
+        }
+        result = _request_json(
+            "ElevenLabs",
+            "POST",
+            f"{ELEVEN_API_BASE}/text-to-voice/{safe_voice_id}/remix",
+            data=_json_body(payload),
+            content_type="application/json",
+            timeout=90,
+            max_response_bytes=MAX_REMIX_PROVIDER_RESPONSE_BYTES,
+        )
+        preview = _safe_remix_preview(result, selected_strength)
+        preview["preview_handle"] = _create_remix_handle(
+            safe_voice_id,
+            preview["generated_voice_id"],
+            safe_target,
+            selected_strength,
+        )
+        previews.append(preview)
+    return {
+        "source_voice_id": safe_voice_id,
+        "original_preserved": True,
+        "target_accent": safe_target,
+        "source_preview_url": source_preview_url,
+        "text": safe_text,
+        "previews": previews,
+    }
+
+
+def save_eleven_remix(
+    preview_handle: str,
+    *,
+    name: str = "Future Me · Clear English",
+    played_not_selected_voice_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Save a selected generated remix as a new voice without editing its source."""
+
+    selected_preview = _verify_remix_handle(preview_handle)
+    safe_generated_id = selected_preview["generated_voice_id"]
+    safe_name = _safe_name(name or "Future Me · Clear English", "voice name")
+    played_ids: list[str] = []
+    for value in played_not_selected_voice_ids or []:
+        safe_value = _safe_id(value, "played_not_selected_voice_id")
+        if safe_value != safe_generated_id and safe_value not in played_ids:
+            played_ids.append(safe_value)
+        if len(played_ids) == 8:
+            break
+    payload = {
+        "voice_name": safe_name,
+        "voice_description": (
+            "A consent-confirmed remixed variant of the owner's voice for clearer English "
+            "practice. The original voice remains unchanged."
+        ),
+        "generated_voice_id": safe_generated_id,
+        "labels": {"product": "Fluent Me", "purpose": "Future Me English practice"},
+        "played_not_selected_voice_ids": played_ids,
+    }
+    result = _request_json(
+        "ElevenLabs",
+        "POST",
+        f"{ELEVEN_API_BASE}/text-to-voice",
+        data=_json_body(payload),
+        content_type="application/json",
+        timeout=90,
+        max_response_bytes=2 * 1024 * 1024,
+    )
+    voice_id = result.get("voice_id")
+    if not isinstance(voice_id, str) or not _SAFE_ID.fullmatch(voice_id):
+        raise PersonalizationAPIError(502, "ElevenLabs returned no usable saved voice identifier.")
+    result_name = result.get("name")
+    return {
+        "voice_id": voice_id,
+        "name": result_name if isinstance(result_name, str) and result_name.strip() else safe_name,
+        "source": "remix",
+        "source_voice_id": selected_preview["source_voice_id"],
+        "target_accent": selected_preview["target_accent"],
+        "strength": selected_preview["strength"],
+        "original_preserved": True,
     }
 
 
