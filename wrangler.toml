@@ -8,5 +8,9 @@ compatibility_date = "2026-08-01"
 workers_dev = true
 
 [vars]
-# Pin the evidence-aware v6 conversation PAL; resource IDs are not secrets.
-TAVUS_CONVERSATION_PAL_V6_ID = "pc7ec6666826"
+# Default coach = the author's own personal PAL (same evidence-aware coaching
+# contract, Phoenix-4 Face "Daming Aug 13 2026" + consented ElevenLabs cloned
+# voice, with the cloned-voice disclosure). Resource IDs are not secrets.
+# The stock v6 PAL remains available as pc7ec6666826 if this is ever reverted.
+TAVUS_CONVERSATION_PAL_V6_ID = "paf1cb4958b0"
+TAVUS_FACE_ID = "rf5dccfb47f3"
