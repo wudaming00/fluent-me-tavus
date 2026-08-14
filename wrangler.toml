@@ -1,0 +1,8 @@
+# Public deployment of the hosted Fluent Me app (the self-contained Worker
+# twin built by scripts/build-sites-preview.mjs). Secrets are set with
+# `wrangler secret put TAVUS_API_KEY` / `ELEVENLABS_API_KEY`; nothing
+# credential-bearing lives in this file or the bundle.
+name = "fluent-me"
+main = "dist/server/index.js"
+compatibility_date = "2026-08-01"
+workers_dev = true
