@@ -5,9 +5,9 @@ Most language apps make learners complete exercises, but the difficult part is s
 ## Evaluator handoff
 
 - **Owner-only staging:** https://fluent-me-tavus.wudaming00.chatgpt.site — this Sites deployment currently requires owner authentication and is **not yet reviewer-accessible**.
-- **Public case study:** https://fluent-me-tavus-case-study.wudaming00.chatgpt.site
-- **Narrated walkthrough:** https://fluent-me-tavus-case-study.wudaming00.chatgpt.site/demo/fluent-me-demo.mp4
-- **Downloadable PDF:** https://fluent-me-tavus-case-study.wudaming00.chatgpt.site/downloads/fluent-me-case-study.pdf
+- **Public case study:** https://damingwu.com/fluent-me/
+- **Narrated walkthrough:** https://damingwu.com/fluent-me/fluent-me-demo.mp4
+- **Downloadable PDF:** https://damingwu.com/fluent-me/fluent-me-case-study.pdf
 - **Demo and presentation script:** [TAKEHOME.md](TAKEHOME.md)
 - **Product decisions and boundaries:** [DESIGN.md](DESIGN.md)
 

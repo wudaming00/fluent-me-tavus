@@ -8,9 +8,9 @@ This submission focuses on a simple product thesis: **the face is not decoration
 
 ## Submission links
 
-- Demo video: https://fluent-me-tavus-case-study.wudaming00.chatgpt.site/demo/fluent-me-demo.mp4
-- Public case study: https://fluent-me-tavus-case-study.wudaming00.chatgpt.site
-- Downloadable PDF: https://fluent-me-tavus-case-study.wudaming00.chatgpt.site/downloads/fluent-me-case-study.pdf
+- Demo video: https://damingwu.com/fluent-me/fluent-me-demo.mp4
+- Public case study: https://damingwu.com/fluent-me/
+- Downloadable PDF: https://damingwu.com/fluent-me/fluent-me-case-study.pdf
 - API-powered product: controlled reviewer access is available on request
 - Source repository: https://github.com/wudaming00/fluent-me-tavus
 - Exact submitted product-code commit: [`80ca0beeffdf`](https://github.com/wudaming00/fluent-me-tavus/commit/80ca0beeffdfad7142653796c0a96b615ed8128e)
