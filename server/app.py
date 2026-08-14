@@ -31,7 +31,6 @@ if _envf.exists():
 import brain          # noqa: E402
 import memory         # noqa: E402
 import personalization  # noqa: E402
-import sauna          # noqa: E402
 import scenes         # noqa: E402
 import scoring        # noqa: E402
 import stt as stt_mod # noqa: E402
@@ -111,24 +110,9 @@ def progress_page():
     return _page("progress.html")
 
 
-@app.get("/me")
-def me_page():
-    return _page("me.html")
-
-
 @app.get("/profile")
 def profile_redirect():
     return RedirectResponse("/progress")
-
-
-@app.get("/talk")
-def talk_page():
-    return _page("talk.html")
-
-
-@app.get("/demo")
-def demo_page():
-    return _page("demo.html")
 
 
 # ============================================================ state / setup
@@ -157,7 +141,7 @@ def state():
         "mock": bool(os.environ.get("FLUENTME_MOCK")),
         "judge": "api" if os.environ.get("ANTHROPIC_API_KEY") else
                  ("mock" if os.environ.get("FLUENTME_MOCK") else "cli"),
-        "services": {"stt_local": up(8123), "tts_local": up(8124), "sauna_mcp": up(8902)},
+        "services": {"stt_local": up(8123), "tts_local": up(8124)},
         "session_active": SESSION["active"], "session_mode": SESSION["mode"],
         "due_summary": {"n": len(due),
                         "weakest_R": round(min((memory.retrievability(c, now) for c in due), default=1.0), 2)},
@@ -1290,10 +1274,6 @@ def session_end():
                            "advanced_patterns": SESSION["advanced_patterns"],
                            "best_moment": report["best_moment"], "summary": report["summary"],
                            "topics": []})
-    try:
-        sauna.export_all(store)
-    except Exception:
-        pass
     return report
 
 
@@ -1346,8 +1326,7 @@ def api_me():
                       "eleven_cloned": bool(tts._eleven_voices().get("user")),
                       "voice_id": tts._eleven_voices().get("user", "")},
             "episodes": store.episodes[::-1][:10],
-            "xp": p["xp"], "streak": p["streak"], "level": memory.level_of(p["skills"]),
-            "sauna": sauna.status()}
+            "xp": p["xp"], "streak": p["streak"], "level": memory.level_of(p["skills"])}
 
 
 @app.post("/api/me/fact")
@@ -1410,12 +1389,7 @@ def api_demo():
                         "level": memory.level_of(store.profile["skills"])}}
 
 
-# ============================================================ Sauna / dev
-@app.post("/api/sauna/export")
-def sauna_export():
-    return sauna.export_all(store)
-
-
+# ============================================================ dev
 @app.post("/api/dev/expire")
 def dev_expire():
     """demo 用: 全部在学卡强制到期, 且 last_seen 回拨到 R≈0.5 — 衰减肉眼可见。"""
@@ -1436,5 +1410,4 @@ def dev_seed():
     global store
     seed_demo.seed(force=True)
     store = memory.make_store()
-    sauna.export_all(store)
     return {"ok": True, "cards": len(store.cards), "sessions": len(store.sessions)}

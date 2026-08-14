@@ -2334,7 +2334,7 @@
       setText("recap-overview", `${evidence.learnerTurns} learner turn${evidence.learnerTurns === 1 ? " is" : "s are"} ready to recap.`);
       setText("recap-worked", "Generate the recap to ground one useful reflection in your actual words.");
       setText("recap-focus", "One specific 30–60 second action will appear here.");
-      setText("recap-phrase", "A phrase appears only when it can be traced to this session or Voice Lab.");
+      setText("recap-phrase", "A phrase appears only when it can be traced to this session or Practice.");
       setText("session-summary-text", "Your session evidence is ready to recap.");
       if ($("recap-generate")) $("recap-generate").textContent = "Generate recap →";
       if ($("recap-practice")) $("recap-practice").disabled = true;
@@ -2723,14 +2723,14 @@
     state.queuedPracticeTarget = target;
     state.queuedPracticeFocus = recapText(data?.focus, RECAP_LIMITS.focus);
     if (state.baseMode !== "live" || !state.call || state.sessionComplete) {
-      setText("recap-status", "Queued for Voice Lab · start your next conversation");
+      setText("recap-status", "Queued for Practice · start your next conversation");
       return true;
     }
     $("practice-input").value = target;
     showTab("practice", { force: true });
     $("practice-input").focus();
     setText("practice-instruction", `From your recap: ${state.queuedPracticeFocus || "practise this exact wording in one more natural turn."}`);
-    setText("recap-status", "Phrase sent to Voice Lab");
+    setText("recap-status", "Phrase sent to Practice");
     return true;
   }
 
@@ -4440,7 +4440,7 @@
     } else {
       state.learning.pendingUse = null;
       setText("transfer-evidence-source", "Could not start transfer");
-      setText("transfer-evidence-text", "The question did not arrive. Return to Voice Lab and try again.");
+      setText("transfer-evidence-text", "The question did not arrive. Return to Practice and try again.");
     }
     renderLearningMemory();
     updateWorkflowControls();

@@ -11,7 +11,6 @@
 #   L2 画像: 四维技能 EMA + CEFR estimate + XP/Lv 双货币 + cx_ema(句子野心) + streak
 #   L3 情景记忆 episodes: 每场蒸馏 摘要+facts; 开场教练主动提起
 #   L4 身份 facts: [{text, kind, use, ts, src}] — use=false 时教练永不使用
-#      (me 页开关直通这里; 也是 Sauna workspace-memory 的映射源)
 #
 #   sessions.json: 每场快照 — 图表/plateau 检测唯一数据源
 import json
