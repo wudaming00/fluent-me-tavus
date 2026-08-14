@@ -13,8 +13,8 @@ This submission focuses on a simple product thesis: **the face is not decoration
 - Downloadable PDF: https://damingwu.com/fluent-me/fluent-me-case-study.pdf
 - Live product: https://fluent-me.wudaming00.workers.dev — real Tavus rooms, limited concurrency
 - Source repository: https://github.com/wudaming00/fluent-me-tavus
-- Exact submitted product-code commit: [`80ca0beeffdf`](https://github.com/wudaming00/fluent-me-tavus/commit/80ca0beeffdfad7142653796c0a96b615ed8128e)
-- Build recorded in the walkthrough video: [`031fb20c4245`](https://github.com/wudaming00/fluent-me-tavus/commit/031fb20c4245e526f9f9f40401a74099036250af) — the submitted commit adds one product change on top of it: automatic in-place coach resume when a Tavus room hits a provider-side duration cap mid-session.
+- Exact submitted product-code commit: [`50f68e011455`](https://github.com/wudaming00/fluent-me-tavus/commit/50f68e011455e5d764bfbc1a6bfd3282c6a9cc34) — this is what the live deployment runs.
+- Build recorded in the walkthrough video: [`031fb20c4245`](https://github.com/wudaming00/fluent-me-tavus/commit/031fb20c4245e526f9f9f40401a74099036250af) — the submitted commit adds, on top of it: automatic in-place coach resume when a Tavus room hits a provider-side duration cap mid-session; the public Cloudflare deployment with the author's own Phoenix-4 Face and cloned voice pinned as the default coach; the demo re-narrated in that same cloned voice; and a documentation pass correcting control and tab names to the ones the product actually ships.
 - [92-second demo narration](DEMO_SCRIPT.md)
 - [Architecture diagram and technical notes](ARCHITECTURE.md)
 - [Delivery checklist](DELIVERY_CHECKLIST.md)

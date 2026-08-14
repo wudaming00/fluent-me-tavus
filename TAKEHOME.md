@@ -98,7 +98,7 @@ The lesson from both iterations is that a convincing CVI integration depends on 
 
 - [x] Public recording published: https://damingwu.com/fluent-me/fluent-me-demo.mp4 (README links it).
 - [x] Reviewer-accessible build available: https://fluent-me.wudaming00.workers.dev.
-- [x] Submission notes pin the exact commits: `80ca0beeffdf` (submitted) and `031fb20c4245` (walkthrough build).
+- [x] Submission notes pin the exact commits: `50f68e011455` (submitted, deployed) and `031fb20c4245` (walkthrough build).
 - [ ] Show the Tavus Face moving and speaking in real time; do not rely on the welcome placeholder.
 - [ ] Show at least one spoken learner turn followed by a relevant PAL answer.
 - [ ] Show the **Feedback**, **Practice**, and **Review** tabs inside one live call.

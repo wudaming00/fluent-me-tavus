@@ -15,10 +15,11 @@ Submission links:
 - **Public case study and architecture:** https://damingwu.com/fluent-me/
 - **Downloadable case-study PDF:** https://damingwu.com/fluent-me/fluent-me-case-study.pdf
 - **Source repository:** https://github.com/wudaming00/fluent-me-tavus
-- **Exact submitted product-code commit:** https://github.com/wudaming00/fluent-me-tavus/commit/80ca0beeffdfad7142653796c0a96b615ed8128e
+- **Exact submitted product-code commit:** https://github.com/wudaming00/fluent-me-tavus/commit/50f68e011455e5d764bfbc1a6bfd3282c6a9cc34
   (the walkthrough video was recorded on
   https://github.com/wudaming00/fluent-me-tavus/commit/031fb20c4245e526f9f9f40401a74099036250af;
-  the submitted commit adds automatic session resume described below)
+  the submitted commit adds the automatic session resume described below, plus the
+  public deployment that pins my own Face and cloned voice as the default coach)
 - **Live product (try it):** https://fluent-me.wudaming00.workers.dev
   The default coach you'll meet is me — my own trained Phoenix-4 Face speaking
   with my consented ElevenLabs voice clone. Every session runs a real Tavus
