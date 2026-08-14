@@ -65,9 +65,12 @@ test("Sites Worker enables explicit microphone and optional camera access", asyn
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'");
   const html = await response.text();
-  assert.match(html, /Start video conversation/);
-  assert.match(html, /Turn Studio/i);
-  assert.match(html, /Optional visual delivery mode/);
+  assert.match(html, /Start conversation/);
+  assert.match(html, /VOICE DETAILS/);
+  assert.match(html, /Camera &amp; signal settings/);
+  assert.match(html, /id="open-feedback"/);
+  assert.match(html, /id="open-typing"/);
+  assert.doesNotMatch(html, /LET’S TALK|Your video coach will appear here/);
   assert.doesNotMatch(html, />Share camera</);
   assert.doesNotMatch(html, /Step 1 of 5|Hear the model/);
 });

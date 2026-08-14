@@ -17,17 +17,17 @@ client = TestClient(app_module.app)
 def test_home_is_a_clear_personal_english_coaching_experience():
     response = client.get("/")
     assert response.status_code == 200
-    assert "YOUR PERSONAL ENGLISH COACH" in response.text
-    assert "Practice the English" in response.text
-    assert "Start video conversation" in response.text
-    assert "Review progress &amp; history" in response.text
+    assert "PERSONAL ENGLISH COACH" in response.text
+    assert "Speak English with a coach who listens." in response.text
+    assert "Start conversation" in response.text
+    assert ">History<" in response.text
     assert "No video room or API credits used" in response.text
     assert "Live personal English coach" in response.text
-    assert "Make it natural" in response.text
+    assert "Improve my wording" in response.text
     assert "How did I come across?" in response.text
     assert "Hear it. Try it. Compare." in response.text
     assert "Compare attempts" in response.text
-    assert "Create session recap" in response.text
+    assert "Refresh session recap" in response.text
     assert "Review my English" in response.text
     assert "latest 12 learner turns" in response.text
     assert 'id="recap-card"' in response.text
@@ -37,7 +37,11 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert 'id="practice-panel"' in response.text
     assert 'id="log-panel"' in response.text
     assert "tavus-coach-preview.png" not in response.text
-    assert "Your video coach will appear here" in response.text
+    assert "Your video coach will appear here" not in response.text
+    assert "LET’S TALK" not in response.text
+    assert 'id="open-feedback"' in response.text
+    assert 'id="open-typing"' in response.text
+    assert 'id="close-coach-console"' in response.text
     assert "id=\"tavus-video\"" in response.text
     assert "/static/daily-0.91.0.js" in response.text
     assert "/static/og-language-coach-v3.png" in response.text
@@ -58,8 +62,8 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert "LEARNING MEMORY" in response.text
     assert "Save for later" in response.text
     assert "Saved on this device; no recordings or full transcripts" in response.text
-    assert "TURN STUDIO" in response.text
-    assert "Optional visual delivery mode" in response.text
+    assert "VOICE DETAILS" in response.text
+    assert "Camera &amp; signal settings" in response.text
     assert "Kai" not in response.text
     assert "/static/live.js" in response.text
     assert response.headers["x-frame-options"] == "DENY"

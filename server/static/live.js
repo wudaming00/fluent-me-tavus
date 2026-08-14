@@ -1314,6 +1314,7 @@
     $("end-session").hidden = view !== "conversation";
     updatePersonalizationAvailability();
     syncSessionLengthControls();
+    if (view !== "conversation") setCoachConsoleOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1379,7 +1380,7 @@
     document.querySelectorAll(".coach-tool").forEach(button => {
       button.disabled = !enabled || (button.hasAttribute("data-coach-request") && !state.lastUserTurn);
     });
-    ["mic-toggle", "camera-toggle", "chat-input", "practice-input"].forEach(id => {
+    ["mic-toggle", "camera-toggle", "open-typing", "open-feedback", "chat-input", "practice-input"].forEach(id => {
       if ($(id)) $(id).disabled = !enabled;
     });
     const chatButton = $("chat-form")?.querySelector("button");
@@ -1436,7 +1437,35 @@
       $(`${tab}-tab`).setAttribute("aria-selected", String(active));
       $(`${tab}-tab`).tabIndex = active ? 0 : -1;
     });
+    if (document.body.dataset.view === "conversation" && $("conversation")?.dataset.mode === "live") {
+      setCoachConsoleOpen(true);
+    }
     return true;
+  }
+
+  function setCoachConsoleOpen(open, { focus = false } = {}) {
+    const conversation = $("conversation");
+    const panel = $("coach-console");
+    const trigger = $("open-feedback");
+    const backdrop = $("console-backdrop");
+    if (!conversation || !panel) return;
+    const forcedOpen = ["review", "complete"].includes(conversation.dataset.mode);
+    const next = Boolean(open || forcedOpen);
+    const mobileModal = next && !forcedOpen && window.matchMedia("(max-width: 840px)").matches;
+    conversation.dataset.consoleOpen = String(next);
+    if (trigger) trigger.setAttribute("aria-expanded", String(next));
+    if (backdrop) backdrop.hidden = !next || forcedOpen;
+    panel.setAttribute("role", mobileModal ? "dialog" : "complementary");
+    if (mobileModal) panel.setAttribute("aria-modal", "true");
+    else panel.removeAttribute("aria-modal");
+    panel.dataset.modal = String(mobileModal);
+    const stage = conversation.querySelector(".coach-stage");
+    const topbar = document.querySelector(".topbar");
+    if (stage) stage.inert = mobileModal;
+    if (topbar) topbar.inert = mobileModal;
+    if (next && focus) {
+      requestAnimationFrame(() => $("close-coach-console")?.focus());
+    }
   }
 
   function handleTabKeydown(event) {
@@ -3857,6 +3886,7 @@
     if (!state.configured || state.finalizing || state.sessionComplete) return;
     state.reviewOnly = false;
     $("conversation").dataset.mode = "live";
+    $("conversation").dataset.consoleOpen = "false";
     $("conversation").setAttribute("aria-label", "Live English conversation");
     void primeSignalContext();
     resetSessionClockForStart();
@@ -3880,6 +3910,7 @@
     }
     showTab(queuedPracticeTarget ? "practice" : "tools");
     setView("conversation");
+    if (queuedPracticeTarget) setCoachConsoleOpen(true);
     setCaption("coach", "Your coach will start with one question. Then the conversation is yours.");
     const connected = await connectCoach();
     if (connected && state.queuedRecall) {
@@ -3895,6 +3926,7 @@
       state.reviewOnly = false;
       state.queuedRecall = false;
       $("conversation").dataset.mode = "live";
+      $("conversation").dataset.consoleOpen = "false";
       $("conversation").setAttribute("aria-label", "Live English conversation");
       $("end-session").textContent = "End session";
       clearLogView();
@@ -3907,6 +3939,8 @@
     if (state.sessionComplete) {
       state.ending = true;
       state.sessionComplete = false;
+      $("conversation").dataset.mode = "live";
+      $("conversation").dataset.consoleOpen = "false";
       clearLogView();
       resetLiveWorkflow();
       $("end-session").textContent = "End session";
@@ -4006,7 +4040,9 @@
     setText("session-remaining", "Session complete · recap ready");
     setCoachStill("COMPLETE", "YOUR SESSION RECAP IS READY");
     setCoachState("ready", "Session complete");
-    setCaption("coach", "Your conversation is complete. Review your recap in the Session tab, then go back home when you are ready.");
+    $("conversation").dataset.mode = "complete";
+    setCoachConsoleOpen(true);
+    setCaption("coach", "Nice work. Your recap is ready.");
     showTab("log");
     $("end-session").textContent = "Back home";
     $("end-session").disabled = false;
@@ -4031,6 +4067,7 @@
     $("conversation").dataset.mode = "review";
     $("conversation").setAttribute("aria-label", "Progress and learning history");
     setView("conversation");
+    setCoachConsoleOpen(true);
     $("session-status").hidden = true;
     $("end-session").textContent = "Back home";
     $("end-session").disabled = false;
@@ -4078,6 +4115,27 @@
   $("retry-connection").addEventListener("click", connectCoach);
   $("mic-toggle").addEventListener("click", toggleMicrophone);
   $("camera-toggle").addEventListener("click", toggleCamera);
+  $("open-feedback").addEventListener("click", () => {
+    const isOpen = $("conversation").dataset.consoleOpen === "true";
+    if (isOpen) setCoachConsoleOpen(false);
+    else {
+      showTab("tools", { force: true });
+      setCoachConsoleOpen(true, { focus: true });
+    }
+  });
+  $("open-typing").addEventListener("click", () => {
+    showTab("tools", { force: true });
+    setCoachConsoleOpen(true);
+    requestAnimationFrame(() => $("chat-input")?.focus());
+  });
+  $("close-coach-console").addEventListener("click", () => {
+    setCoachConsoleOpen(false);
+    $("open-feedback")?.focus();
+  });
+  $("console-backdrop").addEventListener("click", () => {
+    setCoachConsoleOpen(false);
+    $("open-feedback")?.focus();
+  });
   $("tools-tab").addEventListener("click", () => showTab("tools"));
   $("practice-tab").addEventListener("click", () => showTab("practice"));
   $("log-tab").addEventListener("click", () => showTab("log"));
@@ -4212,6 +4270,42 @@
 
   $("tavus-video").addEventListener("click", unmuteCoach);
   $("unmute-coach").addEventListener("click", unmuteCoach);
+
+  document.addEventListener("keydown", event => {
+    const conversation = $("conversation");
+    const panel = $("coach-console");
+    if (event.key === "Tab" && panel?.dataset.modal === "true") {
+      const focusable = [...panel.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]
+        .filter(element => !element.hidden && element.getClientRects().length);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!panel.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      }
+      return;
+    }
+    if (event.key !== "Escape" || conversation?.dataset.consoleOpen !== "true") return;
+    if (["review", "complete"].includes(conversation.dataset.mode)) return;
+    setCoachConsoleOpen(false);
+    $("open-feedback")?.focus();
+  });
+
+  const coachConsoleMedia = window.matchMedia("(max-width: 840px)");
+  const syncCoachConsoleMode = () => {
+    if ($("conversation")?.dataset.consoleOpen !== "true") return;
+    if ($("conversation").dataset.mode !== "live") return;
+    setCoachConsoleOpen(true);
+  };
+  if (coachConsoleMedia.addEventListener) coachConsoleMedia.addEventListener("change", syncCoachConsoleMode);
+  else coachConsoleMedia.addListener(syncCoachConsoleMode);
 
   let pageExitHandled = false;
 
