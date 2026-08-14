@@ -1,32 +1,32 @@
 WEBVTT
 
 1
-00:00:00.000 --> 00:00:04.000
-Fluent Me is a conversation-first English coach.
+00:00:00.000 --> 00:00:05.000
+Fluent Me is a conversation-first English coach built on Tavus.
 
 2
-00:00:04.000 --> 00:00:10.000
-This narrated tour uses real session captures to explain one focused feedback loop.
+00:00:05.000 --> 00:00:10.000
+This narrated tour uses real session captures to show one focused loop.
 
 3
-00:00:10.000 --> 00:00:16.000
-The Tavus room starts only after the learner selects Continue.
+00:00:10.000 --> 00:00:15.000
+A Tavus room starts only after the learner selects Continue.
 
 4
-00:00:16.000 --> 00:00:22.000
-Topic, time box, and compact local recap remain optional choices.
+00:00:15.000 --> 00:00:22.000
+Topic and time box stay optional, and the coach itself can be created from your own face and voice.
 
 5
-00:00:22.000 --> 00:00:30.000
-This chapter uses a short, continuous frame sequence captured while the Tavus coach was responding.
+00:00:22.000 --> 00:00:32.000
+This is a live Tavus conversation, captured while the coach was responding: Phoenix renders the Face, Sparrow keeps the turns natural, and detailed tools wait in a drawer.
 
 6
-00:00:30.000 --> 00:00:39.000
-The sequence shows visible coach motion in that interval, not learner-audio transport or cleanup.
+00:00:32.000 --> 00:00:40.000
+The end state is immersion: talking with yourself, in your own face and your own cloned voice, so imitation collapses into repetition.
 
 7
-00:00:39.000 --> 00:00:45.000
-The interface keeps the Face dominant while detailed tools stay in a drawer.
+00:00:40.000 --> 00:00:45.000
+The sequence shows visible coach motion in that interval, not learner-audio transport.
 
 8
 00:00:45.000 --> 00:00:50.000
@@ -38,28 +38,28 @@ the Tavus transcript, timing, counted pauses or repeats, and available microphon
 
 10
 00:00:58.000 --> 00:01:01.000
-None becomes an opaque English score.
+None of it becomes an opaque English score.
 
 11
-00:01:01.000 --> 00:01:07.000
+00:01:01.000 --> 00:01:06.000
 The grounded review turns available evidence into one useful change.
 
 12
-00:01:07.000 --> 00:01:13.000
+00:01:06.000 --> 00:01:11.000
 Grammar and wording stay separate from pace and rhythm observations.
 
 13
-00:01:13.000 --> 00:01:18.000
-Missing evidence stays hidden rather than guessed.
+00:01:11.000 --> 00:01:18.000
+A phrase worth keeping moves to spaced review, and missing evidence stays hidden rather than guessed.
 
 14
-00:01:18.000 --> 00:01:21.000
+00:01:18.000 --> 00:01:20.000
 History is opt-in and stored on this device.
 
 15
-00:01:21.000 --> 00:01:26.000
-The case study documents product, evidence, privacy, and lifecycle boundaries.
+00:01:20.000 --> 00:01:28.000
+A session also survives its video room: after a provider time cap, the client reconnects and the coach continues the same conversation.
 
 16
-00:01:26.000 --> 00:01:32.000
+00:01:28.000 --> 00:01:32.000
 The captured motion does not prove learner audio transport or remote-room cleanup.

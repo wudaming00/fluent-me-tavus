@@ -513,10 +513,17 @@ try {
     $timedWave = Join-Path $workDir "$($chapter.Key)-voice.wav"
     $rawDuration = Get-MediaDuration -FfprobePath $ffprobePath -Path $rawWave
     $tempo = $rawDuration / [double]$chapter.Seconds
-    if ($tempo -lt 0.5 -or $tempo -gt 2.0) {
-      throw "Narration timing for '$($chapter.Key)' requires atempo $(Format-InvariantNumber $tempo), outside the safe 0.5-2.0 range. Adjust its text or duration."
+    if ($tempo -gt 2.0) {
+      throw "Narration timing for '$($chapter.Key)' requires atempo $(Format-InvariantNumber $tempo), outside the safe range. Shorten its text or lengthen the chapter."
     }
-    $audioFilter = "atempo=$(Format-InvariantNumber $tempo '0.000000'),apad,atrim=duration=$durationText,asetpts=N/SR/TB"
+    # Never slow speech down to fill a chapter: stretched narration sounds
+    # drugged. Speak at natural pace and let trailing silence carry the rest;
+    # only speed up (mildly) when the take overruns its slot.
+    $audioFilter = if ($tempo -gt 1.0) {
+      "atempo=$(Format-InvariantNumber $tempo '0.000000'),apad,atrim=duration=$durationText,asetpts=N/SR/TB"
+    } else {
+      "apad,atrim=duration=$durationText,asetpts=N/SR/TB"
+    }
     Invoke-External -Executable $ffmpegPath -Description "Time narration chapter $($chapter.Key)" -Arguments @(
       "-hide_banner", "-loglevel", "error", "-y", "-i", $rawWave,
       "-af", $audioFilter, "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", $timedWave

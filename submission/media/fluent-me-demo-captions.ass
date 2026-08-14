@@ -14,24 +14,24 @@ Style: Chapter,Segoe UI Semibold,31,&H00B0DC43,&H00B0DC43,&H9005080D,&H00000000,
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 Dialogue: 1,0:00:00.00,0:00:03.00,Chapter,,0,0,0,,\N01  START WITH ONE ACTION
-Dialogue: 0,0:00:00.00,0:00:04.00,Caption,,0,0,0,,Fluent Me is a conversation-first English coach.
-Dialogue: 0,0:00:04.00,0:00:10.00,Caption,,0,0,0,,This narrated tour uses real session captures to explain one focused feedback loop.
+Dialogue: 0,0:00:00.00,0:00:05.00,Caption,,0,0,0,,Fluent Me is a conversation-first English coach built on Tavus.
+Dialogue: 0,0:00:05.00,0:00:10.00,Caption,,0,0,0,,This narrated tour uses real session captures to show one focused loop.
 Dialogue: 1,0:00:10.00,0:00:13.00,Chapter,,0,0,0,,\N02  CONTINUE TO START THE ROOM
-Dialogue: 0,0:00:10.00,0:00:16.00,Caption,,0,0,0,,The Tavus room starts only after the learner selects Continue.
-Dialogue: 0,0:00:16.00,0:00:22.00,Caption,,0,0,0,,Topic, time box, and compact local recap remain optional choices.
+Dialogue: 0,0:00:10.00,0:00:15.00,Caption,,0,0,0,,A Tavus room starts only after the learner selects Continue.
+Dialogue: 0,0:00:15.00,0:00:22.00,Caption,,0,0,0,,Topic and time box stay optional, and the coach itself can be created from your own face and voice.
 Dialogue: 1,0:00:22.00,0:00:25.00,Chapter,,0,0,0,,\N03  CAPTURE THE TAVUS ROOM
-Dialogue: 0,0:00:22.00,0:00:30.00,Caption,,0,0,0,,This chapter uses a short, continuous frame sequence captured while the Tavus coach was responding.
-Dialogue: 0,0:00:30.00,0:00:39.00,Caption,,0,0,0,,The sequence shows visible coach motion in that interval, not learner-audio transport or cleanup.
-Dialogue: 0,0:00:39.00,0:00:45.00,Caption,,0,0,0,,The interface keeps the Face dominant while detailed tools stay in a drawer.
+Dialogue: 0,0:00:22.00,0:00:32.00,Caption,,0,0,0,,This is a live Tavus conversation, captured while the coach was responding: Phoenix renders the Face, Sparrow keeps the turns natural, and detailed tools wait in a drawer.
+Dialogue: 0,0:00:32.00,0:00:40.00,Caption,,0,0,0,,The end state is immersion: talking with yourself, in your own face and your own cloned voice, so imitation collapses into repetition.
+Dialogue: 0,0:00:40.00,0:00:45.00,Caption,,0,0,0,,The sequence shows visible coach motion in that interval, not learner-audio transport.
 Dialogue: 1,0:00:45.00,0:00:48.00,Chapter,,0,0,0,,\N04  READ THE TAVUS TRANSCRIPT
 Dialogue: 0,0:00:45.00,0:00:50.00,Caption,,0,0,0,,After a captured turn, Feedback shows only evidence that exists:
 Dialogue: 0,0:00:50.00,0:00:58.00,Caption,,0,0,0,,the Tavus transcript, timing, counted pauses or repeats, and available microphone or Raven signals.
-Dialogue: 0,0:00:58.00,0:01:01.00,Caption,,0,0,0,,None becomes an opaque English score.
+Dialogue: 0,0:00:58.00,0:01:01.00,Caption,,0,0,0,,None of it becomes an opaque English score.
 Dialogue: 1,0:01:01.00,0:01:04.00,Chapter,,0,0,0,,\N05  GROUND ONE USEFUL CHANGE
-Dialogue: 0,0:01:01.00,0:01:07.00,Caption,,0,0,0,,The grounded review turns available evidence into one useful change.
-Dialogue: 0,0:01:07.00,0:01:13.00,Caption,,0,0,0,,Grammar and wording stay separate from pace and rhythm observations.
-Dialogue: 0,0:01:13.00,0:01:18.00,Caption,,0,0,0,,Missing evidence stays hidden rather than guessed.
+Dialogue: 0,0:01:01.00,0:01:06.00,Caption,,0,0,0,,The grounded review turns available evidence into one useful change.
+Dialogue: 0,0:01:06.00,0:01:11.00,Caption,,0,0,0,,Grammar and wording stay separate from pace and rhythm observations.
+Dialogue: 0,0:01:11.00,0:01:18.00,Caption,,0,0,0,,A phrase worth keeping moves to spaced review, and missing evidence stays hidden rather than guessed.
 Dialogue: 1,0:01:18.00,0:01:21.00,Chapter,,0,0,0,,\N06  DOCUMENT THE BOUNDARIES
-Dialogue: 0,0:01:18.00,0:01:21.00,Caption,,0,0,0,,History is opt-in and stored on this device.
-Dialogue: 0,0:01:21.00,0:01:26.00,Caption,,0,0,0,,The case study documents product, evidence, privacy, and lifecycle boundaries.
-Dialogue: 0,0:01:26.00,0:01:32.00,Caption,,0,0,0,,The captured motion does not prove learner audio transport or remote-room cleanup.
+Dialogue: 0,0:01:18.00,0:01:20.00,Caption,,0,0,0,,History is opt-in and stored on this device.
+Dialogue: 0,0:01:20.00,0:01:28.00,Caption,,0,0,0,,A session also survives its video room: after a provider time cap, the client reconnects and the coach continues the same conversation.
+Dialogue: 0,0:01:28.00,0:01:32.00,Caption,,0,0,0,,The captured motion does not prove learner audio transport or remote-room cleanup.
