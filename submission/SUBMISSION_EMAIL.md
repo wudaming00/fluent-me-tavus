@@ -20,8 +20,9 @@ Submission links:
   https://github.com/wudaming00/fluent-me-tavus/commit/031fb20c4245e526f9f9f40401a74099036250af;
   the submitted commit adds automatic session resume described below)
 - **Live product (try it):** https://fluent-me.wudaming00.workers.dev
-  Every session runs a real Tavus room, so concurrency is limited — if the
-  coach is busy, please try again in a minute.
+  The default coach you'll meet is me — my own trained Phoenix-4 Face speaking
+  with my consented ElevenLabs voice clone. Every session runs a real Tavus
+  room, so concurrency is limited; if the coach is busy, try again in a minute.
 
 The materials cover the requested areas:
 
@@ -56,10 +57,9 @@ The materials cover the requested areas:
 A few deliberate product boundaries are visible in the submission. Browser
 waveforms and pitch candidates are descriptive signals, not pronunciation,
 accent, emotion, or ability scores. Raven observations remain tentative. The
-optional Tavus Face and ElevenLabs voice-personalization paths are
-consent-gated and provider-dependent; I do not present them as completed unless
-the exact submitted build and account passed the live provider checks shown in
-the walkthrough.
+Face and voice personalization path is consent-gated and provider-dependent —
+and on the live deployment it is exercised end to end: the default coach is my
+own trained Face and cloned voice, and the demo narration uses the same clone.
 
 I’d be happy to walk through the product decisions, real-time integration, and
 what I would validate next.

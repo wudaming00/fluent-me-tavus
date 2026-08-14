@@ -4,7 +4,7 @@ Most language apps make learners complete exercises, but the difficult part is s
 
 ## Evaluator handoff
 
-- **Live product:** https://fluent-me.wudaming00.workers.dev — public Cloudflare Workers deployment of the submitted build (real Tavus rooms; limited concurrency). An owner-only Sites staging also exists at https://fluent-me-tavus.wudaming00.chatgpt.site.
+- **Live product:** https://fluent-me.wudaming00.workers.dev — the submitted build on Cloudflare Workers. Sessions create real Tavus rooms, so concurrency is limited. Its default coach is the author's own consented Phoenix-4 Face and ElevenLabs voice clone: the personalization path, exercised end to end.
 - **Public case study:** https://damingwu.com/fluent-me/
 - **Narrated walkthrough:** https://damingwu.com/fluent-me/fluent-me-demo.mp4
 - **Downloadable PDF:** https://damingwu.com/fluent-me/fluent-me-case-study.pdf
@@ -50,7 +50,7 @@ The private hosted environment has been verified with configured Tavus and Eleve
 
 A text chatbot can correct a sentence, but it cannot provide the same embodied practice loop. Fluent Me uses the Tavus Face to model spoken delivery, Raven to supply bounded real-time audio/visual context, Sparrow for natural turn-taking and interruption, and Tavus interaction events to keep coaching and the product UI synchronized.
 
-The default coach is the Tavus stock Face **Nathan – Bookshelf** (Phoenix-4). A different account-compatible Face can be selected with `TAVUS_FACE_ID`.
+Out of the box the coach is the Tavus stock Face **Nathan – Bookshelf** (Phoenix-4); `TAVUS_FACE_ID` selects any account-compatible Face. The live deployment pins the author's own consented Face and cloned voice as the default coach.
 
 ## Architecture
 
@@ -157,12 +157,12 @@ These tests validate application and Worker behavior with mocks. They do **not**
 - Learning History is distinct from Learning Memory and is off by default. Enabling it before a session permits only that future finalized session to add a compact recap/aggregate record; turning it off does not silently delete older records. A compact recap may retain one grounded short learner quote and one useful phrase, while full transcripts and acoustic/visual evidence are never added to history. The learner can inspect, delete one, or clear all on this device.
 - Progress & Review derives only from Learning History and Learning Memory. Its visible review rhythm is a transparent fixed product rule—not a measured personal forgetting curve—and a **Not quite** result returns the phrase in about 10 minutes.
 - A timed session begins only once the remote coach media is ready. Its final-minute warning is informational; at zero the app uses the same idempotent recap-and-end path as **End session**, including Tavus's explicit conversation-end request. This limits abandoned usage but does not replace provider-side absent/left/max-duration safeguards.
-- A session survives its video room. Tavus caps each room's `max_call_duration` at a plan-dependent maximum, so a room can end mid-session (observed at about five minutes on the current plan even though the app requests 900 seconds). When a live room dies unexpectedly, the client reconnects automatically into a fresh room and sends a bounded, sanitized continuation packet — the last few evidence turns plus any practice target — so the same coach persona picks the conversation back up without restarting; the focus timer accumulates across rooms and excludes the reconnect gap. Rapid repeated failures stop the automatic loop: if the coach cannot return, an in-progress session with evidence ends through the normal idempotent path and lands on the full-screen review instead of a dead room, and a session with no evidence yet falls back to the manual retry card.
+- A session survives its video room. Tavus caps `max_call_duration` at a plan-dependent maximum (observed ≈5 minutes here despite requesting 900 s), so when a live room dies the client reconnects into a fresh room with a bounded, sanitized continuation packet — recent evidence turns plus any practice target — and the coach picks the same conversation back up; the focus timer accumulates across rooms. Rapid repeated failures stop the loop: with evidence, the session ends through the normal idempotent path onto the full-screen review; without it, the manual retry card returns.
 - Raven uses `emotion_recognition: limited` because this is an education product. Feedback is framed as an uncertain observation of available delivery cues, never a fact about emotion, ability, personality, mental health, protected traits, or hiring suitability.
 - Before/after comparison is evidence-based: it uses two real Tavus utterance transcripts and any audio/visual analyses actually attached to those turns. It is still an LLM coaching comparison—not a validated pronunciation score, biometric emotion score, certified assessment, or automated learning-outcome claim.
 - The structured Session recap is generated from the current conversation evidence and uses a bounded local fallback when a coach recap is unavailable. Its metrics disclose how many spoken turns were timed; it is not a durable learner record or independent assessment.
-- A live conversation consumes Tavus credits and a concurrency slot. The hosted endpoint should not be made unrestrictedly public without an access or spend control.
-- The API credential previously used during development must be rotated before evaluator access, even though it is not present in the tracked source.
+- A live conversation consumes Tavus credits and a concurrency slot. The public deployment accepts that cost deliberately for the review period; it has no spend control yet and can be taken offline afterwards.
+- No credential appears in the tracked source or build. Deployments read keys from platform secrets, and any key that ever surfaced in a development context is treated as burned and rotated.
 
 ## Relevant files
 

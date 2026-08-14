@@ -96,9 +96,9 @@ The lesson from both iterations is that a convincing CVI integration depends on 
 
 ### Required evidence
 
-- [ ] Replace `ADD_PUBLIC_LOOM_URL_BEFORE_SUBMISSION` in [README.md](README.md) with the final public recording.
-- [ ] Make a reviewer-accessible build available, or explicitly make the video the primary artifact and provide exact local setup instructions.
-- [ ] Record the exact production commit SHA in the submission notes.
+- [x] Public recording published: https://damingwu.com/fluent-me/fluent-me-demo.mp4 (README links it).
+- [x] Reviewer-accessible build available: https://fluent-me.wudaming00.workers.dev.
+- [x] Submission notes pin the exact commits: `80ca0beeffdf` (submitted) and `031fb20c4245` (walkthrough build).
 - [ ] Show the Tavus Face moving and speaking in real time; do not rely on the welcome placeholder.
 - [ ] Show at least one spoken learner turn followed by a relevant PAL answer.
 - [ ] Show the **Coach**, **Practice**, and **Session** tabs inside one live call.
@@ -160,15 +160,18 @@ Do not check these items based on mocked tests or UI presence alone. Run them wi
 - [ ] Confirm no secret appears in tracked files or Git history.
 - [ ] Confirm all README links and referenced paths resolve.
 
-## Known blockers before evaluator handoff
+## Handoff status (2026-08-14)
 
-- **Reviewer access:** the current Sites URL is owner-only and returns HTTP 401 without the owner's session. It is not a usable evaluator link yet.
-- **Credits and concurrency:** each live Tavus room consumes credits and one concurrency slot. Public access needs an access/spend control, and failed demos may require ending orphaned rooms.
-- **Credential rotation:** an API key was exposed during development chat. It is not intentionally stored in this repository, but it must be rotated before any evaluator access.
-- **Manual E2E proof:** mocked tests cover request payloads and client contracts, but they do not prove microphone publication, Face playback, correct pairing of two learner attempts with their Raven evidence, the comparison response, the three-part wrap-up, or end-to-end conversational behavior in the deployed browser.
-- **Personalization provider setup:** the deployed site does not yet have a verified `ELEVENLABS_API_KEY` plus an active ElevenLabs IVC plan/grant. The optional cloned-voice path therefore cannot be called end-to-end complete.
-- **Face upload and training:** local browser capture does not create the public or signed HTTPS URL Tavus requires. The user must supply a 24-hour URL from their own storage or use PAL Maker, and Phoenix-4 training takes roughly 3–4 hours. No successful Face-to-personal-PAL browser run has been proven yet.
-- **PAL reproducibility:** reusing a PAL by name does not update an older prompt. Pin and verify the published v6 PAL with `TAVUS_CONVERSATION_PAL_V6_ID`; older PALs lack the evidence-source and acoustic-boundary contract.
-- **Loom link:** no public recording URL has been supplied yet.
+Resolved with direct evidence:
 
-Do not mark any of these complete without direct evidence from the final deployed commit.
+- **Reviewer access:** the submitted build is public at https://fluent-me.wudaming00.workers.dev (Cloudflare Workers; no login). A live room was created and cleanly ended through it, and a real conversation session was exercised in the browser on the deployed build.
+- **Public recording:** the narrated 92-second demo is published at https://damingwu.com/fluent-me/fluent-me-demo.mp4 with captions and a transcript.
+- **Personalization:** the live deployment holds a verified `ELEVENLABS_API_KEY`, and its default coach is the author's own personal PAL — Phoenix-4 Face "Daming Aug 13 2026" (trained via PAL Maker) plus a consented ElevenLabs voice clone. The demo narration uses the same clone.
+- **PAL reproducibility:** the deployment pins its PAL explicitly (`TAVUS_CONVERSATION_PAL_V6_ID`); the stock evidence-aware v6 PAL remains available as a documented fallback.
+- **Credentials:** nothing credential-bearing is tracked; deployments read platform secrets, and any key that surfaced during development is treated as burned and rotated.
+
+Remaining honest gaps:
+
+- **Credits and concurrency:** each live room consumes credits and one concurrency slot; the public endpoint deliberately has no access or spend control during the review period.
+- **Checklist coverage:** the manual end-to-end checklist above has not been re-run item-by-item against the final commit; mocked tests still do not prove every browser media behavior.
+- **In-browser Face upload:** local capture still cannot produce the public HTTPS training URL Tavus requires; PAL Maker (used here) or user-owned hosting remains the path, and Phoenix-4 training takes roughly 3–4 hours.

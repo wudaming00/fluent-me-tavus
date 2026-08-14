@@ -19,7 +19,7 @@ This submission focuses on a simple product thesis: **the face is not decoration
 - [Architecture diagram and technical notes](ARCHITECTURE.md)
 - [Delivery checklist](DELIVERY_CHECKLIST.md)
 
-The current staging build may require owner authentication. It should not be presented as a reviewer-accessible deployment until that access has been verified in a signed-out browser.
+The live deployment is public and was verified signed-out: a real Tavus room was created and cleanly ended through it, and its default coach is the author's own consented Face and cloned voice.
 
 ## The project in action
 

@@ -1,62 +1,24 @@
-# Fluent Me — 90-second demo narration
+# Fluent Me — 92-second demo narration
 
-This script is designed for a continuous product recording. Pause naturally for the live coach; trim silence only if the final video must remain near 90 seconds. Do not narrate an expected response as a successful result if it did not appear in the exact run.
+The published demo is built deterministically by [build-demo-video.ps1](build-demo-video.ps1)
+from real product captures (including a 48-frame live coach-motion sequence), with
+narration synthesized in the author's own consented ElevenLabs voice clone by
+[synthesize-narration.py](synthesize-narration.py) — the same personalization
+path the product offers its learners. The chapter durations below are the
+editorial contract enforced by the build; captions and the transcript are
+generated from this same text.
 
-## 0:00–0:12 — The problem
+| Time | Chapter | Narration |
+|---|---|---|
+| 0:00–0:10 | Start with one action | Fluent Me is a conversation-first English coach built on Tavus. This narrated tour uses real session captures to show one focused loop. |
+| 0:10–0:22 | Continue to start the room | A Tavus room starts only after the learner selects Continue. Topic and time box stay optional, and the coach itself can be created from your own face and voice. |
+| 0:22–0:45 | Capture the Tavus room | This is a live Tavus conversation, captured while the coach was responding: Phoenix renders the Face, Sparrow keeps the turns natural, and detailed tools wait in a drawer. The end state is immersion: talking with yourself, in your own face and your own cloned voice, so imitation collapses into repetition. The sequence shows visible coach motion in that interval, not learner-audio transport. |
+| 0:45–1:01 | Read the Tavus transcript | After a captured turn, Feedback shows only evidence that exists: the Tavus transcript, timing, counted pauses or repeats, and available microphone or Raven signals. None of it becomes an opaque English score. |
+| 1:01–1:18 | Ground one useful change | The grounded review turns available evidence into one useful change. Grammar and wording stay separate from pace and rhythm observations. A phrase worth keeping moves to spaced review, and missing evidence stays hidden rather than guessed. |
+| 1:18–1:32 | Document the boundaries | History is opt-in and stays on this device. And a session survives its room: after a provider time cap, the coach reconnects and continues the conversation. Captured motion alone does not prove audio transport or cleanup. |
 
-**On screen:** Welcome page. Enter a topic, keep the 10-minute default, then start.
+## Truth rules the build enforces
 
-**Narration:**
-
-> Fluent Me is a conversation-first English coach for the gap between knowing a phrase and retrieving it naturally. I choose a real topic and duration; camera stays off unless visual coaching helps.
-
-## 0:12–0:36 — A real Tavus conversation
-
-**On screen:** Wait for the live Face and disclosure. Say:
-
-> Yesterday I build this app from zero, and I had to simplify it after watching how the experience felt.
-
-Let the coach answer. Open **Feedback** only after the learner turn appears.
-
-**Narration:**
-
-> This is a live Tavus conversation, not a browser-only recording. The coach answers my meaning first. Then Feedback exposes the actual turn: transparent timing and transcript counts, browser acoustic signals, and only the Raven evidence that arrived.
-
-If no Raven observation arrived, say: “No Raven observation arrived on this turn, so the product leaves it blank.”
-
-## 0:36–0:57 — Practise one phrase
-
-**On screen:** Open **Practice** and use:
-
-> Let me walk you through what I built and why it matters.
-
-Let the coach model it, then capture one real learner attempt. If time and the live response permit, show the second attempt and comparison.
-
-**Narration:**
-
-> Practice narrows that conversation to one useful phrase. Tavus preserves the wording, and two real attempts can be compared without inventing a pronunciation score.
-
-## 0:57–1:15 — Review and memory
-
-**On screen:** Open **Review**. Show the recap and Language Review. Do not expose private transcript content that should not appear in the submission.
-
-**Narration:**
-
-> Review turns the session into action: what worked, one short repetition, grammar and word-choice improvements, and an optional phrase to keep. Compact history is opt-in and stays on this device.
-
-## 1:15–1:30 — Architecture and close
-
-**On screen:** Briefly show the architecture diagram, then return and end the session.
-
-**Narration:**
-
-> I chose this problem because video, turn-taking, perception, and coaching behavior all matter together. The browser joins a private Daily room created by my server; provider keys remain server-side. Ending explicitly releases the Tavus conversation.
-
-## Recording truth checks
-
-- Stop and retry if the live Face never appears or cannot be heard.
-- Show at least one real learner utterance followed by a contextually relevant coach response.
-- Describe Raven evidence only when it is present in that turn.
-- Do not call the waveform a pronunciation, accent, fluency, or emotion score.
-- Do not present optional voice/Face cloning as complete unless the exact submitted build passes a live provider run.
-- End the remote room before stopping the recording.
+- Every frame is a real product capture; the script refuses placeholder or generated screens.
+- Narration never calls a browser signal a pronunciation, accent, fluency, or emotion score.
+- The final chapter states explicitly what the captured motion does not prove.
