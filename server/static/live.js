@@ -597,6 +597,10 @@
     sessionAutoEndTriggered: false,
     endSessionPromise: null,
     remoteReady: false,
+    autoResume: {
+      attempts: 0,
+      lastConnectedAt: 0,
+    },
     signalCapture: {
       context: null,
       source: null,
@@ -656,6 +660,34 @@
 
   function learnerEvidenceTurns(turns = state.turns) {
     return evidenceConversationTurns(turns).filter(turn => turn.role === "user");
+  }
+
+  // A compact, in-session continuation packet. When a live room dies mid-session
+  // (for example a provider-side room duration cap) the replacement room's coach
+  // receives the recent turns so the learner does not restart from zero.
+  function buildResumeBrief(limit = 6) {
+    if (state.sessionComplete) return "";
+    const turns = evidenceConversationTurns(state.turns).slice(-limit);
+    if (!turns.length) return "";
+    const lines = turns.map(turn => {
+      const who = turn.role === "user" ? "Learner" : "Coach";
+      const text = String(turn.text || "").replace(/\s+/g, " ").trim().slice(0, 220);
+      return `${who}: ${text}`;
+    }).filter(line => line.length > "Learner: ".length);
+    if (state.practice.target) {
+      lines.push(`Practice target in progress: "${String(state.practice.target).replace(/\s+/g, " ").trim().slice(0, 160)}"`);
+    }
+    return lines.join("\n").slice(0, 1600);
+  }
+
+  // Consecutive-failure budget for automatic mid-session reconnects. A room that
+  // survived a while resets the streak; rapid repeat failures fall back to the
+  // manual connection card so a provider outage cannot loop room creation.
+  function registerDropForAutoResume(resume, now = Date.now()) {
+    if (!resume) return false;
+    const survivedMs = now - (resume.lastConnectedAt || 0);
+    resume.attempts = survivedMs < 90_000 ? resume.attempts + 1 : 1;
+    return resume.attempts <= 2;
   }
 
   const LEARNING_FOCUS_LABELS = Object.freeze({
@@ -3848,22 +3880,32 @@
       $("unmute-coach").hidden = true;
       $("daily-stage").hidden = true;
       $("coach-still").hidden = false;
-      setCoachStill("CONNECTING", "YOUR COACH IS JOINING THE CONVERSATION");
+      const continuing = !state.sessionComplete && evidenceConversationTurns(state.turns).length > 0;
+      setCoachStill(
+        continuing ? "RECONNECTING" : "CONNECTING",
+        continuing ? "YOUR COACH IS REJOINING — THE SESSION CONTINUES" : "YOUR COACH IS JOINING THE CONVERSATION",
+      );
       state.remoteReady = false;
-      setCoachState("connecting", "Connecting…");
+      setCoachState("connecting", continuing ? "Reconnecting…" : "Connecting…");
       setControlsEnabled(false);
       updatePersonalizationAvailability();
 
       try {
         if (!window.Daily) throw new Error("The secure video client did not load.");
         const personalCoach = window.FluentMePersonalization?.getProfile?.() || {};
+        // Non-empty only when this connect continues an interrupted session, so
+        // the replacement coach picks the conversation back up instead of
+        // greeting the learner from zero. Covers both automatic resume and the
+        // manual "Try again" path.
+        const resumeBrief = buildResumeBrief();
         const room = await fetchJSON("/api/tavus/conversations", {
           method: "POST",
           body: JSON.stringify({
             focus: "conversation",
             topic: state.starter || "an open English conversation led by the learner",
             face_id: personalCoach.face_id || "",
-            pal_id: personalCoach.pal_id || ""
+            pal_id: personalCoach.pal_id || "",
+            resume_summary: resumeBrief
           })
         });
         createdConversationId = room.conversation_id;
@@ -3960,6 +4002,7 @@
         if (!connectionIsCurrent(generation, call)) throw Object.assign(new Error("Connection cancelled."), { cancelled: true });
 
         state.baseMode = "live";
+        state.autoResume.lastConnectedAt = Date.now();
         $("daily-stage").classList.remove("pending");
         $("coach-still").hidden = true;
         setCoachState("ready", microphoneUnavailable ? "Type or turn mic on" : "Your turn");
@@ -4030,20 +4073,56 @@
       return;
     }
     if (state.failureInProgress || state.ending) return;
+    // Captured before destroyCall resets it: a failure after the coach was
+    // live means an established session dropped (room duration cap, network,
+    // or provider shutdown) rather than a first connection that never worked.
+    const wasMidSession = state.remoteReady;
     state.failureInProgress = true;
+    let autoResume = false;
     try {
       const preserveLearningResult = normalizeLearningAfterDisconnect();
       const preserveSessionEvidence = learnerEvidenceTurns().length > 0;
       await destroyCall(true, { preserveWorkflow: preserveLearningResult || preserveSessionEvidence });
       if (preserveLearningResult) renderLearningMemory();
-      if (preserveSessionEvidence) {
-        refreshRecapEvidence();
-        if (!state.recap.generatedAt) await requestSessionSummary({ forEnd: false });
-        showTab("log");
+      autoResume = wasMidSession
+        && !state.ending
+        && !state.sessionComplete
+        && document.body.dataset.view === "conversation"
+        && registerDropForAutoResume(state.autoResume);
+      if (!autoResume) {
+        if (preserveSessionEvidence) {
+          refreshRecapEvidence();
+          if (!state.recap.generatedAt) await requestSessionSummary({ forEnd: false });
+          showTab("log");
+        }
+        showConnectionFailure(detail);
       }
-      showConnectionFailure(detail);
     } finally {
       state.failureInProgress = false;
+    }
+    if (autoResume) await resumeCoachAfterDrop();
+  }
+
+  // A mid-session room death is recovered in place: reconnect automatically
+  // with a continuation brief so the same session keeps going. If the coach
+  // cannot come back, finish honestly — end the session through the normal
+  // idempotent path so the learner lands on the full-screen review instead of
+  // being stranded on a dead conversation with an error card.
+  async function resumeCoachAfterDrop() {
+    $("connection-card").hidden = true;
+    setCoachStill("RECONNECTING", "YOUR COACH IS REJOINING — THE SESSION CONTINUES");
+    setCoachState("connecting", "Reconnecting…");
+    setCaption("coach", "One moment — the video room ended, so I'm rejoining. Your session and review are safe.");
+    const resumed = await Promise.resolve(connectCoach()).then(Boolean).catch(() => false);
+    if (resumed) return;
+    if (learnerEvidenceTurns().length > 0 && !state.sessionComplete && !state.finalizing && !state.endSessionPromise) {
+      const banner = $("session-ending-soon");
+      if (banner) {
+        banner.textContent = "Coach connection lost · preparing your session review";
+        banner.hidden = false;
+      }
+      setText("session-remaining", "Coach connection lost · review next");
+      await endSession();
     }
   }
 

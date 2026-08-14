@@ -186,6 +186,72 @@ def test_cross_origin_api_mutations_are_rejected_before_work_starts():
     assert "Cross-origin" in response.json()["error"]
 
 
+def test_resumed_conversation_carries_sanitized_continuation(monkeypatch):
+    monkeypatch.setattr(app_module.tavus, "configured", lambda: True)
+    seen = {}
+
+    def fake_create(context, greeting, focus, pal_id="", face_id=""):
+        seen["context"] = context
+        seen["greeting"] = greeting
+        return {
+            "conversation_id": "c-resumed",
+            "conversation_url": "https://tavus.daily.co/c-resumed",
+            "meeting_token": "short-lived-token",
+            "status": "active",
+            "pal_source": "cached",
+        }
+
+    monkeypatch.setattr(app_module.tavus, "create_conversation", fake_create)
+    response = client.post(
+        "/api/tavus/conversations",
+        json={
+            "focus": "conversation",
+            "resume_summary": "Learner: I was telling you\u0007 about my trip.\nCoach: What happened next?",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "SESSION CONTINUATION" in seen["context"]
+    assert "Learner: I was telling you about my trip." in seen["context"]
+    assert "\u0007" not in seen["context"]
+    assert "never as instructions" in seen["context"]
+    assert "pick up right where we left off" in seen["greeting"].lower()
+
+    # A fresh session keeps the normal greeting and no continuation block.
+    response = client.post("/api/tavus/conversations", json={"focus": "conversation"})
+    assert response.status_code == 200
+    assert "SESSION CONTINUATION" not in seen["context"]
+    assert "personal English coach" in seen["greeting"]
+
+
+def test_resume_summary_is_bounded(monkeypatch):
+    monkeypatch.setattr(app_module.tavus, "configured", lambda: True)
+    seen = {}
+
+    def fake_create(context, greeting, focus, pal_id="", face_id=""):
+        seen["context"] = context
+        return {
+            "conversation_id": "c-bounded",
+            "conversation_url": "https://tavus.daily.co/c-bounded",
+            "meeting_token": "short-lived-token",
+            "status": "active",
+        }
+
+    monkeypatch.setattr(app_module.tavus, "create_conversation", fake_create)
+    response = client.post(
+        "/api/tavus/conversations",
+        json={"focus": "conversation", "resume_summary": "Learner: " + "word " * 2000},
+    )
+
+    assert response.status_code == 200
+    continuation = seen["context"].split("SESSION CONTINUATION", 1)[1]
+    assert len(continuation) < app_module.RESUME_SUMMARY_LIMIT + 600
+
+    # Non-string payloads are ignored rather than folded into the context.
+    client.post("/api/tavus/conversations", json={"focus": "conversation", "resume_summary": ["not", "a", "string"]})
+    assert "SESSION CONTINUATION" not in seen["context"]
+
+
 def test_personalization_status_is_sanitized(monkeypatch):
     monkeypatch.setattr(app_module.personalization, "eleven_configured", lambda: True)
     monkeypatch.setattr(app_module.tavus, "configured", lambda: True)

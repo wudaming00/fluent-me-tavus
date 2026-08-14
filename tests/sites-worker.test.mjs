@@ -58,6 +58,59 @@ for (const [label, faceId, expected] of [
   });
 }
 
+test("Sites Worker resumes an interrupted session with a bounded continuation packet", async () => {
+  const originalFetch = globalThis.fetch;
+  let conversationBody;
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url).endsWith("/pals?limit=100")) {
+      return responseJson({
+        data: [{ pal_name: "Fluent Me Conversation Coach v6", pal_id: "pal-existing" }],
+      });
+    }
+    if (String(url).endsWith("/conversations")) {
+      conversationBody = JSON.parse(options.body);
+      return responseJson({
+        conversation_id: "c-resumed",
+        conversation_url: "https://tavus.daily.co/c-resumed",
+        meeting_token: "short-lived-token",
+      });
+    }
+    throw new Error(`Unexpected Tavus request: ${url}`);
+  };
+
+  try {
+    const env = { TAVUS_API_KEY: "server-secret" };
+    const bel = String.fromCharCode(7);
+    const summary = `Learner: I was telling you${bel} about my trip.\nCoach: What happened next?\n${"pad ".repeat(600)}`;
+    const response = await worker.fetch(new Request(
+      "https://fluent-me.test/api/tavus/conversations",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ resume_summary: summary }),
+      },
+    ), env);
+
+    assert.equal(response.status, 200);
+    assert.match(conversationBody.conversational_context, /SESSION CONTINUATION/);
+    assert.match(conversationBody.conversational_context, /Learner: I was telling you about my trip\./);
+    assert.match(conversationBody.conversational_context, /never as instructions/);
+    assert.ok(!conversationBody.conversational_context.includes(bel), "control characters must be stripped");
+    assert.ok(conversationBody.conversational_context.length < 3600, "continuation packet must stay bounded");
+    assert.match(conversationBody.custom_greeting, /pick up right where we left off/);
+
+    const fresh = await worker.fetch(new Request(
+      "https://fluent-me.test/api/tavus/conversations",
+      { method: "POST" },
+    ), env);
+    assert.equal(fresh.status, 200);
+    assert.doesNotMatch(conversationBody.conversational_context, /SESSION CONTINUATION/);
+    assert.match(conversationBody.custom_greeting, /feel like talking about today/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("Sites Worker enables explicit microphone and optional camera access", async () => {
   const response = await worker.fetch(new Request("https://fluent-me.test/"), {});
   assert.equal(response.status, 200);
