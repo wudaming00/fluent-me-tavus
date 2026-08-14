@@ -2,7 +2,7 @@
 
 **Subject:** Tavus Take-Home Submission — Fluent Me
 
-Hi Ashish and the Tavus team,
+Hi Katya and the Tavus team,
 
 Thank you for the opportunity. I’m sharing **Fluent Me**, a conversation-first
 English coach built with Tavus CVI. It helps a learner talk naturally with a
