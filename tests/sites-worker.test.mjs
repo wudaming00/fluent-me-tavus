@@ -78,6 +78,17 @@ test("Sites Worker serves the deterministic speaking-evidence module", async () 
   assert.match(javascript, /phonemes: false/);
 });
 
+test("Sites Worker constrains the live video row instead of letting the coach console stretch it", async () => {
+  const response = await worker.fetch(new Request("https://fluent-me.test/static/live.css"), {});
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/css/);
+  const css = await response.text();
+  assert.match(css, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
+  assert.match(css, /\.coach-console\s*\{[^}]*min-height:\s*0[^}]*overflow:\s*hidden/s);
+  assert.match(css, /\.daily-stage video\s*\{[^}]*object-fit:\s*contain[^}]*object-position:\s*50% 50%/s);
+  assert.match(css, /@media\s*\(max-width:\s*840px\)[\s\S]*?\.conversation-grid\s*\{[^}]*grid-template-rows:\s*auto auto/);
+});
+
 test("Sites Worker does not reuse the old scripted v3 PAL", async () => {
   const originalFetch = globalThis.fetch;
   let createdPal;
