@@ -26,6 +26,6 @@ Grammar and wording stay separate from pace and rhythm observations.
 A phrase worth keeping moves to spaced review, and missing evidence stays hidden rather than guessed.
 
 [00:01:18.000] 06  DOCUMENT THE BOUNDARIES
-History is opt-in and stored on this device.
-A session also survives its video room: after a provider time cap, the client reconnects and the coach continues the same conversation.
-The captured motion does not prove learner audio transport or remote-room cleanup.
+History is opt-in and stays on this device.
+And a session survives its room: after a provider time cap, the coach reconnects and continues the conversation.
+Captured motion alone does not prove audio transport or cleanup.

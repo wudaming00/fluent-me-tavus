@@ -137,9 +137,9 @@ $chapters = @(
     Seconds = 14.0
     Title = "06  DOCUMENT THE BOUNDARIES"
     Captions = @(
-      "History is opt-in and stored on this device.",
-      "A session also survives its video room: after a provider time cap, the client reconnects and the coach continues the same conversation.",
-      "The captured motion does not prove learner audio transport or remote-room cleanup."
+      "History is opt-in and stays on this device.",
+      "And a session survives its room: after a provider time cap, the coach reconnects and continues the conversation.",
+      "Captured motion alone does not prove audio transport or cleanup."
     )
   }
 )

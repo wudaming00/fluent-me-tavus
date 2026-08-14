@@ -11,7 +11,7 @@ This submission focuses on a simple product thesis: **the face is not decoration
 - Demo video: https://damingwu.com/fluent-me/fluent-me-demo.mp4
 - Public case study: https://damingwu.com/fluent-me/
 - Downloadable PDF: https://damingwu.com/fluent-me/fluent-me-case-study.pdf
-- API-powered product: controlled reviewer access is available on request
+- Live product: https://fluent-me.wudaming00.workers.dev — real Tavus rooms, limited concurrency
 - Source repository: https://github.com/wudaming00/fluent-me-tavus
 - Exact submitted product-code commit: [`80ca0beeffdf`](https://github.com/wudaming00/fluent-me-tavus/commit/80ca0beeffdfad7142653796c0a96b615ed8128e)
 - Build recorded in the walkthrough video: [`031fb20c4245`](https://github.com/wudaming00/fluent-me-tavus/commit/031fb20c4245e526f9f9f40401a74099036250af) — the submitted commit adds one product change on top of it: automatic in-place coach resume when a Tavus room hits a provider-side duration cap mid-session.

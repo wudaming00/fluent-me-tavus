@@ -4,7 +4,7 @@ Most language apps make learners complete exercises, but the difficult part is s
 
 ## Evaluator handoff
 
-- **Owner-only staging:** https://fluent-me-tavus.wudaming00.chatgpt.site — this Sites deployment currently requires owner authentication and is **not yet reviewer-accessible**.
+- **Live product:** https://fluent-me.wudaming00.workers.dev — public Cloudflare Workers deployment of the submitted build (real Tavus rooms; limited concurrency). An owner-only Sites staging also exists at https://fluent-me-tavus.wudaming00.chatgpt.site.
 - **Public case study:** https://damingwu.com/fluent-me/
 - **Narrated walkthrough:** https://damingwu.com/fluent-me/fluent-me-demo.mp4
 - **Downloadable PDF:** https://damingwu.com/fluent-me/fluent-me-case-study.pdf

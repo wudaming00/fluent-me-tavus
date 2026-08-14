@@ -19,10 +19,9 @@ Submission links:
   (the walkthrough video was recorded on
   https://github.com/wudaming00/fluent-me-tavus/commit/031fb20c4245e526f9f9f40401a74099036250af;
   the submitted commit adds automatic session resume described below)
-- **Reviewer product access:** Available on request. Reply here and I will share
-  controlled access to the exact submitted build; I have not exposed a public
-  room-creation link because each live Tavus session uses provider credits and
-  concurrency.
+- **Live product (try it):** https://fluent-me.wudaming00.workers.dev
+  Every session runs a real Tavus room, so concurrency is limited — if the
+  coach is busy, please try again in a minute.
 
 The materials cover the requested areas:
 
