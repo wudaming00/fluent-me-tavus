@@ -6,3 +6,7 @@ name = "fluent-me"
 main = "dist/server/index.js"
 compatibility_date = "2026-08-01"
 workers_dev = true
+
+[vars]
+# Pin the evidence-aware v6 conversation PAL; resource IDs are not secrets.
+TAVUS_CONVERSATION_PAL_V6_ID = "pc7ec6666826"
