@@ -50,6 +50,77 @@
     return false;
   }
 
+  const DEFAULT_INTERNAL_OUTBOUND_TTL_MS = 300_000;
+  const DEFAULT_INTERNAL_OUTBOUND_LIMIT = 12;
+  const INTERNAL_OUTBOUND_EDGE_TOKENS = 10;
+
+  function internalOutboundTokens(value) {
+    return normalizeInteractionUtterance(value)
+      .normalize("NFKC")
+      .toLocaleLowerCase("en-US")
+      .match(/[\p{L}\p{N}]+/gu) || [];
+  }
+
+  function prunePendingInternalOutbounds(queue, now = Date.now()) {
+    if (!Array.isArray(queue)) return [];
+    for (let index = queue.length - 1; index >= 0; index -= 1) {
+      if (Number(queue[index]?.expiresAt) <= now) queue.splice(index, 1);
+    }
+    return queue;
+  }
+
+  function enqueuePendingInternalOutbound(queue, text, {
+    id = "",
+    kind = "internal",
+    now = Date.now(),
+    ttlMs = DEFAULT_INTERNAL_OUTBOUND_TTL_MS,
+    limit = DEFAULT_INTERNAL_OUTBOUND_LIMIT,
+  } = {}) {
+    if (!Array.isArray(queue)) return null;
+    const normalizedText = normalizeInteractionUtterance(text);
+    const tokens = internalOutboundTokens(normalizedText);
+    if (!normalizedText || tokens.length < INTERNAL_OUTBOUND_EDGE_TOKENS * 2) return null;
+    prunePendingInternalOutbounds(queue, now);
+    const boundedLimit = Math.max(1, Math.floor(Number(limit) || DEFAULT_INTERNAL_OUTBOUND_LIMIT));
+    while (queue.length >= boundedLimit) queue.shift();
+    const record = {
+      id: String(id || `internal-${now}-${queue.length + 1}`),
+      kind: String(kind || "internal"),
+      text: normalizedText,
+      startAnchor: tokens.slice(0, INTERNAL_OUTBOUND_EDGE_TOKENS).join(" "),
+      endAnchor: tokens.slice(-INTERNAL_OUTBOUND_EDGE_TOKENS).join(" "),
+      expiresAt: now + Math.max(1_000, Number(ttlMs) || DEFAULT_INTERNAL_OUTBOUND_TTL_MS),
+    };
+    queue.push(record);
+    return record;
+  }
+
+  function internalOutboundEchoMatches(record, speech) {
+    if (!record) return false;
+    if (internalUtteranceMatches(record.text, speech)) return true;
+    const actual = internalOutboundTokens(speech).join(" ");
+    if (!actual || !record.startAnchor || !record.endAnchor) return false;
+    // Tavus may normalize or annotate the middle of a conversation.respond
+    // request before emitting its late user utterance. Correlate the stable
+    // leading and trailing anchors instead of requiring the full body to be
+    // byte-for-byte identical.
+    return actual.includes(record.startAnchor) && actual.includes(record.endAnchor);
+  }
+
+  function pendingInternalOutboundMatches(queue, speech, now = Date.now()) {
+    if (!Array.isArray(queue)) return false;
+    prunePendingInternalOutbounds(queue, now);
+    return queue.some(record => internalOutboundEchoMatches(record, speech));
+  }
+
+  function consumePendingInternalOutbound(queue, speech, now = Date.now()) {
+    if (!Array.isArray(queue)) return null;
+    prunePendingInternalOutbounds(queue, now);
+    const index = queue.findIndex(record => internalOutboundEchoMatches(record, speech));
+    if (index < 0) return null;
+    return queue.splice(index, 1)[0] || null;
+  }
+
   function isEvidenceEligibleTurn(turn) {
     return Boolean(turn)
       && turn.evidenceEligible !== false
@@ -397,6 +468,11 @@
     sessionHistoryCandidate,
     interactionTranscriptVisibility,
     shouldExcludeInteractionUtterance,
+    internalOutboundEchoMatches,
+    prunePendingInternalOutbounds,
+    enqueuePendingInternalOutbound,
+    pendingInternalOutboundMatches,
+    consumePendingInternalOutbound,
     isEvidenceEligibleTurn,
     evidenceConversationTurns,
     typedOutboundMatchKey,
@@ -458,6 +534,7 @@
     interaction: null,
     interactionSequence: 0,
     internalUtterances: new Map(),
+    pendingInternalOutbounds: [],
     pendingTypedOutbounds: [],
     recap: {
       data: null,
@@ -3009,6 +3086,7 @@
   function resetLiveWorkflow() {
     state.lastUserTurn = null;
     state.pendingTimingTurns = [];
+    state.pendingInternalOutbounds = [];
     state.pendingTypedOutbounds = [];
     state.speechStops.clear();
     state.keylessStops = [];
@@ -3237,6 +3315,7 @@
       const streamingRole = role === "user" ? "user" : "coach";
       if (speech
         && !isRememberedInternalUtterance(streamingRole, speech)
+        && !(streamingRole === "user" && pendingInternalOutboundMatches(state.pendingInternalOutbounds, speech))
         && !shouldExcludeInteractionUtterance(state.interaction, streamingRole, speech)) {
         setCaption(streamingRole, speech);
       }
@@ -3251,7 +3330,9 @@
 
     const safeRole = role === "user" ? "user" : "coach";
     if (safeRole === "user") {
-      if (isRememberedInternalUtterance(safeRole, speech)
+      const internalOutbound = consumePendingInternalOutbound(state.pendingInternalOutbounds, speech);
+      if (internalOutbound
+        || isRememberedInternalUtterance(safeRole, speech)
         || shouldExcludeInteractionUtterance(state.interaction, safeRole, speech)) {
         rememberInternalUtterance(safeRole, speech);
         return;
@@ -4032,7 +4113,14 @@
     const interaction = beginInteraction(kind, meta);
     if (!interaction) return false;
     interaction.requestText = normalizeInteractionUtterance(text);
-    if (interaction.transcriptVisibility === "internal") rememberInternalUtterance("user", text);
+    if (interaction.transcriptVisibility === "internal") {
+      rememberInternalUtterance("user", text);
+      const pendingInternal = enqueuePendingInternalOutbound(state.pendingInternalOutbounds, text, {
+        id: `interaction-${interaction.id}`,
+        kind: interaction.kind,
+      });
+      interaction.internalOutboundId = pendingInternal?.id || "";
+    }
     if (typedOutbound && interaction.transcriptVisibility === "conversation") {
       const pendingTyped = enqueuePendingTypedOutbound(state.pendingTypedOutbounds, text, {
         id: `interaction-${interaction.id}`,
