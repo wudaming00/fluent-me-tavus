@@ -11,7 +11,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <title>Fluent Me — your personal English coach</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b10'/%3E%3Cpath d='M8 17v-4m5 9V8m6 17V5m5 16V9' stroke='%239a8cff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/live.css?v=22">
+  <link rel="stylesheet" href="/static/live.css?v=25">
   <script src="/static/daily-0.91.0.js"></script>
 </head>
 <body data-view="welcome" data-coach-mode="checking">
@@ -24,7 +24,14 @@
       <div class="topbar-session" id="session-status" hidden>
         <span class="status-dot"></span>
         <b id="session-status-label">Connecting…</b>
-        <time id="session-timer">00:00</time>
+        <div class="topbar-clock" id="session-clock" data-duration-minutes="10" data-state="running">
+          <small id="session-time-label">10 min focus</small>
+          <span>
+            <time id="session-countdown" datetime="PT10M">10:00 left</time>
+            <time id="session-timer" aria-label="Elapsed session time">00:00 elapsed</time>
+          </span>
+        </div>
+        <span class="session-ending-soon" id="session-ending-soon" role="status" aria-live="polite" hidden>Ending soon · recap next</span>
       </div>
       <div class="topbar-actions">
         <button class="personalize-trigger" id="open-personalization" type="button" aria-label="Create your coach (optional)" aria-haspopup="dialog" aria-controls="personalization-dialog">
@@ -50,6 +57,41 @@
               <button type="button" data-starter="I want to practice a useful English phrase.">Practice a phrase</button>
               <button type="button" data-starter="Help me prepare and improve an answer.">Prepare an answer</button>
             </div>
+
+            <fieldset class="session-length-picker" id="session-length-picker" aria-describedby="session-length-help">
+              <legend>
+                <span>How long would you like to practice?</span>
+                <small>Your coach will close with a recap.</small>
+              </legend>
+              <div class="session-length-options">
+                <label for="session-length-5">
+                  <input id="session-length-5" name="session-length" type="radio" value="5" data-session-minutes="5">
+                  <span><b>5</b><small>MIN</small></span>
+                </label>
+                <label class="recommended" for="session-length-10">
+                  <input id="session-length-10" name="session-length" type="radio" value="10" data-session-minutes="10" checked>
+                  <span><b>10</b><small>MIN</small><em>Recommended</em></span>
+                </label>
+                <label for="session-length-15">
+                  <input id="session-length-15" name="session-length" type="radio" value="15" data-session-minutes="15">
+                  <span><b>15</b><small>MIN</small></span>
+                </label>
+                <label for="session-length-25">
+                  <input id="session-length-25" name="session-length" type="radio" value="25" data-session-minutes="25">
+                  <span><b>25</b><small>MIN</small></span>
+                </label>
+                <label class="open-ended" for="session-length-open">
+                  <input id="session-length-open" name="session-length" type="radio" value="open" data-session-minutes="0">
+                  <span><b>Open-ended</b><small>NO TIMER</small></span>
+                </label>
+              </div>
+              <p id="session-length-help">For timed sessions, you’ll get a gentle warning before your coach wraps up and builds the recap. You can still finish early.</p>
+            </fieldset>
+            <label class="history-opt-in" for="history-enabled">
+              <input id="history-enabled" name="history-enabled" type="checkbox">
+              <span aria-hidden="true"></span>
+              <span><b>Remember compact recaps on this device</b><small>Optional. A recap may keep one short quote and phrase; never the full transcript or media evidence.</small></span>
+            </label>
           </div>
 
           <div class="learning-lenses" aria-label="What your coach can help with">
@@ -61,6 +103,9 @@
 
           <button class="primary-button welcome-start" id="start-conversation" type="button">
             <span>Start video conversation</span><i aria-hidden="true">→</i>
+          </button>
+          <button class="welcome-history" id="open-progress-history" type="button">
+            <span><b>Review progress &amp; history</b><small>No video room or API credits used</small></span><i aria-hidden="true">→</i>
           </button>
           <p class="welcome-note">Your microphone starts when you enter. Camera sharing is optional and stays off.</p>
         </div>
@@ -84,7 +129,7 @@
         </aside>
       </section>
 
-      <section class="conversation" id="conversation" hidden aria-label="Live English conversation">
+      <section class="conversation" id="conversation" data-mode="live" hidden aria-label="Live English conversation">
         <div class="conversation-grid">
           <section class="coach-stage" aria-label="Live video coach">
             <div class="waiting-canvas coach-still" id="coach-still" aria-label="Waiting for your video coach">
@@ -157,8 +202,44 @@
                   <div class="sentence-waveform" id="sentence-waveform-wrap" data-state="waiting">
                     <canvas id="sentence-waveform" width="640" height="96" role="img" aria-label="Waveform for the latest completed speaking turn"></canvas>
                     <span id="sentence-waveform-empty">Waveform appears after a complete speaking turn.</span>
-                    <div class="sentence-chart-key" aria-hidden="true"><span><i></i>Waveform</span><span id="sentence-pitch-key"><i></i>Pitch movement</span></div>
+                    <div class="sentence-chart-key" aria-hidden="true"><span class="waveform-key"><i></i>Waveform</span><span class="pitch-key" id="sentence-pitch-key"><i></i>Pitch movement</span><span class="pause-key"><i></i>Estimated pause</span></div>
                   </div>
+
+                  <section class="sentence-chart-explainer" id="sentence-chart-explainer" aria-labelledby="sentence-chart-explainer-title">
+                    <div class="sentence-chart-explainer-heading">
+                      <span id="sentence-chart-explainer-title">HOW TO READ THIS CHART</span>
+                      <small>It describes your voice signal, not your English level.</small>
+                    </div>
+                    <dl class="sentence-chart-guide">
+                      <div>
+                        <dt><i class="chart-guide-mark waveform-mark" aria-hidden="true"></i>Waveform</dt>
+                        <dd>Your relative microphone signal in this turn. Taller means stronger than other moments in the same turn.</dd>
+                      </div>
+                      <div>
+                        <dt><i class="chart-guide-mark pitch-mark" aria-hidden="true"></i>Pitch line</dt>
+                        <dd>The orange line estimates your voice moving higher or lower within this turn.</dd>
+                      </div>
+                      <div>
+                        <dt><i class="chart-guide-mark gap-mark" aria-hidden="true"></i>Pitch gaps</dt>
+                        <dd>A gap means no confident periodic pitch was found. It is not an error and does not necessarily mean silence.</dd>
+                      </div>
+                      <div>
+                        <dt><i class="chart-guide-mark pause-mark" aria-hidden="true"></i>Blue pause band</dt>
+                        <dd>A shaded band marks an estimated internal pause of at least 280 ms. Quiet speech, breath, or noise can affect it.</dd>
+                      </div>
+                    </dl>
+                    <p class="sentence-chart-scale"><b>Read one turn at a time.</b> Each chart is scaled independently, so do not compare waveform height or pitch position across turns. Microphone gain and distance also change the waveform.</p>
+                    <p class="sentence-chart-boundary"><b>What it cannot tell:</b> this chart does not score pronunciation, accent, fluency, correct intonation, or emotion.</p>
+                  </section>
+
+                  <section class="sentence-chart-meaning" id="turn-chart-meaning" data-state="waiting" aria-labelledby="sentence-chart-meaning-title">
+                    <div>
+                      <span>WHAT THIS MEANS</span>
+                      <i id="sentence-chart-meaning-source">After your turn</i>
+                    </div>
+                    <p id="sentence-chart-meaning-title" role="status" aria-live="polite">Complete one speaking turn to get a plain-English observation.</p>
+                    <small id="sentence-chart-meaning-text">Fluent Me will translate the available signal into one cautious observation about this turn. It will not turn the picture into a language or emotion score.</small>
+                  </section>
 
                   <blockquote id="sentence-transcript" hidden>Your latest complete speaking turn will appear here.</blockquote>
 
@@ -211,7 +292,7 @@
               </div>
 
               <button class="request-summary" id="request-summary" type="button" disabled>
-                <span><b>Wrap up this session</b><small>Get one useful takeaway from what you actually said.</small></span><i aria-hidden="true">→</i>
+                <span><b>Create session recap</b><small>Get one useful takeaway. Your conversation stays open.</small></span><i aria-hidden="true">→</i>
               </button>
 
               <div class="media-card">
@@ -356,9 +437,192 @@
                 <button id="clear-log" type="button">Clear view</button>
               </div>
 
-              <section class="session-summary-card" id="session-summary-card" data-state="waiting" aria-live="polite">
-                <div><span>WRAP-UP</span><i>After your session</i></div>
-                <p id="session-summary-text">Keep talking. A short, evidence-based wrap-up will appear here when the session ends.</p>
+              <section class="session-summary-card" id="session-summary-card" data-state="waiting" aria-labelledby="session-recap-title">
+                <div class="session-recap-shell" id="recap-card" data-state="waiting">
+                  <header class="session-recap-heading">
+                    <div>
+                      <span>SESSION RECAP</span>
+                      <h3 id="session-recap-title">Leave with one thing to use next.</h3>
+                    </div>
+                    <i id="recap-status" role="status" aria-live="polite">Ready after a real turn</i>
+                  </header>
+
+                  <div class="session-recap-grid">
+                    <article class="session-recap-overview" id="recap-overview-section">
+                      <span>OVERVIEW</span>
+                      <p id="recap-overview">Keep talking. A short, evidence-based recap will appear here when you ask for it.</p>
+                      <p id="session-summary-text" hidden>Keep talking. A short, evidence-based recap will appear here when you ask for it.</p>
+                    </article>
+
+                    <article id="recap-worked-section">
+                      <span>WHAT WORKED</span>
+                      <p id="recap-worked">Your strongest moment will appear here.</p>
+                    </article>
+
+                    <article class="session-recap-focus" id="recap-focus-section">
+                      <span>ONE NEXT REP</span>
+                      <p id="recap-focus">One specific 30–60 second action for your next conversation will appear here.</p>
+                    </article>
+
+                    <article class="session-recap-phrase" id="recap-phrase-section">
+                      <span>PHRASE TO KEEP</span>
+                      <p id="recap-phrase">A useful phrase from this session will appear here when one is supported.</p>
+                    </article>
+
+                    <article class="session-recap-evidence" id="recap-evidence-section">
+                      <span>EVIDENCE</span>
+                      <p id="recap-evidence">The recap will cite the spoken turn or observable signal behind each suggestion.</p>
+                    </article>
+                  </div>
+
+                  <div class="session-recap-actions" aria-label="Session recap actions">
+                    <button class="session-recap-primary" id="recap-generate" type="button" disabled>Generate recap <span aria-hidden="true">→</span></button>
+                    <button id="recap-practice" type="button" disabled>Practice next</button>
+                    <button id="recap-copy" type="button" disabled>Copy recap</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="language-review-card" id="language-review-card" data-state="waiting" aria-labelledby="language-review-title">
+                <header class="language-review-heading">
+                  <div>
+                    <span>LANGUAGE REVIEW</span>
+                    <h3 id="language-review-title">Turn your conversation into better English.</h3>
+                    <p>Review what you actually said without ending the conversation.</p>
+                  </div>
+                  <i id="language-review-status" role="status" aria-live="polite">Ready after a learner turn</i>
+                </header>
+
+                <div class="language-review-body">
+                  <p class="language-review-coverage" id="language-review-coverage" aria-live="polite">Speak naturally first. The review will show which learner turns it covers.</p>
+
+                  <div class="language-review-grid">
+                    <article>
+                      <span>GRAMMAR</span>
+                      <p id="language-review-grammar">Clear grammar fixes will appear here only when they are useful.</p>
+                    </article>
+                    <article>
+                      <span>WORD CHOICE</span>
+                      <p id="language-review-word-choice">More precise or natural words from your transcript will appear here.</p>
+                    </article>
+                    <article>
+                      <span>NATURAL EXPRESSION</span>
+                      <p id="language-review-natural-expression">A natural alternative will appear here when it improves your meaning—never a forced idiom.</p>
+                    </article>
+                    <article class="language-review-polished">
+                      <span>POLISHED VERSION</span>
+                      <p id="language-review-polished">Your meaning, rewritten as clear natural English, will appear here.</p>
+                    </article>
+                  </div>
+
+                  <details class="language-review-transcript" id="language-review-transcript-details">
+                    <summary>Original learner transcript</summary>
+                    <p id="language-review-transcript">Your learner-only transcript will appear here after a review.</p>
+                  </details>
+                </div>
+
+                <div class="language-review-actions" aria-label="Language review actions">
+                  <button class="language-review-primary" id="language-review-generate" type="button" disabled>
+                    <span><b>Review my English</b><small>Conversation stays open</small></span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                  <button id="language-review-copy" type="button" disabled>Copy review</button>
+                </div>
+
+                <p class="language-review-privacy"><b>Before you review:</b> up to the latest 12 learner turns are sent to your live Tavus coach. The result and full learner transcript stay in this tab and are not added to Learning History. This reviews text—not accent, emotion, or speaking ability.</p>
+              </section>
+
+              <section class="progress-review-section" id="progress-review-section" data-state="empty" aria-labelledby="progress-review-title">
+                <header class="progress-review-heading">
+                  <div>
+                    <span>PROGRESS &amp; REVIEW</span>
+                    <h3 id="progress-review-title">Your practice is adding up.</h3>
+                    <p id="progress-review-source">Session totals use the latest 20 compact history entries; phrase review uses Learning Memory.</p>
+                  </div>
+                  <i id="progress-review-status" role="status" aria-live="polite">Ready when you finish a session or save a phrase</i>
+                </header>
+
+                <dl class="progress-review-metrics" aria-label="Evidence-based practice progress">
+                  <div><dt>SAVED SESSIONS</dt><dd><span id="progress-session-count">0</span><small>Latest 20 on device</small></dd></div>
+                  <div><dt>SPEAKING TIME</dt><dd><span id="progress-speaking-time">0m</span><small>Timed learner speech</small></dd></div>
+                  <div><dt>PRACTICE DAYS</dt><dd><span id="progress-practice-days">0</span><small>In the last 7 days</small></dd></div>
+                  <div><dt>SAVED PHRASES</dt><dd><span id="progress-saved-phrases">0</span><small>Chosen by you</small></dd></div>
+                </dl>
+
+                <article class="progress-encouragement" aria-labelledby="progress-encouragement-label">
+                  <span id="progress-encouragement-label">A WIN YOU EARNED</span>
+                  <p id="progress-encouragement">Finish one real speaking session or save a useful phrase. Fluent Me will reflect the action you actually completed—not invent a score.</p>
+                </article>
+
+                <section class="review-rhythm" aria-labelledby="review-rhythm-title">
+                  <header>
+                    <div><span>REVIEW RHYTHM</span><h4 id="review-rhythm-title">Bring a phrase back before it disappears.</h4></div>
+                    <b id="progress-due-count">Nothing due yet</b>
+                  </header>
+                  <ol class="review-rhythm-path" id="review-rhythm-path" aria-label="Fixed successful-recall schedule">
+                    <li data-review-step="0"><span>NOW</span><small>First recall</small><em data-review-role="status">Upcoming</em></li>
+                    <li data-review-step="1"><span>1 DAY</span><small>After success</small><em data-review-role="status">Upcoming</em></li>
+                    <li data-review-step="2"><span>3 DAYS</span><small>Next interval</small><em data-review-role="status">Upcoming</em></li>
+                    <li data-review-step="3"><span>7 DAYS</span><small>Strengthening</small><em data-review-role="status">Upcoming</em></li>
+                    <li data-review-step="4"><span>21 DAYS</span><small>Longer recall</small><em data-review-role="status">Upcoming</em></li>
+                    <li data-review-step="5"><span>60 DAYS</span><small>Maintenance</small><em data-review-role="status">Upcoming</em></li>
+                  </ol>
+                  <div class="review-rhythm-actions">
+                    <p id="progress-review-note">This is a transparent fixed review schedule, not a predicted personal memory curve. “Not quite” brings the phrase back in 10 minutes.</p>
+                    <button id="progress-review-start" type="button" disabled>Review a due phrase <span aria-hidden="true">→</span></button>
+                  </div>
+                </section>
+              </section>
+
+              <section class="learning-history-section" id="learning-history-section" data-state="opted-out" aria-labelledby="learning-history-title" tabindex="-1">
+                <header class="learning-history-heading">
+                  <div>
+                    <span>LEARNING HISTORY</span>
+                    <h3 id="learning-history-title">See what is changing over time.</h3>
+                    <p>Review the compact takeaway from each completed session.</p>
+                  </div>
+                  <div class="learning-history-heading-actions">
+                    <span id="learning-history-storage-state" role="status" aria-live="polite">History off</span>
+                    <small id="learning-history-count">0 sessions</small>
+                    <button id="clear-learning-history" type="button" disabled>Clear history</button>
+                  </div>
+                </header>
+
+                <div class="learning-history-list" id="learning-history-list" data-state="opted-out">
+                  <div class="learning-history-empty" id="learning-history-empty">
+                    <b>History is off for new sessions.</b>
+                    <span>Turn on “Remember compact recaps” before you start. You can still create and copy a recap without saving it.</span>
+                  </div>
+                </div>
+
+                <template id="learning-history-item-template">
+                  <article class="learning-history-item" data-history-id="" data-state="collapsed">
+                    <header>
+                      <div class="learning-history-session-label">
+                        <time data-history-role="date"></time>
+                        <span data-history-role="duration"></span>
+                      </div>
+                      <div class="learning-history-item-actions">
+                        <button type="button" data-history-action="review" aria-expanded="false">Review</button>
+                        <button type="button" data-history-action="delete">Delete</button>
+                      </div>
+                    </header>
+                    <h4 data-history-role="overview"></h4>
+                    <dl class="learning-history-metrics" aria-label="Compact session metrics">
+                      <div><dt>Turns</dt><dd data-history-role="turns">—</dd></div>
+                      <div><dt>Talk time</dt><dd data-history-role="talk-time">—</dd></div>
+                      <div><dt>Median pace</dt><dd data-history-role="pace">—</dd></div>
+                      <div><dt>Filled pauses</dt><dd data-history-role="fillers">—</dd></div>
+                    </dl>
+                    <section class="learning-history-review" data-history-role="review" hidden>
+                      <div><span>WHAT WORKED</span><p data-history-role="worked"></p></div>
+                      <div><span>ONE NEXT REP</span><p data-history-role="focus"></p></div>
+                      <div data-history-role="phrase-section"><span>PHRASE TO KEEP</span><p data-history-role="phrase"></p></div>
+                    </section>
+                  </article>
+                </template>
+
+                <p class="learning-history-privacy"><b>Stored only on this device:</b> compact recaps and session metrics. A recap may keep one short learner quote and a useful phrase; the full transcript, audio, video, waveform, pitch, and Raven observations are never saved here.</p>
               </section>
 
               <section class="learning-memory-section" id="learning-memory-section" data-state="empty" aria-labelledby="learning-memory-title">
@@ -697,6 +961,9 @@
   <script src="/static/speech-signal.js?v=1" defer></script>
   <script src="/static/analysis-core.js?v=1" defer></script>
   <script src="/static/learning-memory.js?v=2" defer></script>
-  <script src="/static/live.js?v=19" defer></script>
+  <script src="/static/session-history.js?v=1" defer></script>
+  <script src="/static/language-review.js?v=1" defer></script>
+  <script src="/static/progress-core.js?v=1" defer></script>
+  <script src="/static/live.js?v=22" defer></script>
 </body>
 </html>

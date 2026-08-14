@@ -7,6 +7,10 @@
     "test:analysis": "node --test tests/live-analysis.test.mjs",
     "test:signal": "node --test tests/speech-signal.test.mjs",
     "test:memory": "node --test tests/learning-memory.test.mjs",
-    "test": "npm run test:analysis && npm run test:signal && npm run test:memory && npm run test:worker"
+    "test:recap": "node --test tests/live-recap.test.mjs",
+    "test:history": "node --test tests/session-history.test.mjs",
+    "test:language-review": "node --test tests/language-review.test.mjs",
+    "test:progress": "node --test tests/progress-core.test.mjs",
+    "test": "npm run build && npm run test:analysis && npm run test:signal && npm run test:memory && npm run test:recap && npm run test:history && npm run test:language-review && npm run test:progress && npm run test:worker"
   }
 }

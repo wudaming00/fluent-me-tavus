@@ -18,7 +18,12 @@ Do not treat the staging URL as proof of a completed live test. Before submissio
 - **Voice Lab — exact phrase modeling:** the learner chooses a target and `conversation.echo` makes the Tavus Face speak that wording exactly. Whole phrase, Sounds, Stress & rhythm, and Intonation lenses provide teaching models without pretending transcript data is acoustic assessment.
 - **Voice Lab — two real attempts:** the product captures two subsequent learner `conversation.utterance` events, including each transcript, deterministic timing evidence, and any available Raven audio/visual analysis.
 - **Voice Lab — evidence-based comparison:** after both attempts exist, `conversation.respond` asks the PAL to identify one improvement, one next detail, and the strongest version using only the supplied evidence.
-- **Session — grounded wrap-up:** the product requests three parts from the conversation that actually happened: one thing communicated well, one useful natural phrase, and one specific thing to practice next.
+- **Session — actionable recap:** the learner can create a structured recap without ending the call, while **End session** creates it automatically. It separates **What worked**, a grounded **Phrase to keep**, one concrete **Next rep**, and a coverage-labelled evidence footer. If the coach response is unavailable, deterministic local evidence still produces a useful fallback.
+- **Session — language review:** on demand, the latest 12 learner turns become a bounded learner-only review of **Grammar**, **Word choice**, **Natural expression**, and a meaning-preserving **Polished version**. If it is missing or stale, ending the session refreshes it before the room closes. This action sends that bounded snapshot to the live Tavus coach; the result stays in the current tab. It does not force an idiom where plain English is better and does not turn transcript edits into an accent or speaking-ability score.
+- **Timed practice:** before entering, the learner can choose 5, 10, 15, or 25 minutes, or an open-ended session. Timed sessions start only when the coach is actually ready, warn once in the final minute, then create the recap and explicitly end the Tavus conversation.
+- **Optional Learning History:** with a separate opt-in, finalized sessions can leave a compact on-device recap for later review. History is limited to 20 entries and stores recap text plus small aggregate counts—never the full transcript, audio, video, waveform, pitch contour, or Raven observations. **Review progress & history** opens these local records from the welcome screen without creating a Tavus room or spending conversation credits.
+- **Progress & Review:** the latest 20 compact-history sessions and learner-approved phrase cards become an honest practice snapshot: saved sessions, timed speaking, recent practice days, saved/due phrases, and the fixed 1/3/7/21/60-day recall path. Encouragement cites real actions; there is no fabricated improvement percentage, ability grade, or punitive streak.
+- **Turn Studio — readable voice evidence:** waveform height means relative microphone signal only within that turn; the orange line is an auto-scaled pitch estimate and its gaps are not automatically pauses or errors. A plain-English observation explains the current chart and explicitly avoids pronunciation, accent, fluency, intonation-correctness, or emotion scores.
 - **Optional identity setup:** **Create your coach** separates a roughly 60-second face-training recording from a 60–90-second clean voice sample, then combines a Tavus Phoenix-4 Face and an ElevenLabs Instant Voice Clone in a personal PAL.
 - **Experimental Future Me:** an owned voice clone can generate reversible Subtle and Balanced target-accent previews. The learner listens before saving; the chosen preview becomes a new voice and the original clone is never edited.
 
@@ -35,7 +40,7 @@ Personalization is an opt-in setup path, not a prerequisite for talking to the s
 5. Personalization is progressive: a ready Face can use the stock Tavus voice, a ready ElevenLabs voice can use the stock male Face, and when both IDs are ready the server creates a full personal PAL using the Phoenix Face, private voice, Raven-1, and Sparrow-1.
 6. After a voice clone exists, **Future Me** can preview General American or General British variants at two strengths. Previewing uses ElevenLabs credits. Saving requires a short-lived server-signed preview handle, creates a separate voice ID, and then creates a new Tavus PAL for the selected voice. The stock coach and original clone remain available if any step fails.
 
-The personalization flow stores only provider IDs plus small selection metadata (`face_id`, active/original/Future-Me `voice_id` values, `pal_id`, target accent, and remix strength) in `localStorage`. Separately, Learning Memory can store an explicitly approved phrase and its compact review metadata. Fluent Me does not put raw audio, raw video, API keys, preview audio, signed preview handles, transcripts, waveform data, or biometric media in browser storage, and it does not add a server-side media archive. Submitting a sample or starting a saved-phrase recall still sends the required data to ElevenLabs or Tavus for processing under that provider's retention terms.
+The personalization flow stores only provider IDs plus small selection metadata (`face_id`, active/original/Future-Me `voice_id` values, `pal_id`, target accent, and remix strength) in `localStorage`. Separately, Learning Memory can store an explicitly approved phrase and its compact review metadata. If the learner explicitly enables Learning History, the browser can also retain up to 20 compact finalized-session recaps and aggregate counts. Fluent Me does not put raw audio, raw video, API keys, preview audio, signed preview handles, full transcripts, waveform data, pitch contours, Raven observations, or biometric media in browser storage, and it does not add a server-side media archive. Submitting a sample, requesting a language review, or starting a saved-phrase recall still sends the required data to ElevenLabs or Tavus for processing under that provider's retention terms.
 
 The private hosted environment has been verified with configured Tavus and ElevenLabs credentials. Actual IVC, Voice Remixing, and Face availability still depends on provider account scope, credits, voice eligibility, and training status. The site has no built-in browser-video-to-public-URL upload service. Face training is asynchronous and typically takes roughly **3–4 hours**, so a newly recorded Face will not become available during a short demo.
 
@@ -54,7 +59,11 @@ Browser: custom Fluent Me UI — Coach / Voice Lab / Session
   ├─ Practice ── conversation.echo(target)                        │
   │              ◀ two learner utterances + available signals    │
   │              conversation.respond(evidence) → comparison      │
-  └─ Session ─── conversation.respond(session evidence) → wrap-up │
+  └─ Session ─── conversation.respond(session evidence) → recap   │
+      ├─ review ─ conversation.respond(latest learner turns)       │
+      │            → grammar / wording / naturalness / polish      │
+      ├─ timer ─── 60s warning → recap → explicit room end         │
+      └─ optional compact on-device history + Practice next        │
                                                                   ▼
 Sites Worker or FastAPI ── server-side x-api-key ──▶ Tavus CVI private room
                                                         │
@@ -82,7 +91,7 @@ The browser receives only the private room URL and short-lived meeting token. Th
 | Raven-1 | Adds real-time audio and optional visual context with `emotion_recognition: limited`. |
 | Sparrow-1 | Handles turn boundaries, pauses, and interruption. |
 | PAL | Defines the conversation-first coaching behavior and safety boundaries. |
-| `conversation.respond` | Sends typed turns and coaching requests, compares two supplied attempts, and requests the grounded three-part wrap-up through the PAL's LLM. |
+| `conversation.respond` | Sends typed turns and coaching requests, compares two supplied attempts, and requests three speakable recap sections through the PAL's LLM; the UI adds its deterministic evidence overview. |
 | `conversation.echo` | Speaks the selected Practice target exactly; it is deliberately not used for normal answers or comparison. |
 | `conversation.utterance` | Builds the visible transcript and supplies the two real Practice attempts plus optional `user_audio_analysis` / `user_visual_analysis`. |
 
@@ -121,7 +130,7 @@ TAVUS_CONVERSATION_PAL_V6_ID=...
 TAVUS_FACE_ID=
 ```
 
-If `TAVUS_CONVERSATION_PAL_V6_ID` is empty, the app creates or reuses **Fluent Me Conversation Coach v6**. The local FastAPI path keeps this generation in `data/tavus_pal_v6.json`, separate from older PAL caches. Never point the v6 override at an earlier scripted PAL: v6 contains the source-labelled timing contract, explicit acoustic-evidence boundary, two-attempt comparison, and three-part wrap-up behavior. For Sites, set credentials as secret runtime environment variables; never put them in browser code or commit them.
+If `TAVUS_CONVERSATION_PAL_V6_ID` is empty, the app creates or reuses **Fluent Me Conversation Coach v6**. The local FastAPI path keeps this generation in `data/tavus_pal_v6.json`, separate from older PAL caches. Never point the v6 override at an earlier scripted PAL: v6 contains the source-labelled timing contract, explicit acoustic-evidence boundary, two-attempt comparison, and three-part spoken recap behavior. Fluent Me parses those speakable labels into the structured Session card and keeps the measured overview separate. For Sites, set credentials as secret runtime environment variables; never put them in browser code or commit them.
 
 ### Checks
 
@@ -141,11 +150,14 @@ These tests validate application and Worker behavior with mocks. They do **not**
 - The face recording cannot be handed directly from browser memory to Tavus in the current build. Face training requires a user-owned public or signed HTTPS video URL valid for at least 24 hours, or completion through PAL Maker. Managing and deleting that externally hosted training file remains the learner's responsibility.
 - ElevenLabs IVC and Tavus Phoenix-4 process submitted biometric media under their own policies. Face training can take approximately 3–4 hours. Neither successful mocked tests nor the presence of the setup UI proves that this provider workflow has completed end to end.
 - The private-voice PAL configuration sends Tavus a dedicated ElevenLabs integration API key so Tavus can synthesize the voice. Use a narrowly scoped key created for this integration and rotate it independently.
-- The visible Session view, Practice attempts, comparison, and wrap-up exist only in the current browser tab. Clearing the view removes local state, not any data retained by Tavus or Daily.
+- The visible Session view, Practice attempts, comparison, Turn Studio charts, full learner transcript, and Language Review exist only in the current browser tab. A recap or Language Review is marked stale when the learner speaks again and can be refreshed. Clearing the view invalidates them locally; it does not remove any data retained by Tavus or Daily.
 - The implemented [Learning Memory](docs/LANGUAGE-COACH-REALIZATION.md#learning-memory-mvp-contract) saves a phrase only when the learner chooses **Save for later** after a real transfer check. It uses `localStorage` with a current-tab fallback, supports inspection and individual **Forget**, hides due targets in the UI while instructing the coach not to reveal them, and lets the learner confirm **I used it** or **Not quite**. Reviews use fixed 1/3/7/21/60-day intervals as a transparent MVP product default—not a scientifically optimized or personalized schedule; **Not quite** retries in 10 minutes, while **Show & practise** or revealing a phrase does not advance review or prove mastery. It does not persist transcripts, audio, waveform, pitch, or episode history, and this MVP has no global memory toggle, Clear all, export, or editing.
+- Learning History is distinct from Learning Memory and is off by default. Enabling it before a session permits only that future finalized session to add a compact recap/aggregate record; turning it off does not silently delete older records. A compact recap may retain one grounded short learner quote and one useful phrase, while full transcripts and acoustic/visual evidence are never added to history. The learner can inspect, delete one, or clear all on this device.
+- Progress & Review derives only from Learning History and Learning Memory. Its visible review rhythm is a transparent fixed product rule—not a measured personal forgetting curve—and a **Not quite** result returns the phrase in about 10 minutes.
+- A timed session begins only once the remote coach media is ready. Its final-minute warning is informational; at zero the app uses the same idempotent recap-and-end path as **End session**, including Tavus's explicit conversation-end request. This limits abandoned usage but does not replace provider-side absent/left/max-duration safeguards.
 - Raven uses `emotion_recognition: limited` because this is an education product. Feedback is framed as an uncertain observation of available delivery cues, never a fact about emotion, ability, personality, mental health, protected traits, or hiring suitability.
 - Before/after comparison is evidence-based: it uses two real Tavus utterance transcripts and any audio/visual analyses actually attached to those turns. It is still an LLM coaching comparison—not a validated pronunciation score, biometric emotion score, certified assessment, or automated learning-outcome claim.
-- The three-part Session wrap-up is generated from the current conversation evidence. It is not a durable learner record or independent assessment.
+- The structured Session recap is generated from the current conversation evidence and uses a bounded local fallback when a coach recap is unavailable. Its metrics disclose how many spoken turns were timed; it is not a durable learner record or independent assessment.
 - A live conversation consumes Tavus credits and a concurrency slot. The hosted endpoint should not be made unrestrictedly public without an access or spend control.
 - The API credential previously used during development must be rotated before evaluator access, even though it is not present in the tracked source.
 
@@ -154,6 +166,8 @@ These tests validate application and Worker behavior with mocks. They do **not**
 - [server/pages/live.html](server/pages/live.html) — evaluator-visible conversation UI.
 - [server/static/live.js](server/static/live.js) — Daily media lifecycle and Tavus interaction events.
 - [server/static/analysis-core.js](server/static/analysis-core.js) — deterministic turn, attempt, and session evidence without a fake overall score.
+- [server/static/language-review.js](server/static/language-review.js) — bounded learner-transcript review prompt, strict response parsing, and privacy-labelled copy output.
+- [server/static/session-history.js](server/static/session-history.js) — opt-in, whitelisted compact session-history storage.
 - [server/static/live.css](server/static/live.css) — responsive product styling.
 - [server/tavus.py](server/tavus.py) — FastAPI-side PAL and conversation integration.
 - [server/personalization.py](server/personalization.py) — server-only ElevenLabs IVC/Voice Remixing, signed preview validation, Phoenix-4 Face, status, and personal PAL helpers.

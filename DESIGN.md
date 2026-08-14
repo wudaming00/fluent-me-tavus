@@ -5,13 +5,14 @@
 Fluent Me should feel like talking to a responsive person, with English coaching available whenever the learner asks for it. It is one continuous conversation, not a state machine dressed up as video.
 
 ```text
-Choose a topic → video conversation ────────────→ keep talking
+Choose a topic + session length → video conversation ─────→ keep talking
                          │
                          ├─ ask for English feedback
                          ├─ ask about delivery signals
                          ├─ request a natural recast
                          ├─ practice one exact phrase twice and compare
-                         └─ request a grounded session reflection
+                         ├─ request a bounded transcript Language Review
+                         └─ request or automatically reach a grounded recap
 ```
 
 ## Screen contract
@@ -35,7 +36,8 @@ Choose a topic → video conversation ────────────→ ke
 | How did I come across? | Cite only labelled transcript, timing, or Raven cues; preserve uncertainty and ask whether the impression matches. |
 | Voice Lab | Model an exact phrase and capture two learner attempts using a chosen Whole phrase, Sounds, Stress & rhythm, or Intonation lens. |
 | Compare attempts | Use only the two captured transcripts and available delivery analyses; name one improvement and one next detail. |
-| Wrap up | Return one communication win, one useful phrase, and one next practice grounded in this session. |
+| Create recap | Return one evidence-grounded communication win, one phrase actually present in the session when available, and one concrete 30–60 second next rep. Mid-session recap keeps the call open; ending creates it automatically. |
+| Review my English | Review only the latest bounded learner transcript for grammar, word choice, and natural expression, then produce a meaning-preserving polished version. Prefer plain natural English to a forced idiom and do not infer accent, pronunciation, emotion, or ability from text. |
 
 These are callable abilities, not locked modes. Direct spoken questions must behave the same as buttons.
 
@@ -92,10 +94,22 @@ Raven is configured with `emotion_recognition: limited` for an education product
 
 The browser correlates `conversation.stopped_speaking` with final `conversation.utterance` events by `inference_id` or `turn_idx`. It may deterministically show whole-turn duration, WPM for sufficiently long samples, high-confidence filled pauses, adjacent repeated words, interruptions, ordered target-phrase transcript coverage, and personal session aggregates. It cannot derive within-turn pause location, phoneme accuracy, syllable stress, or pitch contour from these events. Those acoustic fields remain unavailable until an explicitly consented specialist pronunciation provider returns them. Transcript coverage is never labelled pronunciation accuracy.
 
+When transient browser microphone samples are available, Turn Studio may also draw a relative waveform, estimated pause regions, and a descriptive pitch contour. Each chart is normalized independently: its height is meaningful only within that one turn, pitch gaps can be unvoiced or low-confidence frames, and microphone gain or distance changes the waveform. The chart therefore never becomes a pronunciation, accent, fluency, intonation-correctness, or emotion score. A plain-English interpretation states this boundary next to the visual.
+
+The Session recap is deliberately smaller than the full evidence log. It contains **What worked**, an actually grounded **Phrase to keep** when one exists, and one actionable **Next rep**, followed by a neutral evidence-coverage line. Creating it mid-session does not end the call; new speech marks it stale and enables refresh. Ending the session requests the same recap automatically, while a bounded deterministic fallback prevents an empty result if the PAL response times out. **Practice next** carries the recap target into Voice Lab but does not silently save it to Learning Memory.
+
+Before a call, the learner chooses 5, 10, 15, or 25 minutes, or **Open-ended**. A timed session starts only after remote coach media is ready, gives one gentle 60-second warning, then uses the same idempotent recap-and-end path as the explicit **End session** action. The timer is a study boundary and spend guardrail, not a performance target.
+
+**Language Review** is a separate Session artifact. It includes only the latest 12 non-empty learner turns, displays exact coverage, and separates Grammar, Word choice, Natural expression, and a fact-preserving Polished version. Requesting it sends that bounded learner-turn snapshot to the live Tavus coach; the result and full learner transcript stay in the current tab and are never copied into Learning History. New learner speech marks an existing review stale, and End refreshes a missing or stale review before closing the room instead of leaving a post-session action that cannot run.
+
 ## Logging and privacy
 
-The `Session` view reconstructs turns from live `conversation.utterance` events and de-duplicates replica/PAL aliases by inference and content. Optional `user_audio_analysis` and `user_visual_analysis` appear as expandable observable signals when Tavus provides them. The `Voice Lab` view holds the current target, two captured attempts, deterministic transcript/timing evidence, and the coach's grounded comparison in the current browser tab.
+The `Session` view reconstructs turns from live `conversation.utterance` events and de-duplicates replica/PAL aliases by inference and content. Optional `user_audio_analysis` and `user_visual_analysis` appear as expandable observable signals when Tavus provides them. The `Voice Lab` view holds the current target, two captured attempts, deterministic transcript/timing evidence, and the coach's grounded comparison in the current browser tab. The full Language Review and its learner transcript are also current-tab artifacts.
 
-The hosted Worker records room creation/end lifecycle events but does not create an extra server-side speech log. Fluent Me does not save raw audio or video. The implemented Learning Memory follows [the Learning Memory MVP contract](docs/LANGUAGE-COACH-REALIZATION.md#learning-memory-mvp-contract): only an explicit per-target **Save for later** after a real transfer check creates a record. The approved phrase and fixed review metadata live in `localStorage`, with an honest current-tab fallback when browser storage is unavailable; transcripts, audio, waveform, pitch, and episode history are not persisted. For a due target, the client hides the phrase and instructs Tavus not to reveal it while asking a natural recall question. Only the learner's **I used it** confirmation advances the fixed 1/3/7/21/60-day MVP schedule—an explicit product default, not a scientifically optimized or personalized interval; **Not quite** retries in 10 minutes. **Show & practise** and other reveal/rehearsal actions do not advance review or prove mastery. The Session view supports inspection and per-item **Forget**; there is no global toggle, Clear all, export, editing, or server-side learning-history store in this MVP.
+The hosted Worker records room creation/end lifecycle events but does not create an extra server-side speech log. Fluent Me does not save raw audio or video. The implemented Learning Memory follows [the Learning Memory MVP contract](docs/LANGUAGE-COACH-REALIZATION.md#learning-memory-mvp-contract): only an explicit per-target **Save for later** after a real transfer check creates a record. The approved phrase and fixed review metadata live in `localStorage`, with an honest current-tab fallback when browser storage is unavailable; transcripts, audio, waveform, pitch, and episode history are not persisted. For a due target, the client hides the phrase and instructs Tavus not to reveal it while asking a natural recall question. Only the learner's **I used it** confirmation advances the fixed 1/3/7/21/60-day MVP schedule—an explicit product default, not a scientifically optimized or personalized interval; **Not quite** retries in 10 minutes. **Show & practise** and other reveal/rehearsal actions do not advance review or prove mastery. The Session view supports inspection and per-item **Forget**; there is no global Learning Memory toggle, Clear all, export, or editing in this MVP.
+
+Learning History is a distinct, explicit opt-in. It stores at most 20 finalized-session snapshots on this device: bounded recap fields, completion time, session duration, learner/spoken turn counts, known timed speech, and small transcript-derived aggregates. A compact recap may retain one grounded short learner quote and useful phrase, but it never stores the full transcript, audio, video, waveform, pitch contour, Raven observations, or provider credentials. Switching new history saves off leaves existing entries visible; learners can inspect them from the welcome screen without creating a Tavus room, delete one, or clear all. History failure falls back honestly to the current tab and clears stale durable snapshots when possible.
+
+Progress & Review summarizes only those two learner-controlled stores: the latest 20 compact-history sessions and Learning Memory cards. Positive feedback cites actual retained behavior such as saved sessions, timed speaking, practice days, saved phrases, and learner-confirmed recall. It never manufactures a lifetime total, percent-improved score, population comparison, ability grade, or punitive streak. The visible review rhythm is the fixed 1/3/7/21/60-day rule, not a fitted personal forgetting curve.
 
 For **Create your coach**, raw capture lives in transient browser memory until the learner discards it or explicitly submits it. The ElevenLabs voice request passes through the server in memory; Fluent Me does not create a media archive. Face video remains in the learner's chosen external storage or PAL Maker workflow. Only `face_id`, `voice_id`, and `pal_id` are written to `localStorage`—never media blobs, base64 recordings, transcripts, consent recordings, or API credentials. Clearing those IDs disconnects the personal coach locally; it does not itself delete provider-side Face, voice, PAL, or training data.

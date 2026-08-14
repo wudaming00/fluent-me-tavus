@@ -137,12 +137,27 @@ Two-attempt comparison shows only supported changes: timing, transcript coverage
 
 The recap is a learning artifact, not an analytics dump:
 
-- communication win;
-- active target;
-- before/after phrase;
-- saved useful phrases;
-- speaking turns, average pace, fillers, and practice attempts;
-- next review suggestion and one prompt for transfer.
+- **What worked:** one cautious coach reflection grounded in an actual learner turn or labelled evidence;
+- **Phrase to keep:** an exact phrase from the conversation or Voice Lab, omitted when no phrase can be grounded;
+- **One next rep:** one concrete 30–60 second action that can be opened directly in Voice Lab;
+- **Evidence:** coverage such as timed seconds across spoken turns, plus clearly labelled transcript counts rather than an overall score.
+
+The learner can create this recap while the conversation remains open. A later learner turn marks it stale and offers **Refresh**; ending the session requests and opens the same recap automatically. If the coach response is unavailable, deterministic in-tab evidence supplies a bounded fallback rather than a blank card. Copying the recap includes evidence labels and a current-tab privacy note. Only a later explicit **Save for later** action may persist a practice phrase.
+
+The Session tab also provides a **Language Review** of the latest 12 learner turns. It separates Grammar, Word choice, Natural expression, and a meaning-preserving Polished version; a section may explicitly report no high-value change. Plain natural English is preferred to a forced idiom. Requesting it sends the bounded snapshot to the live Tavus coach; the UI displays exact turn coverage, keeps the result and learner-only transcript in the current tab, and never treats textual editing as evidence about accent, pronunciation, intonation, emotion, or speaking ability. A new learner turn marks the result stale, and End refreshes a missing or stale review before closing the room.
+
+Before starting, the learner chooses a 5, 10, 15, or 25 minute session, or **Open-ended**. The clock begins only after the remote coach is ready. A timed session gives one 60-second warning, then runs the same recap and explicit Tavus conversation-end cleanup as the manual **End session** action. Manual and automatic endings share one idempotent path so they cannot create duplicate recaps or cleanup calls.
+
+With an explicit **Remember compact recaps** opt-in selected before the session starts, that finalized session can add one bounded entry to Learning History. The device retains at most 20 entries containing recap fields, completion/session duration, turn counts, known timed speech, and small aggregate transcript metrics. A compact recap may retain one grounded short learner quote and one useful phrase, but it never stores the full transcript, raw audio/video, waveform, pitch contour, Raven observations, or provider secrets. Turning new saves off preserves existing records; the learner may delete one or clear all.
+
+**Progress & Review** summarizes only these learner-controlled records. From the welcome screen it can open without creating a Tavus room and show the latest 20 saved sessions, retained timed learner speech, practice days in the last seven days, saved/due phrases, and where cards sit on the fixed 1/3/7/21/60-day recall path. Encouragement must cite actual retained actions—such as a saved finalized session or confirmed independent recall—and must not invent a lifetime total, percent improvement, ability grade, population comparison, or punitive streak. The visible schedule is a transparent product rule, not a personalized memory or forgetting curve.
+
+### Reading Turn Studio
+
+- The waveform is relative microphone signal within one turn. Taller areas are stronger than other moments in that same turn, not proof that the learner spoke objectively louder.
+- The orange line is estimated pitch moving higher or lower inside that turn. Gaps mean no confident periodic pitch was found; they do not by themselves mean silence or an error.
+- Every turn is auto-scaled independently, so waveform height and pitch position must not be compared between turns.
+- Microphone gain and distance affect the picture. The browser visual cannot score pronunciation, accent, fluency, correct intonation, or emotion.
 
 ## Metric definitions
 
@@ -168,6 +183,9 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 5. Raven audio/visual output is passed through as tentative evidence, not converted into numeric certainty.
 6. A provider adapter can later add phoneme/syllable/prosody results without changing the UI contract. Unsupported or missing fields remain absent rather than being estimated.
 7. The Learning Memory adapter stores learner-approved items in `localStorage` with a tab-only fallback, reads due items locally, injects the minimum due-item context into the active conversation, and advances scheduling only from learner-confirmed outcomes. It does not persist transcripts or acoustic evidence.
+8. The Language Review adapter selects and bounds only learner turns, encloses them as untrusted data, requests four speakable labelled sections, validates ordering/content/factual preservation, and falls back to the original learner text when a safe rewrite cannot be verified.
+9. The timed-session controller starts with remote readiness, pauses across disconnects, warns once, and funnels auto-end and manual end into the existing recap plus explicit remote cleanup lifecycle.
+10. The optional Learning History adapter accepts only a finalized-session whitelist; Progress & Review derives supportive facts from this compact history and Learning Memory without introducing a server-side learner profile.
 
 ## Safety, honesty, and learner trust
 
@@ -178,6 +196,9 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 - Explain microphone/camera use before starting and keep visible device controls during the call.
 - Do not persist transcript, audio, video, waveform, or pitch data in Learning Memory. Persist only an explicitly approved model phrase/pattern and compact scheduling metadata on device.
 - Let learners inspect each saved phrase and remove it with **Forget**. Editing, bulk deletion, export, and episode memory are outside the implemented MVP.
+- Keep Language Review and its full learner transcript in the current tab; do not add them to compact Learning History.
+- Make Learning History opt-in, bounded, inspectable, individually deletable, and clearable. Disabling future saves must not silently delete an older record.
+- Treat progress as evidence of practice behavior and learner-confirmed retrieval, not proof that overall English ability improved.
 - When confidence is low or signals disagree, say so and ask the learner to repeat instead of fabricating feedback.
 
 ## Delivery scope
@@ -192,6 +213,18 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 - One-fix → model → retry → transfer loop.
 - Voice Lab that teaches syllables, stress, rhythm, and intonation without claiming acoustic scoring.
 - Session recap and the bounded Learning Memory implementation described above.
+- Selectable timed sessions with a final-minute warning and automatic recap/end.
+- On-demand, current-tab Language Review for the latest bounded learner turns.
+- Optional compact Learning History and an evidence-based Progress & Review summary.
+
+### MVP: timed sessions, review, and history
+
+- 5, 10, 15, and 25 minute choices plus Open-ended; the clock starts only after the coach is ready.
+- One final-minute warning and one idempotent recap/end path shared with manual End.
+- Latest 12 learner turns only for Language Review, with exact coverage and strict fact-preserving fallback.
+- Explicit Learning History opt-in, maximum 20 finalized compact entries, individual delete and Clear history.
+- Practice totals and positive feedback grounded in retained session/memory actions, with no fake improvement percentage or punitive streak.
+- A visible fixed recall rhythm that explains 1/3/7/21/60 days and a 10-minute **Not quite** retry without calling it a measured personal memory curve.
 
 ### MVP: on-device Learning Memory
 
@@ -209,7 +242,7 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 - Phoneme and syllable alignment, word accuracy, completeness, stress, and prosody where supported.
 - Robust word timestamps for pause location, pause ratio, and articulation rate.
 - Personalized baselines by task type, not a population-wide pace target.
-- Validated adaptive scheduling and cross-session progress views, only after the fixed-schedule MVP has been evaluated.
+- Validated adaptive scheduling and richer longitudinal skill trends, only after the fixed-schedule and compact-history MVPs have been evaluated.
 - User-created face/voice replica onboarding with explicit consent and status visibility.
 
 ## Product acceptance criteria
@@ -217,3 +250,5 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 The realization is successful when a first-time learner can start talking without learning the interface; always see and hear the coach; ask a free-form coaching question; understand what evidence produced each insight; improve one phrase; use it in a new sentence; and leave with one memorable next action. No visible score or claim may imply phoneme, syllable, stress, emotion, or prosody precision that the connected evidence source cannot support.
 
 Learning Memory acceptance additionally requires that no item persists before its post-transfer **Save for later** action; durable storage contains only the approved learning item and fixed scheduling metadata; storage failure falls back honestly to the current tab; for a due item, the client hides the target and instructs the coach not to reveal it before the learner answers; **Show & practise** and other rehearsal do not advance review; only **I used it** advances the 1/3/7/21/60-day schedule; **Not quite** schedules a 10-minute retry; and every saved item has an individual **Forget** action. The UI must not imply that global enable/disable, Clear all, export, editing, or episode memory exists.
+
+Timed/history/review acceptance additionally requires that the selected timer starts only after remote readiness; a zero clock follows the same single recap/end lifecycle as manual End; Language Review discloses bounded coverage and never persists its transcript; only an opted-in, genuinely finalized session creates one history entry; history contains no raw transcript or media evidence; every retained session can be reviewed/deleted and all history can be cleared; and every positive progress statement is mechanically supported by stored session or learner-confirmed recall facts.

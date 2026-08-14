@@ -20,12 +20,17 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert "YOUR PERSONAL ENGLISH COACH" in response.text
     assert "Practice the English" in response.text
     assert "Start video conversation" in response.text
+    assert "Review progress &amp; history" in response.text
+    assert "No video room or API credits used" in response.text
     assert "Live personal English coach" in response.text
     assert "Make it natural" in response.text
     assert "How did I come across?" in response.text
     assert "Hear it. Try it. Compare." in response.text
     assert "Compare attempts" in response.text
-    assert "Wrap up this session" in response.text
+    assert "Create session recap" in response.text
+    assert "Review my English" in response.text
+    assert "latest 12 learner turns" in response.text
+    assert 'id="recap-card"' in response.text
     assert "Create your coach" in response.text
     assert 'id="personalization-dialog"' in response.text
     assert "/static/personalize.js" in response.text

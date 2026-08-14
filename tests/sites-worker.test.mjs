@@ -118,6 +118,88 @@ test("Sites Worker serves the opt-in on-device learning-memory loop", async () =
   assert.match(liveJavascript, /if \(!state\.learning\.storageAvailable\)/);
 });
 
+test("Sites Worker serves and wires opt-in compact session history", async () => {
+  const home = await worker.fetch(new Request("https://fluent-me.test/"), {});
+  const html = await home.text();
+  assert.match(html, /id="history-enabled"[^>]*type="checkbox"/);
+  assert.match(html, /id="learning-history-item-template"/);
+  assert.match(html, /compact recaps and session metrics/);
+  const memoryIndex = html.indexOf("/static/learning-memory.js");
+  const historyIndex = html.indexOf("/static/session-history.js");
+  const liveIndex = html.indexOf("/static/live.js");
+  assert.ok(memoryIndex >= 0 && memoryIndex < historyIndex && historyIndex < liveIndex);
+
+  const moduleResponse = await worker.fetch(new Request("https://fluent-me.test/static/session-history.js"), {});
+  assert.equal(moduleResponse.status, 200);
+  assert.match(moduleResponse.headers.get("content-type"), /text\/javascript/);
+  const moduleJavascript = await moduleResponse.text();
+  assert.match(moduleJavascript, /FluentMeSessionHistory/);
+  assert.match(moduleJavascript, /appendFinalized/);
+  assert.match(moduleJavascript, /finalization_required/);
+
+  const liveResponse = await worker.fetch(new Request("https://fluent-me.test/static/live.js"), {});
+  const liveJavascript = await liveResponse.text();
+  assert.match(liveJavascript, /HISTORY_PREFERENCE_KEY/);
+  assert.match(liveJavascript, /finalizeCurrentSessionHistory\(endedByTimer \? "timer" : "end_session"\)/);
+  assert.match(liveJavascript, /finalizedSessionId: state\.history\.finalizedSessionId/);
+  assert.match(liveJavascript, /state\.history\.sessionOptedIn = state\.history\.enabled/);
+  assert.match(liveJavascript, /shouldFinalizeSessionHistory/);
+  assert.match(liveJavascript, /sessionOptedIn: state\.history\.sessionOptedIn/);
+  assert.match(liveJavascript, /historyEnabled: state\.history\.enabled/);
+  assert.match(liveJavascript, /SessionHistory\.appendFinalized/);
+  assert.match(liveJavascript, /event\.key === SessionHistory\.STORAGE_KEY/);
+  assert.match(liveJavascript, /History off · existing recaps kept/);
+  assert.match(html, /one short learner quote and a useful phrase/);
+});
+
+test("Sites Worker serves bounded Language Review and evidence-based progress modules", async () => {
+  const home = await worker.fetch(new Request("https://fluent-me.test/"), {});
+  const html = await home.text();
+  assert.match(html, /id="language-review-card"/);
+  assert.match(html, /id="progress-review-section"/);
+  assert.match(html, /id="open-progress-history"/);
+  assert.match(html, /No video room or API credits used/);
+  assert.match(html, /latest 12 learner turns are sent to your live Tavus coach/);
+  const languageIndex = html.indexOf("/static/language-review.js");
+  const progressIndex = html.indexOf("/static/progress-core.js");
+  const liveIndex = html.indexOf("/static/live.js");
+  assert.ok(languageIndex >= 0 && languageIndex < progressIndex && progressIndex < liveIndex);
+
+  const languageResponse = await worker.fetch(new Request("https://fluent-me.test/static/language-review.js"), {});
+  assert.equal(languageResponse.status, 200);
+  assert.match(languageResponse.headers.get("content-type"), /text\/javascript/);
+  const languageJavascript = await languageResponse.text();
+  assert.match(languageJavascript, /FluentMeLanguageReview/);
+  assert.match(languageJavascript, /const MAX_TURNS = 12/);
+  assert.match(languageJavascript, /never be forced/i);
+
+  const progressResponse = await worker.fetch(new Request("https://fluent-me.test/static/progress-core.js"), {});
+  assert.equal(progressResponse.status, 200);
+  assert.match(progressResponse.headers.get("content-type"), /text\/javascript/);
+  const progressJavascript = await progressResponse.text();
+  assert.match(progressJavascript, /FluentMeProgressCore/);
+  assert.match(progressJavascript, /isMeasuredMemoryCurve: false/);
+  assert.doesNotMatch(progressJavascript, /percent improved|ability score|punitive streak/i);
+
+  const liveResponse = await worker.fetch(new Request("https://fluent-me.test/static/live.js"), {});
+  const liveJavascript = await liveResponse.text();
+  assert.match(liveJavascript, /requestLanguageReview/);
+  assert.match(liveJavascript, /LanguageReview\.buildReviewPrompt/);
+  assert.match(liveJavascript, /LanguageReview\?\.parseReviewResponse/);
+  assert.match(liveJavascript, /ProgressCore\.summarize/);
+  assert.match(liveJavascript, /progress-review-start/);
+  assert.match(liveJavascript, /shouldRefreshLanguageReviewAtEnd/);
+  assert.match(liveJavascript, /prepareEvidenceRecapFromLanguageReview/);
+  const evidenceRecapBody = liveJavascript.slice(
+    liveJavascript.indexOf("function prepareEvidenceRecapFromLanguageReview"),
+    liveJavascript.indexOf("async function startConversation"),
+  );
+  assert.doesNotMatch(evidenceRecapBody, /\.grammar|wordChoice|naturalExpression/);
+  assert.match(liveJavascript, /dataset\.mode = "review"/);
+  assert.match(liveJavascript, /const endedByTimer = state\.sessionAutoEndTriggered/);
+  assert.match(liveJavascript, /controller\?\.abort\(\), 6_000/);
+});
+
 test("Sites Worker serves the same-origin speech capture worklet", async () => {
   const response = await worker.fetch(new Request("https://fluent-me.test/static/speech-capture-worklet.js"), {});
   assert.equal(response.status, 200);

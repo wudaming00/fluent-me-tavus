@@ -12,6 +12,9 @@ const js = (await read("server/static/live.js")).toString("utf8");
 const analysisJs = (await read("server/static/analysis-core.js")).toString("utf8");
 const speechSignalJs = (await read("server/static/speech-signal.js")).toString("utf8");
 const learningMemoryJs = (await read("server/static/learning-memory.js")).toString("utf8");
+const sessionHistoryJs = (await read("server/static/session-history.js")).toString("utf8");
+const languageReviewJs = (await read("server/static/language-review.js")).toString("utf8");
+const progressCoreJs = (await read("server/static/progress-core.js")).toString("utf8");
 const speechCaptureWorkletJs = (await read("server/static/speech-capture-worklet.js")).toString("utf8");
 const personalizeJs = (await read("server/static/personalize.js")).toString("utf8");
 const dailyJs = (await read("server/static/daily-0.91.0.js")).toString("utf8");
@@ -24,6 +27,9 @@ const JS = ${JSON.stringify(js)};
 const ANALYSIS_JS = ${JSON.stringify(analysisJs)};
 const SPEECH_SIGNAL_JS = ${JSON.stringify(speechSignalJs)};
 const LEARNING_MEMORY_JS = ${JSON.stringify(learningMemoryJs)};
+const SESSION_HISTORY_JS = ${JSON.stringify(sessionHistoryJs)};
+const LANGUAGE_REVIEW_JS = ${JSON.stringify(languageReviewJs)};
+const PROGRESS_CORE_JS = ${JSON.stringify(progressCoreJs)};
 const SPEECH_CAPTURE_WORKLET_JS = ${JSON.stringify(speechCaptureWorkletJs)};
 const PERSONALIZE_JS = ${JSON.stringify(personalizeJs)};
 const DAILY_JS = ${JSON.stringify(dailyJs)};
@@ -790,6 +796,15 @@ export default {
     }
     if (url.pathname === "/static/learning-memory.js") {
       return new Response(LEARNING_MEMORY_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
+    }
+    if (url.pathname === "/static/session-history.js") {
+      return new Response(SESSION_HISTORY_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
+    }
+    if (url.pathname === "/static/language-review.js") {
+      return new Response(LANGUAGE_REVIEW_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
+    }
+    if (url.pathname === "/static/progress-core.js") {
+      return new Response(PROGRESS_CORE_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
     }
     if (url.pathname === "/static/speech-capture-worklet.js") {
       return new Response(SPEECH_CAPTURE_WORKLET_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
