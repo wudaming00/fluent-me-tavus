@@ -28,7 +28,7 @@ Do not mark an item complete because the UI exists or a mocked test passes. Fina
 
 ## Live media and lifecycle
 
-- [ ] Microphone permission begins only after Start conversation.
+- [ ] Microphone permission begins only after **Start session** → **Use these settings**.
 - [ ] The coach can hear the learner through the Daily/Tavus path.
 - [ ] Coach audio is audible, including the autoplay recovery path when needed.
 - [ ] Camera begins off and can be explicitly enabled and disabled.

@@ -320,9 +320,9 @@ function Write-VttCaptions {
 function Write-PlainTranscript {
   param([string]$Path, [object[]]$ChapterList)
   $lines = [System.Collections.Generic.List[string]]::new()
-  $lines.Add("Fluent Me - 92-second narrated tour of real session captures")
+  $lines.Add("Fluent Me - 92-second narrated tour")
   $lines.Add("")
-  $lines.Add("This tour uses real session captures, including one short continuous coach-motion sequence. It explains the product path but does not by itself prove learner audio transport or remote-room cleanup.")
+  $lines.Add("Chapters 1-5 use real session captures, including one short continuous coach-motion sequence; the closing chapter shows the public case-study page. It explains the product path but does not by itself prove learner audio transport or remote-room cleanup.")
   $lines.Add("")
   $chapterStart = 0.0
   foreach ($chapter in $ChapterList) {
@@ -583,7 +583,7 @@ try {
       "-vf", "ass=fluent-me-demo-captions.ass", "-af", "afade=t=in:st=0:d=0.15,afade=t=out:st=${fadeStart}:d=0.45",
       "-t", $durationLimit, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
       "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-      "-metadata", "title=Fluent Me - narrated tour of real session captures", "fluent-me-demo.mp4"
+      "-metadata", "title=Fluent Me - narrated product tour", "fluent-me-demo.mp4"
     )
   } finally {
     Pop-Location

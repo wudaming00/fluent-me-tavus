@@ -52,7 +52,7 @@ This section describes the implemented MVP boundary. Learning Memory is a small 
 - There is no global enable toggle. Consent happens per target: nothing is saved merely because a conversation, Practice attempt, or comparison occurred.
 - **Save for later** becomes available only after the learner has completed a real transfer answer. Transcript coverage shows whether the target wording appeared as supporting evidence, not as proof of pronunciation, meaning, or mastery.
 - Pressing **Save for later** is the explicit persistence action. Leaving the target unsaved creates no durable learning item.
-- Saved items are visible in the Session tab. The learner can inspect each phrase and remove it with its individual **Forget** action.
+- Saved items are visible in the Review tab. The learner can inspect each phrase and remove it with its individual **Forget** action.
 - The MVP has no **Clear all**, export, editable item, global memory toggle, or episode-memory control. It saves approved phrase targets, not past conversations.
 
 ### Minimal on-device record
@@ -144,7 +144,7 @@ The recap is a learning artifact, not an analytics dump:
 
 The learner can create this recap while the conversation remains open. A later learner turn marks it stale and offers **Refresh**; ending the session requests and opens the same recap automatically. If the coach response is unavailable, deterministic in-tab evidence supplies a bounded fallback rather than a blank card. Copying the recap includes evidence labels and a current-tab privacy note. Only a later explicit **Save for later** action may persist a practice phrase.
 
-The Session tab also provides a **Language Review** of the latest 12 learner turns. It separates Grammar, Word choice, Natural expression, and a meaning-preserving Polished version; a section may explicitly report no high-value change. Plain natural English is preferred to a forced idiom. Requesting it sends the bounded snapshot to the live Tavus coach; the UI displays exact turn coverage, keeps the result and learner-only transcript in the current tab, and never treats textual editing as evidence about accent, pronunciation, intonation, emotion, or speaking ability. A new learner turn marks the result stale, and End refreshes a missing or stale review before closing the room.
+The Review tab also provides a **Language Review** of the latest 12 learner turns. It separates Grammar, Word choice, Natural expression, and a meaning-preserving Polished version; a section may explicitly report no high-value change. Plain natural English is preferred to a forced idiom. Requesting it sends the bounded snapshot to the live Tavus coach; the UI displays exact turn coverage, keeps the result and learner-only transcript in the current tab, and never treats textual editing as evidence about accent, pronunciation, intonation, emotion, or speaking ability. A new learner turn marks the result stale, and End refreshes a missing or stale review before closing the room.
 
 Before starting, the learner chooses a 5, 10, 15, or 25 minute session, or **Open-ended**. The clock begins only after the remote coach is ready. A timed session gives one 60-second warning, then runs the same recap and explicit Tavus conversation-end cleanup as the manual **End session** action. Manual and automatic endings share one idempotent path so they cannot create duplicate recaps or cleanup calls.
 

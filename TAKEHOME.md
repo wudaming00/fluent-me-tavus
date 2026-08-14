@@ -20,7 +20,7 @@ Briefly point out the visible state changes—connecting, coach speaking, listen
 
 If the Face, audible greeting, or microphone does not work, stop the recording and diagnose it. Do not present a placeholder or edited screenshot as a successful live run.
 
-### 0:55–1:20 — Coach: free conversation
+### 0:55–1:20 — Feedback: free conversation
 
 Say this exact test phrase, at a natural learner pace:
 
@@ -48,15 +48,15 @@ Click **Compare attempts** and explain:
 
 Show the two attempt cards and the comparison response together. Call it an evidence-based coaching comparison, not a validated pronunciation or emotion assessment.
 
-### 2:30–2:55 — Coach: bounded perception
+### 2:30–2:55 — Feedback: bounded perception
 
-Return to **Feedback**, click **How did I come across?**, or ask:
+Return to **Feedback**, expand **More feedback** and click **How did I come across?**, or ask:
 
 > Based only on what you could actually hear, how did my delivery come across?
 
 Explain that Raven-1 can contribute pace, pauses, clarity, tone, background audio, and—only after explicit camera sharing—visible delivery cues. `emotion_recognition` is `limited`, so the PAL must preserve uncertainty and cannot claim to know an inner emotion.
 
-### 2:55–3:20 — Session: grounded wrap-up
+### 2:55–3:20 — Review: grounded wrap-up
 
 Open **Review** and trigger the final wrap-up flow. Verify that it contains exactly three grounded parts: one thing communicated well, one useful natural phrase from the actual conversation, and one specific next detail to practice. If the output invents evidence or is not returned, treat that as a failed E2E check rather than narrating the expected result.
 
@@ -115,7 +115,7 @@ The lesson from both iterations is that a convincing CVI integration depends on 
 - [ ] **Start session** → **Use these settings** requests microphone permission and joins with outgoing audio on.
 - [ ] The live Face video appears and audible AI disclosure/greeting completes.
 - [ ] A spoken user turn appears as a `conversation.utterance` event and receives a contextually relevant reply.
-- [ ] PAL/legacy replica duplicate events render only once in the Session turn list.
+- [ ] PAL/legacy replica duplicate events render only once in the Review turn list.
 - [ ] **Mute mic** and **Turn mic on** change the actual Daily local audio state.
 - [ ] **Enable visual coaching** is opt-in, shows the self-view, and can be stopped.
 - [ ] **Improve my wording**, **Coach this turn**, **Break it into beats**, and **How did I come across?** use reasoned PAL responses.

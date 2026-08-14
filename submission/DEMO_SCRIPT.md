@@ -1,7 +1,8 @@
 # Fluent Me — 92-second demo narration
 
 The published demo is built deterministically by [build-demo-video.ps1](build-demo-video.ps1)
-from real product captures (including a 48-frame live coach-motion sequence), with
+from real product captures for chapters 1-5 (including a 48-frame live coach-motion
+sequence) and the public case-study page for the closing chapter, with
 narration synthesized in the author's own consented ElevenLabs voice clone by
 [synthesize-narration.py](synthesize-narration.py) — the same personalization
 path the product offers its learners. The chapter durations below are the

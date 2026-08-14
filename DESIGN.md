@@ -80,7 +80,7 @@ A raw voice clone is an identity feature, not a pronunciation model. ElevenLabs 
 
 - **Original** is the learner's untouched clone and remains recoverable in the browser profile.
 - **Future Me** is an explicitly experimental, newly created voice variant. The learner previews low- and medium-strength target-accent remixes, then chooses whether to save one; the original voice is never edited or deleted.
-- The **Use stock coach** voice remains the pronunciation reference. A remixed self-voice is motivational feedback, not proof that every sound is correct.
+- The standard coach remains the pronunciation reference. A remixed self-voice is motivational feedback, not proof that every sound is correct.
 
 The default experiment targets General American English, with General British as an opt-in alternative. Preview generation consumes provider credits, while saving the selected preview consumes a custom voice slot and creates a new provider-side voice ID. A saved Future Me voice is connected by creating a new Tavus PAL; failed preview, save, or PAL requests leave the current coach and original clone unchanged.
 
