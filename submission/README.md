@@ -12,7 +12,9 @@ This submission focuses on a simple product thesis: **the face is not decoration
 - Public case study: https://fluent-me-tavus-case-study.wudaming00.chatgpt.site
 - Downloadable PDF: https://fluent-me-tavus-case-study.wudaming00.chatgpt.site/downloads/fluent-me-case-study.pdf
 - API-powered product: controlled reviewer access is available on request
-- Exact submitted product-code commit: [`031fb20c4245`](https://github.com/wudaming00/fluent-me-hacknight/commit/031fb20c4245e526f9f9f40401a74099036250af)
+- Source repository: https://github.com/wudaming00/fluent-me-tavus
+- Exact submitted product-code commit: [`80ca0beeffdf`](https://github.com/wudaming00/fluent-me-tavus/commit/80ca0beeffdfad7142653796c0a96b615ed8128e)
+- Build recorded in the walkthrough video: [`031fb20c4245`](https://github.com/wudaming00/fluent-me-tavus/commit/031fb20c4245e526f9f9f40401a74099036250af) — the submitted commit adds one product change on top of it: automatic in-place coach resume when a Tavus room hits a provider-side duration cap mid-session.
 - [92-second demo narration](DEMO_SCRIPT.md)
 - [Architecture diagram and technical notes](ARCHITECTURE.md)
 - [Delivery checklist](DELIVERY_CHECKLIST.md)

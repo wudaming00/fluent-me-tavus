@@ -14,8 +14,11 @@ Submission links:
 - **Product walkthrough:** https://fluent-me-tavus-case-study.wudaming00.chatgpt.site/demo/fluent-me-demo.mp4
 - **Public case study and architecture:** https://fluent-me-tavus-case-study.wudaming00.chatgpt.site
 - **Downloadable case-study PDF:** https://fluent-me-tavus-case-study.wudaming00.chatgpt.site/downloads/fluent-me-case-study.pdf
-- **Source repository:** https://github.com/wudaming00/fluent-me-hacknight
-- **Exact submitted product-code commit:** https://github.com/wudaming00/fluent-me-hacknight/commit/031fb20c4245e526f9f9f40401a74099036250af
+- **Source repository:** https://github.com/wudaming00/fluent-me-tavus
+- **Exact submitted product-code commit:** https://github.com/wudaming00/fluent-me-tavus/commit/80ca0beeffdfad7142653796c0a96b615ed8128e
+  (the walkthrough video was recorded on
+  https://github.com/wudaming00/fluent-me-tavus/commit/031fb20c4245e526f9f9f40401a74099036250af;
+  the submitted commit adds automatic session resume described below)
 - **Reviewer product access:** Available on request. Reply here and I will share
   controlled access to the exact submitted build; I have not exposed a public
   room-creation link because each live Tavus session uses provider credits and
@@ -43,7 +46,13 @@ The materials cover the requested areas:
    also separated measured evidence, tentative model perception, and teaching
    guidance; corrected the live media path so Tavus—not a parallel browser
    recorder—is the conversational source of truth; and designed bounded,
-   learner-controlled local history and phrase review.
+   learner-controlled local history and phrase review. When live testing showed
+   a Tavus room can be closed mid-session by a plan-level `max_call_duration`
+   cap, I made the session survive its room: the client reconnects into a fresh
+   room automatically and hands the new room a bounded continuation packet of
+   recent turns, so the coach picks the same conversation back up and the focus
+   timer keeps accumulating; if the coach cannot return, the session ends
+   through the normal recap path instead of stranding the learner.
 
 A few deliberate product boundaries are visible in the submission. Browser
 waveforms and pitch candidates are descriptive signals, not pronunciation,
@@ -58,4 +67,4 @@ what I would validate next.
 
 Best,
 
-Sining Xu
+Daming Wu
