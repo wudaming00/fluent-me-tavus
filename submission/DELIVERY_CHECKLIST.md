@@ -6,7 +6,7 @@ Do not mark an item complete because the UI exists or a mocked test passes. Fina
 
 - [ ] Verify the public walkthrough URL in `README.md` from a signed-out browser.
 - [x] State clearly that the static case study and video are public while API-powered product access is controlled.
-- [x] Link the exact submitted product-code commit (`031fb20c4245`).
+- [x] Link the exact submitted product-code commit (`80ca0beeffdf`) and the walkthrough-video build (`031fb20c4245`).
 - [ ] Confirm `README.md`, `DEMO_SCRIPT.md`, `ARCHITECTURE.md`, and this checklist are included.
 - [ ] Confirm every relative Markdown link resolves.
 - [ ] Confirm the final materials contain no API key, meeting token, signed preview handle, private recording URL, or biometric sample.

@@ -160,4 +160,4 @@ This path is consent-gated and provider-dependent. Account entitlement, credits,
 
 ## Reviewer note
 
-The public walkthrough is a narrated tour built from real session captures and includes a short continuous Tavus Face motion sequence. It demonstrates the product surfaces and a grounded returned transcript, but it does not claim to prove learner-audio transport or remote cleanup. Controlled access to the exact API-powered build is available for a continuous evaluator run; expected UI text, mocked responses, and integration code are never presented as live-provider proof.
+The public walkthrough is a narrated tour built from real session captures — the closing chapter shows the public case-study page rather than the app — and includes a short continuous Tavus Face motion sequence. It demonstrates the product surfaces and a grounded returned transcript, but it does not claim to prove learner-audio transport or remote cleanup. Controlled access to the exact API-powered build is available for a continuous evaluator run; expected UI text, mocked responses, and integration code are never presented as live-provider proof.

@@ -49,7 +49,7 @@ This section describes the implemented MVP boundary. Learning Memory is a small 
 
 ### Consent and control
 
-- There is no global enable toggle. Consent happens per target: nothing is saved merely because a conversation, Voice Lab attempt, or comparison occurred.
+- There is no global enable toggle. Consent happens per target: nothing is saved merely because a conversation, Practice attempt, or comparison occurred.
 - **Save for later** becomes available only after the learner has completed a real transfer answer. Transcript coverage shows whether the target wording appeared as supporting evidence, not as proof of pronunciation, meaning, or mastery.
 - Pressing **Save for later** is the explicit persistence action. Leaving the target unsaved creates no durable learning item.
 - Saved items are visible in the Session tab. The learner can inspect each phrase and remove it with its individual **Forget** action.
@@ -69,7 +69,7 @@ The browser writes this record to `localStorage`. If durable browser storage is 
 - When the learner starts recall, the client hides at most one due target and instructs the coach to weave it into a relevant follow-up or role-play prompt without revealing the answer. For example, a saved tradeoff pattern can return while discussing a different product decision.
 - The learner may answer naturally or cancel while waiting for an answer. After an answer, **Show & practise** can reveal the target without advancing it. Recall must never block the open conversation.
 - After the attempt, the learner—not the model—confirms the outcome: **I used it** or **Not quite**. Transcript matching can support the UI but cannot silently advance the item.
-- **Show & practise** reveals the phrase and moves it into Voice Lab without advancing its review schedule.
+- **Show & practise** reveals the phrase and moves it into Practice without advancing its review schedule.
 
 ### Fixed review schedule
 
@@ -87,7 +87,7 @@ Producing the target without seeing it in a changed context, followed by **I use
 
 ### Welcome
 
-The first screen should explain the interaction in one sentence: **Talk naturally. Notice one thing. Try it again.** The Tavus coach preview and primary **Start conversation** action must be above the fold. Supporting copy introduces four lenses without turning them into a setup form:
+The first screen should explain the interaction in one sentence: **Talk naturally. Notice one thing. Try it again.** The Tavus coach preview and primary **Start session** action must be above the fold. Supporting copy introduces four lenses without turning them into a setup form:
 
 - **Words** — grammar, vocabulary, phrasing, and message structure.
 - **Sounds** — sound and syllable teaching; measured pronunciation only when a dedicated provider is connected.
@@ -101,16 +101,16 @@ An “How feedback works” disclosure should state: **No fake overall score. Ev
 The layout is a two-column conversation console:
 
 - **60–65% video stage:** the Tavus face, live captions, connection state, camera/microphone controls, and a compact current-focus chip.
-- **35–40% contextual panel:** three tabs—**Coach**, **Voice Lab**, and **Session**. The panel changes with the conversation but never blocks free speech.
+- **35–40% contextual panel:** three tabs—**Feedback**, **Practice**, and **Review**. The panel changes with the conversation but never blocks free speech.
 
 On mobile, the coach video remains visible in a compact sticky stage while the feedback panel scrolls below it.
 
-### Coach tab
+### Feedback tab
 
 The default view contains:
 
 - A conversational text box for questions or typed fallback.
-- Quick tools: **Make it natural**, **Fix one thing**, **Break it into beats**, and **How did I come across?**
+- Quick tools: **Improve my wording**, **Coach this turn**, **Break it into beats**, and **How did I come across?**
 - A **Last turn** card containing:
   - what the coach understood;
   - the learner’s exact transcript;
@@ -118,13 +118,13 @@ The default view contains:
   - pace, duration, fillers, and repairs when available;
   - a tentative delivery observation when Raven supplied evidence;
   - a visible evidence label on every observation.
-- Actions: **Hear it**, **Try it**, and **Use it in conversation**.
+- Actions: **Hear it**, **Try it**, and **Use this phrase in conversation**.
 
-Only the one chosen target is visually prominent. Secondary analysis stays behind an optional **See the details** disclosure.
+Only the one chosen target is visually prominent. Secondary analysis stays behind an optional **Turn details** disclosure.
 
-### Voice Lab tab
+### Practice tab
 
-Voice Lab is a focused practice tool, not a mandatory five-step wizard. It starts with the current phrase and offers four lenses:
+Practice is a focused practice tool, not a mandatory five-step wizard. It starts with the current phrase and offers four lenses:
 
 - **Whole phrase** — model, repeat, compare, transfer.
 - **Sounds** — syllable split, mouth/articulation cue, minimal contrast, and a slow/normal model.
@@ -133,13 +133,13 @@ Voice Lab is a focused practice tool, not a mandatory five-step wizard. It start
 
 Two-attempt comparison shows only supported changes: timing, transcript coverage, fillers, repairs, and qualitative perception. Phoneme or prosody scores appear only when the specialist provider returned them.
 
-### Session tab
+### Review tab
 
 The recap is a learning artifact, not an analytics dump:
 
 - **What worked:** one cautious coach reflection grounded in an actual learner turn or labelled evidence;
-- **Phrase to keep:** an exact phrase from the conversation or Voice Lab, omitted when no phrase can be grounded;
-- **One next rep:** one concrete 30–60 second action that can be opened directly in Voice Lab;
+- **Phrase to keep:** an exact phrase from the conversation or Practice, omitted when no phrase can be grounded;
+- **One next rep:** one concrete 30–60 second action that can be opened directly in Practice;
 - **Evidence:** coverage such as timed seconds across spoken turns, plus clearly labelled transcript counts rather than an overall score.
 
 The learner can create this recap while the conversation remains open. A later learner turn marks it stale and offers **Refresh**; ending the session requests and opens the same recap automatically. If the coach response is unavailable, deterministic in-tab evidence supplies a bounded fallback rather than a blank card. Copying the recap includes evidence labels and a current-tab privacy note. Only a later explicit **Save for later** action may persist a practice phrase.
@@ -211,7 +211,7 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 - Deterministic duration, WPM, fillers, transcript repetitions/repairs, phrase coverage, and session aggregates.
 - Qualitative Raven delivery feedback with explicit **Coach perception** labeling.
 - One-fix → model → retry → transfer loop.
-- Voice Lab that teaches syllables, stress, rhythm, and intonation without claiming acoustic scoring.
+- A Practice tab that teaches syllables, stress, rhythm, and intonation without claiming acoustic scoring.
 - Session recap and the bounded Learning Memory implementation described above.
 - Selectable timed sessions with a final-minute warning and automatic recap/end.
 - On-demand, current-tab Language Review for the latest bounded learner turns.

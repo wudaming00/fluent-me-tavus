@@ -16,20 +16,20 @@ Do not treat the staging URL as proof of a completed live test. Before submissio
 ## What the prototype does
 
 - **Coach — open conversation:** the learner speaks through a live microphone and the coach responds to meaning instead of forcing a lesson sequence. The latest real turn shows source-labelled duration, WPM, high-confidence filled pauses, adjacent repeats, and optional Raven observations.
-- **Coach — help on demand:** **Make it natural**, **Fix one thing**, **Break it into beats**, and **How did I come across?** request a focused recast or bounded observation after a real turn.
-- **Voice Lab — exact phrase modeling:** the learner chooses a target and `conversation.echo` makes the Tavus Face speak that wording exactly. Whole phrase, Sounds, Stress & rhythm, and Intonation lenses provide teaching models without pretending transcript data is acoustic assessment.
-- **Voice Lab — two real attempts:** the product captures two subsequent learner `conversation.utterance` events, including each transcript, deterministic timing evidence, and any available Raven audio/visual analysis.
-- **Voice Lab — evidence-based comparison:** after both attempts exist, `conversation.respond` asks the PAL to identify one improvement, one next detail, and the strongest version using only the supplied evidence.
+- **Coach — help on demand:** **Improve my wording**, **Coach this turn**, **Break it into beats**, and **How did I come across?** request a focused recast or bounded observation after a real turn.
+- **Practice — exact phrase modeling:** the learner chooses a target and `conversation.echo` makes the Tavus Face speak that wording exactly. Whole phrase, Sounds, Stress & rhythm, and Intonation lenses provide teaching models without pretending transcript data is acoustic assessment.
+- **Practice — two real attempts:** the product captures two subsequent learner `conversation.utterance` events, including each transcript, deterministic timing evidence, and any available Raven audio/visual analysis.
+- **Practice — evidence-based comparison:** after both attempts exist, `conversation.respond` asks the PAL to identify one improvement, one next detail, and the strongest version using only the supplied evidence.
 - **Session — actionable recap:** the learner can create a structured recap without ending the call, while **End session** creates it automatically. It separates **What worked**, a grounded **Phrase to keep**, one concrete **Next rep**, and a coverage-labelled evidence footer. If the coach response is unavailable, deterministic local evidence still produces a useful fallback.
 - **Session — language review:** on demand, the latest 12 learner turns become a bounded learner-only review of **Grammar**, **Word choice**, **Natural expression**, and a meaning-preserving **Polished version**. If it is missing or stale, ending the session refreshes it before the room closes. This action sends that bounded snapshot to the live Tavus coach; the result stays in the current tab. It does not force an idiom where plain English is better and does not turn transcript edits into an accent or speaking-ability score.
 - **Timed practice:** before entering, the learner can choose 5, 10, 15, or 25 minutes, or an open-ended session. Timed sessions start only when the coach is actually ready, warn once in the final minute, then create the recap and explicitly end the Tavus conversation.
-- **Optional Learning History:** with a separate opt-in, finalized sessions can leave a compact on-device recap for later review. History is limited to 20 entries and stores recap text plus small aggregate counts—never the full transcript, audio, video, waveform, pitch contour, or Raven observations. **Review progress & history** opens these local records from the welcome screen without creating a Tavus room or spending conversation credits.
+- **Optional Learning History:** with a separate opt-in, finalized sessions can leave a compact on-device recap for later review. History is limited to 20 entries and stores recap text plus small aggregate counts—never the full transcript, audio, video, waveform, pitch contour, or Raven observations. **History** in the top bar opens these local records without creating a Tavus room or spending conversation credits.
 - **Progress & Review:** the latest 20 compact-history sessions and learner-approved phrase cards become an honest practice snapshot: saved sessions, timed speaking, recent practice days, saved/due phrases, and the fixed 1/3/7/21/60-day recall path. Encouragement cites real actions; there is no fabricated improvement percentage, ability grade, or punitive streak.
 - **Turn Studio — readable voice evidence:** waveform height means relative microphone signal only within that turn; the orange line is an auto-scaled pitch estimate and its gaps are not automatically pauses or errors. A plain-English observation explains the current chart and explicitly avoids pronunciation, accent, fluency, intonation-correctness, or emotion scores.
 - **Optional identity setup:** **Create your coach** separates a roughly 60-second face-training recording from a 60–90-second clean voice sample, then combines a Tavus Phoenix-4 Face and an ElevenLabs Instant Voice Clone in a personal PAL.
 - **Experimental Future Me:** an owned voice clone can generate reversible Subtle and Balanced target-accent previews. The learner listens before saving; the chosen preview becomes a new voice and the original clone is never edited.
 
-**Coach**, **Voice Lab**, and **Session** organize one continuous Tavus call. Coach shortcuts can also be requested out loud; Voice Lab adds an explicit capture contract so attempt one and attempt two are real learner turns rather than generated sample data.
+Three tabs — **Feedback**, **Practice**, and **Review** — organize one continuous Tavus call. Coach shortcuts live in **Feedback** and can also be requested out loud; **Practice** adds an explicit capture contract so attempt one and attempt two are real learner turns rather than generated sample data; **Review** holds the session evidence and wrap-up.
 
 ### Optional: Create your coach
 
@@ -55,13 +55,13 @@ Out of the box the coach is the Tavus stock Face **Nathan – Bookshelf** (Phoen
 ## Architecture
 
 ```text
-Browser: custom Fluent Me UI — Coach / Voice Lab / Session
+Browser: custom Fluent Me UI — Feedback / Practice / Review
   ├─ Daily call object ─ microphone + optional camera ───────────┐
-  ├─ Coach ───── conversation.respond for typed turns/tools       │
+  ├─ Feedback ── conversation.respond for typed turns/tools       │
   ├─ Practice ── conversation.echo(target)                        │
   │              ◀ two learner utterances + available signals    │
   │              conversation.respond(evidence) → comparison      │
-  └─ Session ─── conversation.respond(session evidence) → recap   │
+  └─ Review ──── conversation.respond(session evidence) → recap   │
       ├─ review ─ conversation.respond(latest learner turns)       │
       │            → grammar / wording / naturalness / polish      │
       ├─ timer ─── 60s warning → recap → explicit room end         │

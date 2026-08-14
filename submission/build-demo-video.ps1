@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Builds the 92-second Fluent Me narrated tour from six real session captures.
+Builds the 92-second Fluent Me narrated tour from five real session captures plus the public case-study page.
 
 .DESCRIPTION
 The script intentionally has no placeholder or synthetic-screen fallback. It fails

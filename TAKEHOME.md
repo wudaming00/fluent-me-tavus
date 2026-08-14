@@ -8,15 +8,15 @@ This is the evaluator-facing runbook for a 3–4 minute recording. It is intenti
 
 > Language learners usually know more English than they can retrieve in a real conversation. Fluent Me combines a personal video coach with a focused loop: talk freely, practice one phrase twice, compare real evidence, and leave with one grounded next step.
 
-Show the welcome screen. Point out that microphone access begins only after **Start talking**, and camera sharing remains optional.
+Show the welcome screen. Point out that microphone access begins only after **Start session**, and camera sharing remains optional.
 
 Optionally open **Create your coach** for a short product preview. Show that Face and voice are two separate recordings—about 60 seconds for Face training and 60–90 seconds for a clean voice sample—and that both require explicit consent and review before submission. Do not attempt to wait for Face training during this walkthrough: Phoenix-4 training commonly takes roughly 3–4 hours. Unless the exact hosted build has passed the personalization checklist below, say that this is an integration-ready setup flow rather than a completed clone.
 
 ### 0:25–0:55 — Start a real CVI conversation
 
-Click **Start talking**. Wait for the live Tavus Face and the AI disclosure/greeting to finish. Do not speak over the custom greeting.
+Click **Start session**, then **Use these settings**. Wait for the live Tavus Face and the AI disclosure/greeting to finish. Do not speak over the custom greeting.
 
-Briefly point out the visible state changes—connecting, coach speaking, listening, thinking, and your turn—then introduce the three surfaces: **Coach** for open conversation, **Voice Lab** for a two-attempt loop, and **Session** for the evidence and wrap-up.
+Briefly point out the visible state changes—connecting, coach speaking, listening, thinking, and your turn—then introduce the three tabs: **Feedback** for coaching on the latest turn, **Practice** for a two-attempt loop, and **Review** for the evidence and wrap-up.
 
 If the Face, audible greeting, or microphone does not work, stop the recording and diagnose it. Do not present a placeholder or edited screenshot as a successful live run.
 
@@ -28,9 +28,9 @@ Say this exact test phrase, at a natural learner pace:
 
 Let the coach respond naturally. This demonstrates that the microphone is reaching Tavus's full conversational pipeline rather than a browser-only recorder, once confirmed in the final manual E2E run.
 
-Briefly open **Session** to show the real user utterance and PAL reply received through `conversation.utterance`. If Tavus supplied `user_audio_analysis` or `user_visual_analysis`, expand **Observable delivery signals** and describe it as an uncertain model observation—not ground truth. Do not claim a signal that is absent.
+Briefly open **Review** to show the real user utterance and PAL reply received through `conversation.utterance`. If Tavus supplied `user_audio_analysis` or `user_visual_analysis`, expand **Observable delivery signals** and describe it as an uncertain model observation—not ground truth. Do not claim a signal that is absent.
 
-### 1:20–2:30 — Voice Lab: model, attempt twice, compare
+### 1:20–2:30 — Practice: model, attempt twice, compare
 
 Open **Practice** and enter this exact target phrase:
 
@@ -50,7 +50,7 @@ Show the two attempt cards and the comparison response together. Call it an evid
 
 ### 2:30–2:55 — Coach: bounded perception
 
-Return to **Coach**, click **What did you notice?**, or ask:
+Return to **Feedback**, click **How did I come across?**, or ask:
 
 > Based only on what you could actually hear, how did my delivery come across?
 
@@ -58,7 +58,7 @@ Explain that Raven-1 can contribute pace, pauses, clarity, tone, background audi
 
 ### 2:55–3:20 — Session: grounded wrap-up
 
-Open **Session** and trigger the final wrap-up flow. Verify that it contains exactly three grounded parts: one thing communicated well, one useful natural phrase from the actual conversation, and one specific next detail to practice. If the output invents evidence or is not returned, treat that as a failed E2E check rather than narrating the expected result.
+Open **Review** and trigger the final wrap-up flow. Verify that it contains exactly three grounded parts: one thing communicated well, one useful natural phrase from the actual conversation, and one specific next detail to practice. If the output invents evidence or is not returned, treat that as a failed E2E check rather than narrating the expected result.
 
 ### 3:20–3:55 — Architecture and why Tavus
 
@@ -84,9 +84,9 @@ Keep this to roughly 30–40 seconds:
 
 The first prototype was a rigid five-stage loop—Listen, Repeat, Fix, Recall, Use. It made the product easy to diagram but hard to understand in use: the Face felt attached to a workflow, the learner could not simply ask a question, and the experience looked like a language worksheet with video added.
 
-The product feedback was concrete: make it feel like a real person the learner can talk to, and make coaching different callable abilities rather than locked steps. The UI was therefore rebuilt around one continuous conversation. The latest contract organizes that call into **Coach**, **Practice**, and **Session**: open conversation stays primary, while Practice captures two real utterances for a bounded comparison and Session turns the accumulated evidence into a three-part close.
+The product feedback was concrete: make it feel like a real person the learner can talk to, and make coaching different callable abilities rather than locked steps. The UI was therefore rebuilt around one continuous conversation. The latest contract organizes that call into **Feedback**, **Practice**, and **Review**: open conversation stays primary, while Practice captures two real utterances for a bounded comparison and Review turns the accumulated evidence into a three-part close.
 
-That redesign exposed a deeper transport bug. The earlier Daily call object was created with its outgoing audio/video sources disabled and joined with the microphone off. A separate browser speech recognizer could display words, but Tavus could not hear the learner, so the PAL could not answer and Raven had no audio/video input. The integration was corrected so the Daily microphone is live after the explicit **Start talking** action, camera remains opt-in, and Tavus `conversation.utterance` events—not a parallel browser recorder—become the conversation source of truth.
+That redesign exposed a deeper transport bug. The earlier Daily call object was created with its outgoing audio/video sources disabled and joined with the microphone off. A separate browser speech recognizer could display words, but Tavus could not hear the learner, so the PAL could not answer and Raven had no audio/video input. The integration was corrected so the Daily microphone is live after the explicit **Start session** action, camera remains opt-in, and Tavus `conversation.utterance` events—not a parallel browser recorder—become the conversation source of truth.
 
 A follow-up media issue appeared because repeated participant updates could replace an already-playing remote `MediaStream`. The client now avoids resetting the video element when the remote audio/video track IDs have not changed. The exact deployed build still requires the manual end-to-end verification below before the submission can claim success.
 
@@ -101,7 +101,7 @@ The lesson from both iterations is that a convincing CVI integration depends on 
 - [x] Submission notes pin the exact commits: `80ca0beeffdf` (submitted) and `031fb20c4245` (walkthrough build).
 - [ ] Show the Tavus Face moving and speaking in real time; do not rely on the welcome placeholder.
 - [ ] Show at least one spoken learner turn followed by a relevant PAL answer.
-- [ ] Show the **Coach**, **Practice**, and **Session** tabs inside one live call.
+- [ ] Show the **Feedback**, **Practice**, and **Review** tabs inside one live call.
 - [ ] Show **Practice** modeling the exact target phrase in this document with `conversation.echo`.
 - [ ] Show two distinct real learner utterances populate Attempt 1 and Attempt 2.
 - [ ] Show the comparison grounded in both transcripts and only the audio/visual analyses actually available.
@@ -112,13 +112,13 @@ The lesson from both iterations is that a convincing CVI integration depends on 
 ### Manual end-to-end verification
 
 - [ ] `/api/tavus/status` reports a configured server without revealing the API key.
-- [ ] **Start talking** requests microphone permission and joins with outgoing audio on.
+- [ ] **Start session** → **Use these settings** requests microphone permission and joins with outgoing audio on.
 - [ ] The live Face video appears and audible AI disclosure/greeting completes.
 - [ ] A spoken user turn appears as a `conversation.utterance` event and receives a contextually relevant reply.
 - [ ] PAL/legacy replica duplicate events render only once in the Session turn list.
 - [ ] **Mute mic** and **Turn mic on** change the actual Daily local audio state.
-- [ ] **Share camera** is opt-in, shows the self-view, and can be stopped.
-- [ ] **How did I sound?**, **Say it naturally**, and **What did you notice?** use reasoned PAL responses.
+- [ ] **Enable visual coaching** is opt-in, shows the self-view, and can be stopped.
+- [ ] **Improve my wording**, **Coach this turn**, **Break it into beats**, and **How did I come across?** use reasoned PAL responses.
 - [ ] Practice `conversation.echo` says the submitted target exactly and is not mistaken for a learner attempt.
 - [ ] Attempt 1 and Attempt 2 come from two subsequent real user `conversation.utterance` events, not timers, placeholders, PAL speech, or sample data.
 - [ ] Each attempt keeps only the `user_audio_analysis` / `user_visual_analysis` actually attached to that utterance.

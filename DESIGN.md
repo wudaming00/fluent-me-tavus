@@ -18,8 +18,8 @@ Choose a topic + session length → video conversation ─────→ keep t
 ## Screen contract
 
 - Tavus video is the largest surface on desktop.
-- The microphone is published to the Daily room after the learner explicitly clicks **Start talking**.
-- Camera is off by default and has a clear **Share camera** opt-in with a visible self-view.
+- The microphone is published to the Daily room only after the learner explicitly starts a session (**Start session** → **Use these settings**); the call joins with `startAudioOff: true` first.
+- Camera is off by default and has a clear **Enable visual coaching** opt-in with a visible self-view.
 - The UI shows only understandable live states: connecting, listening, thinking, coach speaking, and your turn.
 - All user-visible interface strings are English.
 - A missing or rejected server key produces an explicit error, never a fake human presented as live.
@@ -30,11 +30,11 @@ Choose a topic + session length → video conversation ─────→ keep t
 | Request | Coach behavior |
 |---|---|
 | Open conversation | Respond to meaning first; ask at most one natural follow-up. |
-| Make it natural | Quote one useful grammar, word-choice, or naturalness change and speak a concise recast. |
-| Fix one thing | Choose the highest-impact clarity change and offer one short retry. |
+| Improve my wording | Quote one useful grammar, word-choice, or naturalness change and speak a concise recast. |
+| Coach this turn | Choose the highest-impact clarity change and offer one short retry. |
 | Break it into beats | Teach thought groups, selective stress, linking, and a model without claiming acoustic diagnosis. |
 | How did I come across? | Cite only labelled transcript, timing, or Raven cues; preserve uncertainty and ask whether the impression matches. |
-| Voice Lab | Model an exact phrase and capture two learner attempts using a chosen Whole phrase, Sounds, Stress & rhythm, or Intonation lens. |
+| Practice | Model an exact phrase and capture two learner attempts using a chosen Whole phrase, Sounds, Stress & rhythm, or Intonation lens. |
 | Compare attempts | Use only the two captured transcripts and available delivery analyses; name one improvement and one next detail. |
 | Create recap | Return one evidence-grounded communication win, one phrase actually present in the session when available, and one concrete 30–60 second next rep. Mid-session recap keeps the call open; ending creates it automatically. |
 | Review my English | Review only the latest bounded learner transcript for grammar, word choice, and natural expression, then produce a meaning-preserving polished version. Prefer plain natural English to a forced idiom and do not infer accent, pronunciation, emotion, or ability from text. |
@@ -80,7 +80,7 @@ A raw voice clone is an identity feature, not a pronunciation model. ElevenLabs 
 
 - **Original** is the learner's untouched clone and remains recoverable in the browser profile.
 - **Future Me** is an explicitly experimental, newly created voice variant. The learner previews low- and medium-strength target-accent remixes, then chooses whether to save one; the original voice is never edited or deleted.
-- **Standard coach** remains the pronunciation reference. A remixed self-voice is motivational feedback, not proof that every sound is correct.
+- The **Use stock coach** voice remains the pronunciation reference. A remixed self-voice is motivational feedback, not proof that every sound is correct.
 
 The default experiment targets General American English, with General British as an opt-in alternative. Preview generation consumes provider credits, while saving the selected preview consumes a custom voice slot and creates a new provider-side voice ID. A saved Future Me voice is connected by creating a new Tavus PAL; failed preview, save, or PAL requests leave the current coach and original clone unchanged.
 
@@ -96,7 +96,7 @@ The browser correlates `conversation.stopped_speaking` with final `conversation.
 
 When transient browser microphone samples are available, Turn Studio may also draw a relative waveform, estimated pause regions, and a descriptive pitch contour. Each chart is normalized independently: its height is meaningful only within that one turn, pitch gaps can be unvoiced or low-confidence frames, and microphone gain or distance changes the waveform. The chart therefore never becomes a pronunciation, accent, fluency, intonation-correctness, or emotion score. A plain-English interpretation states this boundary next to the visual.
 
-The Session recap is deliberately smaller than the full evidence log. It contains **What worked**, an actually grounded **Phrase to keep** when one exists, and one actionable **Next rep**, followed by a neutral evidence-coverage line. Creating it mid-session does not end the call; new speech marks it stale and enables refresh. Ending the session requests the same recap automatically, while a bounded deterministic fallback prevents an empty result if the PAL response times out. **Practice next** carries the recap target into Voice Lab but does not silently save it to Learning Memory.
+The Session recap is deliberately smaller than the full evidence log. It contains **What worked**, an actually grounded **Phrase to keep** when one exists, and one actionable **Next rep**, followed by a neutral evidence-coverage line. Creating it mid-session does not end the call; new speech marks it stale and enables refresh. Ending the session requests the same recap automatically, while a bounded deterministic fallback prevents an empty result if the PAL response times out. **Practice next** carries the recap target into the Practice tab but does not silently save it to Learning Memory.
 
 Before a call, the learner chooses 5, 10, 15, or 25 minutes, or **Open-ended**. A timed session starts only after remote coach media is ready, gives one gentle 60-second warning, then uses the same idempotent recap-and-end path as the explicit **End session** action. The timer is a study boundary and spend guardrail, not a performance target.
 
@@ -104,9 +104,9 @@ Before a call, the learner chooses 5, 10, 15, or 25 minutes, or **Open-ended**. 
 
 ## Logging and privacy
 
-The `Session` view reconstructs turns from live `conversation.utterance` events and de-duplicates replica/PAL aliases by inference and content. Optional `user_audio_analysis` and `user_visual_analysis` appear as expandable observable signals when Tavus provides them. The `Voice Lab` view holds the current target, two captured attempts, deterministic transcript/timing evidence, and the coach's grounded comparison in the current browser tab. The full Language Review and its learner transcript are also current-tab artifacts.
+The `Review` view reconstructs turns from live `conversation.utterance` events and de-duplicates replica/PAL aliases by inference and content. Optional `user_audio_analysis` and `user_visual_analysis` appear as expandable observable signals when Tavus provides them. The `Practice` view holds the current target, two captured attempts, deterministic transcript/timing evidence, and the coach's grounded comparison in the current browser tab. The full Language Review and its learner transcript are also current-tab artifacts.
 
-The hosted Worker records room creation/end lifecycle events but does not create an extra server-side speech log. Fluent Me does not save raw audio or video. The implemented Learning Memory follows [the Learning Memory MVP contract](docs/LANGUAGE-COACH-REALIZATION.md#learning-memory-mvp-contract): only an explicit per-target **Save for later** after a real transfer check creates a record. The approved phrase and fixed review metadata live in `localStorage`, with an honest current-tab fallback when browser storage is unavailable; transcripts, audio, waveform, pitch, and episode history are not persisted. For a due target, the client hides the phrase and instructs Tavus not to reveal it while asking a natural recall question. Only the learner's **I used it** confirmation advances the fixed 1/3/7/21/60-day MVP schedule—an explicit product default, not a scientifically optimized or personalized interval; **Not quite** retries in 10 minutes. **Show & practise** and other reveal/rehearsal actions do not advance review or prove mastery. The Session view supports inspection and per-item **Forget**; there is no global Learning Memory toggle, Clear all, export, or editing in this MVP.
+The hosted Worker records room creation/end lifecycle events but does not create an extra server-side speech log. Fluent Me does not save raw audio or video. The implemented Learning Memory follows [the Learning Memory MVP contract](docs/LANGUAGE-COACH-REALIZATION.md#learning-memory-mvp-contract): only an explicit per-target **Save for later** after a real transfer check creates a record. The approved phrase and fixed review metadata live in `localStorage`, with an honest current-tab fallback when browser storage is unavailable; transcripts, audio, waveform, pitch, and episode history are not persisted. For a due target, the client hides the phrase and instructs Tavus not to reveal it while asking a natural recall question. Only the learner's **I used it** confirmation advances the fixed 1/3/7/21/60-day MVP schedule—an explicit product default, not a scientifically optimized or personalized interval; **Not quite** retries in 10 minutes. **Show & practise** and other reveal/rehearsal actions do not advance review or prove mastery. The Review view supports inspection and per-item **Forget**; there is no global Learning Memory toggle, Clear all, export, or editing in this MVP.
 
 Learning History is a distinct, explicit opt-in. It stores at most 20 finalized-session snapshots on this device: bounded recap fields, completion time, session duration, learner/spoken turn counts, known timed speech, and small transcript-derived aggregates. A compact recap may retain one grounded short learner quote and useful phrase, but it never stores the full transcript, audio, video, waveform, pitch contour, Raven observations, or provider credentials. Switching new history saves off leaves existing entries visible; learners can inspect them from the welcome screen without creating a Tavus room, delete one, or clear all. History failure falls back honestly to the current tab and clears stale durable snapshots when possible.
 

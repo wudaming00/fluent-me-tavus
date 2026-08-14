@@ -1,6 +1,6 @@
-Fluent Me - 92-second narrated tour of real session captures
+Fluent Me - 92-second narrated tour
 
-This tour uses real session captures, including one short continuous coach-motion sequence. It explains the product path but does not by itself prove learner audio transport or remote-room cleanup.
+Chapters 1-5 use real session captures, including one short continuous coach-motion sequence; the closing chapter shows the public case-study page. It explains the product path but does not by itself prove learner audio transport or remote-room cleanup.
 
 [00:00:00.000] 01  START WITH ONE ACTION
 Fluent Me is a conversation-first English coach built on Tavus.

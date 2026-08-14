@@ -19,6 +19,6 @@ generated from this same text.
 
 ## Truth rules the build enforces
 
-- Every frame is a real product capture; the script refuses placeholder or generated screens.
+- Chapters 1–5 are real product captures; the closing chapter uses the public case-study page, which labels its own hero panel as an illustrative interface. The script refuses mocked or generated *product* screens.
 - Narration never calls a browser signal a pronunciation, accent, fluency, or emotion score.
 - The final chapter states explicitly what the captured motion does not prove.
