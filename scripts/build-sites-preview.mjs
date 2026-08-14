@@ -10,6 +10,8 @@ const html = (await read("server/pages/live.html")).toString("utf8");
 const css = (await read("server/static/live.css")).toString("utf8");
 const js = (await read("server/static/live.js")).toString("utf8");
 const analysisJs = (await read("server/static/analysis-core.js")).toString("utf8");
+const speechSignalJs = (await read("server/static/speech-signal.js")).toString("utf8");
+const speechCaptureWorkletJs = (await read("server/static/speech-capture-worklet.js")).toString("utf8");
 const personalizeJs = (await read("server/static/personalize.js")).toString("utf8");
 const dailyJs = (await read("server/static/daily-0.91.0.js")).toString("utf8");
 const ogV3 = (await read("server/static/og-language-coach-v3.png")).toString("base64");
@@ -19,6 +21,8 @@ const HTML = ${JSON.stringify(html)};
 const CSS = ${JSON.stringify(css)};
 const JS = ${JSON.stringify(js)};
 const ANALYSIS_JS = ${JSON.stringify(analysisJs)};
+const SPEECH_SIGNAL_JS = ${JSON.stringify(speechSignalJs)};
+const SPEECH_CAPTURE_WORKLET_JS = ${JSON.stringify(speechCaptureWorkletJs)};
 const PERSONALIZE_JS = ${JSON.stringify(personalizeJs)};
 const DAILY_JS = ${JSON.stringify(dailyJs)};
 const OG_V3_BASE64 = ${JSON.stringify(ogV3)};
@@ -778,6 +782,12 @@ export default {
     }
     if (url.pathname === "/static/analysis-core.js") {
       return new Response(ANALYSIS_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
+    }
+    if (url.pathname === "/static/speech-signal.js") {
+      return new Response(SPEECH_SIGNAL_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
+    }
+    if (url.pathname === "/static/speech-capture-worklet.js") {
+      return new Response(SPEECH_CAPTURE_WORKLET_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
     }
     if (url.pathname === "/static/personalize.js") {
       return new Response(PERSONALIZE_JS, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });

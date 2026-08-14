@@ -24,6 +24,24 @@ test("reports timing evidence without turning it into a score", () => {
   assert.deepEqual(result.sources, ["Tavus transcript", "Tavus speaking duration"]);
 });
 
+test("labels browser acoustic evidence without claiming retained audio or phoneme scores", () => {
+  const result = Analysis.summarizeTurn({
+    text: "I tested the idea with five customers this week",
+    durationSec: 4.5,
+    signalAnalysis: {
+      available: true,
+      waveform: { bins: [{ min: -0.2, max: 0.3 }] },
+      pitch: { voicedFrames: 8 },
+    },
+  });
+  assert.equal(result.availability.acousticSignal, true);
+  assert.equal(result.availability.waveform, true);
+  assert.equal(result.availability.pitchContour, true);
+  assert.equal(result.availability.rawAudio, false);
+  assert.equal(result.availability.phonemes, false);
+  assert.ok(result.sources.includes("Browser microphone signal"));
+});
+
 test("withholds WPM for a short sample", () => {
   const result = Analysis.summarizeTurn({ text: "That works", durationSec: 1.5 });
   assert.equal(result.wpm, null);
@@ -45,6 +63,13 @@ test("normalizes millisecond-style durations defensively", () => {
   assert.equal(Analysis.secondsFrom(4200), 4.2);
   assert.equal(Analysis.secondsFrom(4.2), 4.2);
   assert.equal(Analysis.secondsFrom(0), null);
+});
+
+test("matches keyed speech events strictly and only falls back when a side lacks keys", () => {
+  assert.equal(Analysis.eventKeysMatch(["turn:4"], ["turn:4"], 900), true);
+  assert.equal(Analysis.eventKeysMatch(["turn:4"], ["turn:5"], 100), false);
+  assert.equal(Analysis.eventKeysMatch([], ["turn:5"], 900), true);
+  assert.equal(Analysis.eventKeysMatch([], ["turn:5"], 5100), false);
 });
 
 test("compares attempts with ordered target coverage", () => {

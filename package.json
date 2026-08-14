@@ -5,6 +5,7 @@
     "build": "node scripts/build-sites-preview.mjs",
     "test:worker": "node --test tests/sites-worker.test.mjs",
     "test:analysis": "node --test tests/live-analysis.test.mjs",
-    "test": "npm run test:analysis && npm run test:worker"
+    "test:signal": "node --test tests/speech-signal.test.mjs",
+    "test": "npm run test:analysis && npm run test:signal && npm run test:worker"
   }
 }

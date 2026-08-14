@@ -48,6 +48,9 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert "speaking evidence" in response.text.lower()
     assert "No mystery score" in response.text
     assert "/static/analysis-core.js" in response.text
+    assert "/static/speech-signal.js" in response.text
+    assert "TURN STUDIO" in response.text
+    assert "Optional visual delivery mode" in response.text
     assert "Kai" not in response.text
     assert "/static/live.js" in response.text
     assert response.headers["x-frame-options"] == "DENY"
@@ -58,6 +61,18 @@ def test_daily_sdk_is_served_from_the_same_origin():
     response = client.get("/static/daily-0.91.0.js")
     assert response.status_code == 200
     assert "DailyIframe" in response.text
+
+
+def test_speech_signal_module_is_served_from_the_same_origin():
+    response = client.get("/static/speech-signal.js")
+    assert response.status_code == 200
+    assert "FluentMeSpeechSignal" in response.text
+
+
+def test_speech_capture_worklet_is_served_from_the_same_origin():
+    response = client.get("/static/speech-capture-worklet.js")
+    assert response.status_code == 200
+    assert "fluent-me-speech-capture" in response.text
 
 
 def test_unconfigured_status_requires_real_tavus(monkeypatch):

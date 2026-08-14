@@ -62,6 +62,13 @@
     return "Fast-moving";
   }
 
+  function eventKeysMatch(leftKeys = [], rightKeys = [], ageMs = Infinity, fallbackWindowMs = 5000) {
+    const left = Array.isArray(leftKeys) ? leftKeys.filter(Boolean).map(String) : [];
+    const right = Array.isArray(rightKeys) ? rightKeys.filter(Boolean).map(String) : [];
+    if (left.length && right.length) return left.some(key => right.includes(key));
+    return Number.isFinite(Number(ageMs)) && Number(ageMs) >= 0 && Number(ageMs) < fallbackWindowMs;
+  }
+
   function summarizeTurn(input = {}) {
     const text = String(input.text || "").trim();
     const lexical = lexicalSignals(text);
@@ -71,6 +78,7 @@
     const fillerRate = lexical.wordCount
       ? Math.round((lexical.strongFillers / lexical.wordCount) * 1000) / 10
       : null;
+    const signal = input.signalAnalysis;
     return {
       text,
       durationSec,
@@ -90,11 +98,14 @@
         wordTimestamps: false,
         rawAudio: false,
         phonemes: false,
-        pitchContour: false,
+        acousticSignal: Boolean(signal?.available),
+        waveform: Boolean(signal?.available && signal?.waveform?.bins?.length),
+        pitchContour: Boolean(signal?.available && signal?.pitch?.voicedFrames),
       },
       sources: [
         ...(text ? ["Tavus transcript"] : []),
         ...(enoughTiming ? ["Tavus speaking duration"] : []),
+        ...(signal?.available ? ["Browser microphone signal"] : []),
         ...(input.audioAnalysis || input.visualAnalysis ? ["Raven qualitative observation"] : []),
       ],
     };
@@ -164,6 +175,7 @@
     secondsFrom,
     lexicalSignals,
     paceLabel,
+    eventKeysMatch,
     summarizeTurn,
     transcriptCoverage,
     compareAttempts,

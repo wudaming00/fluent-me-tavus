@@ -66,6 +66,9 @@ test("Sites Worker enables explicit microphone and optional camera access", asyn
   assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'");
   const html = await response.text();
   assert.match(html, /Start video conversation/);
+  assert.match(html, /Turn Studio/i);
+  assert.match(html, /Optional visual delivery mode/);
+  assert.doesNotMatch(html, />Share camera</);
   assert.doesNotMatch(html, /Step 1 of 5|Hear the model/);
 });
 
@@ -76,6 +79,23 @@ test("Sites Worker serves the deterministic speaking-evidence module", async () 
   const javascript = await response.text();
   assert.match(javascript, /summarizeTurn/);
   assert.match(javascript, /phonemes: false/);
+});
+
+test("Sites Worker serves the client-side speech signal module", async () => {
+  const response = await worker.fetch(new Request("https://fluent-me.test/static/speech-signal.js"), {});
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/javascript/);
+  const javascript = await response.text();
+  assert.match(javascript, /FluentMeSpeechSignal/);
+  assert.doesNotMatch(javascript, /pronunciationScore|emotionScore/);
+});
+
+test("Sites Worker serves the same-origin speech capture worklet", async () => {
+  const response = await worker.fetch(new Request("https://fluent-me.test/static/speech-capture-worklet.js"), {});
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/javascript/);
+  const javascript = await response.text();
+  assert.match(javascript, /registerProcessor\("fluent-me-speech-capture"/);
 });
 
 test("Sites Worker constrains the live video row instead of letting the coach console stretch it", async () => {

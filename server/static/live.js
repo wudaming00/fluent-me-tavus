@@ -8,6 +8,7 @@
   };
 
   const Analysis = window.FluentMeAnalysis;
+  const Signal = window.FluentMeSpeechSignal;
 
   const COACH_REQUESTS = {
     natural: "Improve the English in my last spoken turn. Preserve my meaning. Name one grammar, word-choice, or naturalness change, then say one concise natural version aloud.",
@@ -31,9 +32,12 @@
     failureInProgress: false,
     seenEvents: new Set(),
     turns: [],
+    turnSequence: 0,
     lastUserTurn: null,
+    pendingTimingTurns: [],
     starter: "",
     speechStops: new Map(),
+    keylessStops: [],
     lastUserStop: null,
     pendingCoachCapture: null,
     interaction: null,
@@ -49,7 +53,24 @@
     },
     timer: null,
     startedAt: 0,
-    remoteReady: false
+    remoteReady: false,
+    signalCapture: {
+      context: null,
+      source: null,
+      processor: null,
+      silentGain: null,
+      analysisTrack: null,
+      ownsAnalysisTrack: false,
+      trackEndedHandler: null,
+      trackId: "",
+      generation: 0,
+      workletReady: false,
+      ringChunks: [],
+      ringSamples: 0,
+      activeSegment: null,
+      bindToken: null,
+    },
+    selectedSignalTurnId: null,
   };
 
   async function fetchJSON(url, options = {}) {
@@ -150,13 +171,13 @@
     $("mic-toggle").setAttribute("aria-pressed", String(state.micLive));
     $("camera-toggle").setAttribute("aria-pressed", String(state.cameraLive));
     $("mic-toggle").querySelector("b").textContent = state.micLive ? "Mute mic" : "Turn mic on";
-    $("camera-toggle").querySelector("b").textContent = state.cameraLive ? "Stop camera" : "Share camera";
+    $("camera-toggle").querySelector("b").textContent = state.cameraLive ? "Stop visual coaching" : "Enable visual coaching";
     setText(
       "signal-scope",
       state.cameraLive
-        ? "Your words, turn timing, optional audio observations, and visible delivery cues."
+        ? "Your words, turn timing, browser voice signals, and optional visible delivery cues."
         : state.micLive
-          ? "Your words, turn timing, and optional audio observations. Camera is off."
+          ? "Your words, turn timing, waveform, pauses, microphone-level variation, and pitch movement. Camera is off."
           : "Microphone and camera are off. You can still type to your coach."
     );
     if (!state.cameraLive) {
@@ -253,6 +274,307 @@
     return keys;
   }
 
+  function percentile(values, percent) {
+    const sorted = values.filter(Number.isFinite).slice().sort((left, right) => left - right);
+    if (!sorted.length) return null;
+    const position = Math.max(0, Math.min(1, Number(percent) / 100)) * (sorted.length - 1);
+    const lower = Math.floor(position);
+    const upper = Math.ceil(position);
+    if (lower === upper) return sorted[lower];
+    return sorted[lower] * (upper - position) + sorted[upper] * (position - lower);
+  }
+
+  function concatenateSamples(chunks, totalSamples) {
+    const output = new Float32Array(Math.max(0, totalSamples));
+    let offset = 0;
+    for (const chunk of chunks) {
+      if (offset >= output.length) break;
+      const count = Math.min(chunk.length, output.length - offset);
+      output.set(chunk.subarray(0, count), offset);
+      offset += count;
+    }
+    return output;
+  }
+
+  function energyMovementLabel(rangeDb) {
+    if (!Number.isFinite(rangeDb)) return "Not enough signal";
+    if (rangeDb < 4) return "Very even";
+    if (rangeDb < 9) return "Gently varied";
+    return "Varied";
+  }
+
+  function pitchMovementLabel(pitch) {
+    if (!pitch || pitch.voicedFrames < 3 || pitch.voicedFraction < 0.15 || !Number.isFinite(pitch.rangeSemitones)) {
+      return "Not enough voiced audio";
+    }
+    if (pitch.rangeSemitones < 2) return "Narrow movement";
+    if (pitch.rangeSemitones < 5) return "Gentle movement";
+    return "Varied movement";
+  }
+
+  function unavailableSignal(reason) {
+    return {
+      available: false,
+      reason,
+      source: "Browser microphone signal",
+      rawAudioRetained: false,
+    };
+  }
+
+  function analyzeSpeechSamples(samples, sampleRate, truncated = false) {
+    if (!Signal || !samples?.length || !Number.isFinite(sampleRate) || sampleRate <= 0) {
+      return unavailableSignal("No browser microphone samples were available for this turn.");
+    }
+    if (samples.length < sampleRate * 0.12) {
+      return unavailableSignal("The captured signal was too short for a reliable display.");
+    }
+
+    const firstEnvelope = Signal.rmsEnvelope(samples, sampleRate, { frameMs: 20, hopMs: 10 });
+    const levels = firstEnvelope.frames.map(frame => frame.dbfs).filter(Number.isFinite);
+    const lowLevel = percentile(levels, 20);
+    const highLevel = percentile(levels, 80);
+    const adaptiveThreshold = Number.isFinite(lowLevel) && Number.isFinite(highLevel)
+      ? Math.max(-50, Math.min(-34, lowLevel + Math.max(7, (highLevel - lowLevel) * 0.35)))
+      : -45;
+    const activeFrames = firstEnvelope.frames.filter(frame => frame.dbfs > adaptiveThreshold);
+    if (!activeFrames.length) {
+      return unavailableSignal("No clear voiced signal rose above the estimated room-noise floor.");
+    }
+
+    const first = activeFrames[0];
+    const last = activeFrames[activeFrames.length - 1];
+    const trimStart = Math.max(0, first.startSample - Math.round(sampleRate * 0.08));
+    const trimEnd = Math.min(samples.length, last.endSample + Math.round(sampleRate * 0.12));
+    const trimmed = samples.slice(trimStart, trimEnd);
+    const envelope = Signal.rmsEnvelope(trimmed, sampleRate, { frameMs: 20, hopMs: 10 });
+    const pauses = Signal.detectSilenceAndPauses(envelope, {
+      thresholdDbfs: adaptiveThreshold,
+      minSilenceMs: 120,
+      minPauseMs: 280,
+    });
+    const energy = Signal.dynamicRange(envelope, { activityThresholdDbfs: adaptiveThreshold });
+    const pitch = Signal.pitchContour(trimmed, sampleRate, {
+      frameMs: 50,
+      hopMs: 80,
+      minConfidence: 0.7,
+      maxAnalysisRate: 8000,
+      includePartial: false,
+    });
+    const waveform = Signal.downsampleWaveform(trimmed, 180);
+    let clippedSamples = 0;
+    for (let index = 0; index < trimmed.length; index += 1) {
+      if (Math.abs(trimmed[index]) >= 0.985) clippedSamples += 1;
+    }
+    const clippingPercent = Math.round((clippedSamples / trimmed.length) * 1000) / 10;
+
+    return {
+      available: true,
+      source: "Browser microphone signal",
+      durationSec: Math.round((trimmed.length / sampleRate) * 100) / 100,
+      sampleRate,
+      waveform,
+      pauses,
+      energy,
+      pitch,
+      energyLabel: energyMovementLabel(energy.rangeDb),
+      pitchLabel: pitchMovementLabel(pitch),
+      clippingPercent,
+      thresholdDbfs: Math.round(adaptiveThreshold * 10) / 10,
+      noiseFloorDbfs: Number.isFinite(lowLevel) ? Math.round(lowLevel * 10) / 10 : null,
+      truncated,
+      rawAudioRetained: false,
+      limitations: Signal.EVIDENCE_LIMITATIONS,
+    };
+  }
+
+  function drawSignalChart(signal) {
+    const canvas = $("sentence-waveform");
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const width = canvas.width;
+    const height = canvas.height;
+    context.clearRect(0, 0, width, height);
+    context.strokeStyle = "rgba(160, 146, 255, .16)";
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(0, height / 2);
+    context.lineTo(width, height / 2);
+    context.stroke();
+    const bins = signal?.waveform?.bins || [];
+    if (!bins.length) return;
+    const peak = Math.max(0.05, ...bins.map(bin => Math.max(Math.abs(bin.min), Math.abs(bin.max))));
+    const gradient = context.createLinearGradient(0, 0, width, 0);
+    gradient.addColorStop(0, "#43dcb0");
+    gradient.addColorStop(0.55, "#a092ff");
+    gradient.addColorStop(1, "#6f57f5");
+    context.strokeStyle = gradient;
+    context.lineWidth = Math.max(1, width / bins.length * 0.55);
+    context.beginPath();
+    bins.forEach((bin, index) => {
+      const x = (index + 0.5) / bins.length * width;
+      const top = height / 2 - (bin.max / peak) * height * 0.38;
+      const bottom = height / 2 - (bin.min / peak) * height * 0.38;
+      context.moveTo(x, top);
+      context.lineTo(x, bottom);
+    });
+    context.stroke();
+
+    const allPitchFrames = signal.pitch?.frames || [];
+    const pitchFrames = allPitchFrames.filter(frame => frame.voiced && Number.isFinite(frame.hz));
+    if (pitchFrames.length < 3 || !signal.durationSec) return;
+    const pitchLow = Math.max(60, signal.pitch.lowHz || Math.min(...pitchFrames.map(frame => frame.hz)));
+    const pitchHigh = Math.max(pitchLow * 1.12, signal.pitch.highHz || Math.max(...pitchFrames.map(frame => frame.hz)));
+    const lowLog = Math.log2(pitchLow);
+    const logSpan = Math.max(0.15, Math.log2(pitchHigh) - lowLog);
+    context.strokeStyle = "rgba(255, 190, 89, .9)";
+    context.lineWidth = 1.6;
+    context.setLineDash([4, 3]);
+    context.beginPath();
+    let drawing = false;
+    let previousTime = null;
+    allPitchFrames.forEach(frame => {
+      if (!frame.voiced || !Number.isFinite(frame.hz)) {
+        drawing = false;
+        previousTime = null;
+        return;
+      }
+      const x = Math.max(0, Math.min(width, frame.timeSec / signal.durationSec * width));
+      const normalized = Math.max(0, Math.min(1, (Math.log2(frame.hz) - lowLog) / logSpan));
+      const y = height * 0.78 - normalized * height * 0.56;
+      if (!drawing || previousTime == null || frame.timeSec - previousTime > 0.18) context.moveTo(x, y);
+      else context.lineTo(x, y);
+      drawing = true;
+      previousTime = frame.timeSec;
+    });
+    context.stroke();
+    context.setLineDash([]);
+  }
+
+  function renderSentenceStudio(turn) {
+    if (!turn) return;
+    state.selectedSignalTurnId = turn.id;
+    const signal = turn.signalAnalysis;
+    const metrics = turn.metrics;
+    $("sentence-studio").dataset.state = "ready";
+    $("latest-sentence").dataset.state = "ready";
+    setText("sentence-transcript", turn.text);
+    setText("sentence-duration", metrics?.durationSec != null
+      ? `${metrics.durationSec.toFixed(1)}s`
+      : signal?.durationSec != null ? `${signal.durationSec.toFixed(1)}s` : "—");
+    setText("sentence-duration-source", metrics?.durationSec != null ? "Tavus turn timing" : signal?.available ? "Browser signal timing" : "Timing unavailable");
+    setText("sentence-pace", metrics?.wpm == null ? "—" : `${metrics.wpm} wpm`);
+    setText("sentence-pace-source", metrics?.wpm == null ? "Needs 5+ words and timing" : "Transcript + turn timing");
+
+    if (signal?.available) {
+      $("sentence-waveform-wrap").dataset.state = "ready";
+      $("sentence-pitch-key").hidden = !(signal.pitch.voicedFrames >= 3 && signal.pitch.voicedFraction >= 0.15);
+      setText("sentence-studio-status", "Browser signal + Tavus transcript");
+      setText("sentence-pauses", String(signal.pauses.pauseCount));
+      setText("sentence-pauses-source", signal.pauses.pauseCount
+        ? `${signal.pauses.pauseDurationSec.toFixed(1)}s total (≥280ms)`
+        : "No internal pause detected (≥280ms)");
+      setText("sentence-energy", signal.energyLabel);
+      setText("sentence-energy-source", Number.isFinite(signal.energy.rangeDb) ? `${signal.energy.rangeDb.toFixed(1)} dB span` : "Not enough active audio");
+      setText("sentence-pitch-movement", signal.pitchLabel);
+      setText("sentence-pitch-source", signal.pitch.voicedFrames
+        ? `${Math.round(signal.pitch.voicedFraction * 100)}% periodic frames`
+        : "No confident periodic frames");
+      setText("sentence-evidence-status", "Descriptive signal evidence");
+      setText("sentence-timing-note", `${signal.pauses.pauseCount} internal pause${signal.pauses.pauseCount === 1 ? "" : "s"} of at least 280 ms; pause boundaries use an adaptive energy threshold.`);
+      const qualityWarnings = [];
+      if (signal.clippingPercent >= 1) qualityWarnings.push(`${signal.clippingPercent.toFixed(1)}% of samples were near clipping`);
+      if (signal.truncated) qualityWarnings.push("only the first 45 seconds were analysed");
+      if (Number.isFinite(signal.noiseFloorDbfs) && signal.noiseFloorDbfs > -35) qualityWarnings.push("the estimated background level was high");
+      setText("sentence-energy-note", `Relative digital level moved across a ${Number.isFinite(signal.energy.rangeDb) ? signal.energy.rangeDb.toFixed(1) : "—"} dB span. This depends on microphone gain and distance.${qualityWarnings.length ? ` Recording note: ${qualityWarnings.join("; ")}.` : ""}`);
+      setText("sentence-pitch-note", signal.pitch.voicedFrames >= 3
+        ? `Pitch candidates covered ${Math.round(signal.pitch.voicedFraction * 100)}% of analysed frames with a ${Number.isFinite(signal.pitch.rangeSemitones) ? signal.pitch.rangeSemitones.toFixed(1) : "—"}-semitone middle range. The orange overlay is auto-scaled within this turn.`
+        : "There was not enough confidently periodic audio to describe pitch movement.");
+      const hasPitchOverlay = signal.pitch.voicedFrames >= 3 && signal.pitch.voicedFraction >= 0.15;
+      const canvasLabel = hasPitchOverlay
+        ? `Amplitude waveform with a descriptive pitch-movement overlay for: ${turn.text}`
+        : `Amplitude waveform for: ${turn.text}`;
+      $("sentence-waveform").setAttribute("aria-label", canvasLabel.slice(0, 240));
+      drawSignalChart(signal);
+    } else {
+      $("sentence-waveform-wrap").dataset.state = "waiting";
+      $("sentence-pitch-key").hidden = true;
+      setText("sentence-studio-status", "Transcript evidence only");
+      setText("sentence-pauses", "—");
+      setText("sentence-pauses-source", "Browser signal unavailable");
+      setText("sentence-energy", "—");
+      setText("sentence-energy-source", "Browser signal unavailable");
+      setText("sentence-pitch-movement", "—");
+      setText("sentence-pitch-source", "Browser signal unavailable");
+      setText("sentence-evidence-status", "Signal unavailable");
+      setText("sentence-timing-note", metrics?.durationSec != null ? "Turn duration came from Tavus speaking events." : "No turn-level timing evidence arrived.");
+      setText("sentence-energy-note", signal?.reason || "The browser did not capture a usable microphone signal for this turn.");
+      setText("sentence-pitch-note", "Pitch movement is withheld when voiced-frame confidence is insufficient.");
+      $("sentence-waveform").setAttribute("aria-label", "No browser waveform is available for the selected speaking turn.");
+      drawSignalChart(null);
+    }
+  }
+
+  function renderSentenceTimeline() {
+    const list = $("sentence-timeline-list");
+    if (!list) return;
+    list.querySelectorAll(".sentence-timeline-item").forEach(node => node.remove());
+    const turns = state.turns.filter(turn => turn.role === "user");
+    list.dataset.state = turns.length ? "ready" : "empty";
+    setText("sentence-timeline-count", String(turns.length));
+    turns.slice().reverse().forEach((turn, reverseIndex) => {
+      const turnNumber = turns.length - reverseIndex;
+      const item = document.createElement("li");
+      item.className = "sentence-timeline-item";
+      item.dataset.selected = String(turn.id === state.selectedSignalTurnId);
+      const ordinal = document.createElement("span");
+      ordinal.setAttribute("aria-hidden", "true");
+      ordinal.textContent = String(turnNumber).padStart(2, "0");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = turn.text;
+      button.title = turn.text;
+      button.setAttribute("aria-label", `Turn ${turnNumber}: ${turn.text}`);
+      button.addEventListener("click", () => {
+        renderSentenceStudio(turn);
+        renderSentenceTimeline();
+      });
+      const evidence = document.createElement("span");
+      evidence.textContent = turn.signalAnalysis?.available
+        ? `${turn.signalAnalysis.pauses.pauseCount} pause${turn.signalAnalysis.pauses.pauseCount === 1 ? "" : "s"}`
+        : turn.metrics?.wpm != null ? `${turn.metrics.wpm} wpm` : "transcript";
+      item.append(ordinal, button, evidence);
+      list.appendChild(item);
+    });
+  }
+
+  function resetSentenceStudio() {
+    state.selectedSignalTurnId = null;
+    if ($("sentence-studio")) $("sentence-studio").dataset.state = "waiting";
+    if ($("latest-sentence")) $("latest-sentence").dataset.state = "waiting";
+    if ($("sentence-waveform-wrap")) $("sentence-waveform-wrap").dataset.state = "waiting";
+    if ($("sentence-pitch-key")) $("sentence-pitch-key").hidden = true;
+    setText("sentence-studio-status", "Waiting for a complete turn");
+    setText("sentence-transcript", "Your latest complete speaking turn will appear here.");
+    setText("sentence-duration", "—");
+    setText("sentence-duration-source", "Turn timing");
+    setText("sentence-pace", "—");
+    setText("sentence-pace-source", "Needs enough words");
+    setText("sentence-pauses", "—");
+    setText("sentence-pauses-source", "Audio timing");
+    setText("sentence-energy", "—");
+    setText("sentence-energy-source", "Audio evidence");
+    setText("sentence-pitch-movement", "—");
+    setText("sentence-pitch-source", "Pitch contour");
+    setText("sentence-evidence-status", "Not available yet");
+    setText("sentence-timing-note", "No turn-level timing evidence has arrived.");
+    setText("sentence-energy-note", "No microphone-level evidence has arrived.");
+    setText("sentence-pitch-note", "No pitch evidence has arrived.");
+    $("sentence-waveform")?.setAttribute("aria-label", "No browser waveform is available yet.");
+    drawSignalChart(null);
+    renderSentenceTimeline();
+  }
+
   function measuredEvidence(metrics) {
     const parts = [];
     if (metrics?.wpm != null) parts.push(`${metrics.wordCount} words in ${metrics.durationSec.toFixed(1)}s (${metrics.wpm} WPM, ${metrics.paceLabel.toLowerCase()})`);
@@ -288,6 +610,8 @@
     const visual = analysisText(turn.visualAnalysis);
     const observations = [audio && `Audio: ${audio}`, visual && `Visual: ${visual}`].filter(Boolean);
     setText("feedback-delivery", observations.join(" · ") || "No qualitative Raven observation was provided for this turn.");
+    renderSentenceStudio(turn);
+    renderSentenceTimeline();
   }
 
   function renderSessionEvidence() {
@@ -299,53 +623,99 @@
     setText("session-fillers", String(aggregate.fillers));
   }
 
-  function rememberStop(message, properties) {
+  function rememberStop(message, properties, signalAnalysis = null) {
     const durationSec = Analysis?.secondsFrom(properties.duration ?? message.duration);
     const timing = {
       durationSec,
       interrupted: Boolean(properties.interrupted ?? message.interrupted),
       keys: timingKeys(message),
       receivedAt: Date.now(),
+      signalAnalysis,
     };
+    for (const key of timing.keys) {
+      const existing = state.speechStops.get(key);
+      if (!timing.signalAnalysis && existing?.signalAnalysis) timing.signalAnalysis = existing.signalAnalysis;
+      if (timing.durationSec == null && existing?.durationSec != null) timing.durationSec = existing.durationSec;
+    }
     timing.keys.forEach(key => state.speechStops.set(key, timing));
-    state.lastUserStop = timing;
+    if (timing.keys.length) {
+      state.lastUserStop = timing;
+    } else {
+      state.keylessStops = state.keylessStops.filter(item => Date.now() - item.receivedAt < 5_000);
+      state.keylessStops.push(timing);
+      if (state.keylessStops.length > 4) state.keylessStops.shift();
+    }
 
-    const matchesLastTurn = state.lastUserTurn && (
-      timing.keys.some(key => state.lastUserTurn.timingKeys?.includes(key))
-      || (!timing.keys.length && Date.now() - Number(state.lastUserTurn.receivedAt || 0) < 15_000)
-    );
-    if (matchesLastTurn) {
-      state.lastUserStop = null;
+    const now = Date.now();
+    state.pendingTimingTurns = state.pendingTimingTurns.filter(turn => now - Number(turn.receivedAt || 0) < 5_000);
+    const turnToPatch = state.pendingTimingTurns.find(turn => Analysis.eventKeysMatch(
+      timing.keys,
+      turn.timingKeys || [],
+      now - Number(turn.receivedAt || 0),
+      5_000,
+    ));
+    if (turnToPatch) {
+      state.pendingTimingTurns = state.pendingTimingTurns.filter(turn => turn.id !== turnToPatch.id);
+      if (state.lastUserStop === timing) state.lastUserStop = null;
+      state.keylessStops = state.keylessStops.filter(item => item !== timing);
+      timing.consumed = true;
       timing.keys.forEach(key => state.speechStops.delete(key));
-      state.lastUserTurn.durationSec = timing.durationSec;
-      state.lastUserTurn.interrupted = timing.interrupted;
-      state.lastUserTurn.metrics = Analysis.summarizeTurn(state.lastUserTurn);
-      const stored = [...state.turns].reverse().find(turn => turn.role === "user" && turn.text === state.lastUserTurn.text);
+      if (timing.durationSec != null) turnToPatch.durationSec = timing.durationSec;
+      turnToPatch.interrupted = timing.interrupted;
+      if (timing.signalAnalysis) turnToPatch.signalAnalysis = timing.signalAnalysis;
+      turnToPatch.metrics = Analysis.summarizeTurn(turnToPatch);
+      const stored = state.turns.find(turn => turn.id === turnToPatch.id);
       if (stored) {
-        stored.durationSec = timing.durationSec;
+        if (timing.durationSec != null) stored.durationSec = timing.durationSec;
         stored.interrupted = timing.interrupted;
-        stored.metrics = state.lastUserTurn.metrics;
+        if (timing.signalAnalysis) stored.signalAnalysis = timing.signalAnalysis;
+        stored.metrics = turnToPatch.metrics;
       }
-      renderTurnFeedback(state.lastUserTurn);
+      state.practice.attempts.forEach((attempt, index) => {
+        if (attempt?.id !== turnToPatch.id) return;
+        const coverage = Analysis?.transcriptCoverage(state.practice.target, attempt.text);
+        const coverageText = coverage == null ? "" : ` · ${coverage}% of target words in sequence`;
+        setAttemptCard(index + 1, "captured", attempt.text, `${turnSignals(attempt)}${coverageText}`);
+      });
+      if (state.lastUserTurn?.id === turnToPatch.id) {
+        renderTurnFeedback(turnToPatch);
+      } else {
+        if (state.selectedSignalTurnId === turnToPatch.id) renderSentenceStudio(turnToPatch);
+        renderSentenceTimeline();
+      }
       renderSessionEvidence();
     }
   }
 
   function timingFor(message) {
-    for (const key of timingKeys(message)) {
+    const messageKeys = timingKeys(message);
+    for (const key of messageKeys) {
       if (state.speechStops.has(key)) {
         const timing = state.speechStops.get(key);
         timing.keys.forEach(item => state.speechStops.delete(item));
+        if (state.lastUserStop === timing) state.lastUserStop = null;
+        timing.consumed = true;
         return timing;
       }
     }
-    if (state.lastUserStop && Date.now() - state.lastUserStop.receivedAt < 15_000) {
+    state.keylessStops = state.keylessStops.filter(item => !item.consumed && Date.now() - item.receivedAt < 5_000);
+    if (state.keylessStops.length) {
+      const timing = state.keylessStops.shift();
+      if (state.lastUserStop === timing) state.lastUserStop = null;
+      timing.consumed = true;
+      return timing;
+    }
+    const lastStopCanFallback = state.lastUserStop
+      && Date.now() - state.lastUserStop.receivedAt < 5_000
+      && (!messageKeys.length || !state.lastUserStop.keys.length);
+    if (lastStopCanFallback) {
       const timing = state.lastUserStop;
       state.lastUserStop = null;
       timing.keys.forEach(item => state.speechStops.delete(item));
+      timing.consumed = true;
       return timing;
     }
-    return { durationSec: null, interrupted: false, keys: [] };
+    return { durationSec: null, interrupted: false, keys: [], signalAnalysis: null, consumed: false };
   }
 
   const PRACTICE_STEPS = ["choose", "hear", "attempt-one", "attempt-two", "compare"];
@@ -376,6 +746,10 @@
     if (turn?.metrics) parts.push(`Measured: ${measuredEvidence(turn.metrics)}`);
     const audio = analysisText(turn?.audioAnalysis);
     const visual = analysisText(turn?.visualAnalysis);
+    const signal = turn?.signalAnalysis;
+    if (signal?.available) {
+      parts.push(`Browser microphone signal: ${signal.pauses.pauseCount} internal pause${signal.pauses.pauseCount === 1 ? "" : "s"} (at least 280 ms); ${Number.isFinite(signal.energy.rangeDb) ? `${signal.energy.rangeDb.toFixed(1)} dB relative microphone-level span` : "microphone-level span unavailable"}; ${signal.pitch.voicedFrames >= 3 && Number.isFinite(signal.pitch.rangeSemitones) ? `${signal.pitch.rangeSemitones.toFixed(1)} semitone pitch-candidate range across ${Math.round(signal.pitch.voicedFraction * 100)}% of frames` : "pitch movement unavailable"}. These are descriptive signals, not pronunciation or emotion scores.`);
+    }
     if (audio) parts.push(`Raven audio observation: ${audio}`);
     if (visual) parts.push(`Raven visual observation: ${visual}`);
     return parts.join(" · ") || "Transcript received; no timing or qualitative delivery observation was available.";
@@ -530,7 +904,9 @@
 
   function resetLiveWorkflow() {
     state.lastUserTurn = null;
+    state.pendingTimingTurns = [];
     state.speechStops.clear();
+    state.keylessStops = [];
     state.lastUserStop = null;
     state.pendingCoachCapture = null;
     resetPractice();
@@ -546,6 +922,7 @@
     setText("feedback-repeats", "—");
     setText("feedback-focus", "Finish one real turn to get a suggestion.");
     setText("feedback-delivery", "No Raven audio or visual observation has arrived yet.");
+    resetSentenceStudio();
     renderSessionEvidence();
     updateWorkflowControls();
   }
@@ -573,9 +950,12 @@
     completeInteraction(state.interaction.id, true, speech);
   }
 
-  function appendTurn({ role, text, timestamp, audioAnalysis, visualAnalysis, metrics }) {
+  function appendTurn(turn) {
+    const { role, text, timestamp, audioAnalysis, visualAnalysis, metrics, signalAnalysis } = turn;
     const speech = String(text || "").trim();
     if (!speech) return;
+    if (!turn.id) turn.id = `turn-${++state.turnSequence}`;
+    turn.text = speech;
     $("empty-log").hidden = true;
     const article = document.createElement("article");
     article.className = `log-turn ${role}`;
@@ -593,7 +973,7 @@
 
     const audio = analysisText(audioAnalysis);
     const visual = analysisText(visualAnalysis);
-    if (metrics || audio || visual) {
+    if (metrics || audio || visual || signalAnalysis?.available) {
       const details = document.createElement("details");
       details.className = "turn-signals";
       const summary = document.createElement("summary");
@@ -614,11 +994,16 @@
         line.textContent = `Visual: ${visual}`;
         details.appendChild(line);
       }
+      if (signalAnalysis?.available) {
+        const line = document.createElement("p");
+        line.textContent = `Browser signal: ${signalAnalysis.pauses.pauseCount} pause${signalAnalysis.pauses.pauseCount === 1 ? "" : "s"}; ${signalAnalysis.energyLabel.toLowerCase()} microphone-level variation; ${signalAnalysis.pitchLabel.toLowerCase()} pitch.`;
+        details.appendChild(line);
+      }
       article.appendChild(details);
     }
 
     $("event-log").appendChild(article);
-    state.turns.push({ role, text: speech, timestamp, audioAnalysis, visualAnalysis, metrics });
+    state.turns.push(turn);
     setText("log-count", String(state.turns.length));
     renderSessionEvidence();
     article.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -629,6 +1014,7 @@
     state.turns = [];
     $("empty-log").hidden = false;
     setText("log-count", "0");
+    resetSentenceStudio();
     renderSessionEvidence();
   }
 
@@ -666,16 +1052,37 @@
     const role = roleForMessage(message);
     const properties = message.properties || {};
     const speech = String(properties.speech || properties.text || properties.transcript || "").trim();
+    if (type.includes("started_speaking") || type.includes("stopped_speaking")) {
+      const eventKeys = timingKeys(message);
+      const identity = message.seq != null
+        ? [`seq:${String(message.seq)}`]
+        : eventKeys.length ? eventKeys : message.timestamp != null ? [`time:${String(message.timestamp)}`] : [];
+      if (identity.length) {
+        const speechEventKey = `speech|${type}|${role}|${identity.join("|")}`;
+        if (state.seenEvents.has(speechEventKey)) return;
+        state.seenEvents.add(speechEventKey);
+      }
+    }
 
     if (type.includes("started_speaking")) {
       if (role === "coach") setCoachState("speaking", "Coach is speaking");
-      if (role === "user") setCoachState("listening", "Listening to you");
+      if (role === "user") {
+        beginUserSignal(message);
+        setCoachState("listening", "Listening to you");
+      }
       return;
     }
 
     if (type.includes("stopped_speaking")) {
       if (role === "user") {
-        rememberStop(message, properties);
+        setText("sentence-studio-status", "Processing the latest voice signal…");
+        const signalAnalysis = finishUserSignal(message);
+        rememberStop(message, properties, signalAnalysis);
+        window.setTimeout(() => {
+          if ($("sentence-studio-status")?.textContent === "Processing the latest voice signal…") {
+            setText("sentence-studio-status", "Voice signal ready; waiting for transcript");
+          }
+        }, 1500);
         setCoachState("thinking", "Thinking…");
       }
       if (role === "coach") setCoachState("ready", "Your turn");
@@ -698,18 +1105,22 @@
     if (safeRole === "user") {
       const timing = timingFor(message);
       const turn = {
+        id: `turn-${++state.turnSequence}`,
+        role: safeRole,
         text: speech,
         timestamp: message.timestamp,
         receivedAt: Date.now(),
         timingKeys: timingKeys(message),
         durationSec: timing.durationSec,
         interrupted: timing.interrupted,
+        signalAnalysis: timing.signalAnalysis,
         audioAnalysis: properties.user_audio_analysis,
         visualAnalysis: properties.user_visual_analysis
       };
       turn.metrics = Analysis?.summarizeTurn(turn) || null;
+      if (!timing.consumed) state.pendingTimingTurns.push(turn);
       state.lastUserTurn = turn;
-      appendTurn({ role: safeRole, ...turn });
+      appendTurn(turn);
       renderTurnFeedback(turn);
       capturePracticeAttempt(turn);
       updateWorkflowControls();
@@ -725,11 +1136,215 @@
     }
   }
 
+  function localAudioTrack(call) {
+    const local = call?.participants?.()?.local;
+    const audio = local?.tracks?.audio;
+    return audio?.persistentTrack || local?.audioTrack || null;
+  }
+
   function localAudioReady(call) {
     const local = call?.participants?.()?.local;
     const audio = local?.tracks?.audio;
-    const track = audio?.persistentTrack || local?.audioTrack;
-    return Boolean(track) && ["sendable", "playable"].includes(String(audio?.state || "").toLowerCase());
+    const track = localAudioTrack(call);
+    return Boolean(track)
+      && track.readyState === "live"
+      && ["sendable", "playable"].includes(String(audio?.state || "").toLowerCase());
+  }
+
+  function resetSignalNodes() {
+    const capture = state.signalCapture;
+    try { capture.source?.disconnect(); } catch {}
+    try { capture.processor?.disconnect(); } catch {}
+    try { capture.silentGain?.disconnect(); } catch {}
+    if (capture.processor?.port) capture.processor.port.onmessage = null;
+    if (capture.processor && "onaudioprocess" in capture.processor) capture.processor.onaudioprocess = null;
+    if (capture.analysisTrack && capture.trackEndedHandler) {
+      try { capture.analysisTrack.removeEventListener("ended", capture.trackEndedHandler); } catch {}
+    }
+    if (capture.ownsAnalysisTrack) {
+      try { capture.analysisTrack?.stop(); } catch {}
+    }
+    capture.source = null;
+    capture.processor = null;
+    capture.silentGain = null;
+    capture.analysisTrack = null;
+    capture.ownsAnalysisTrack = false;
+    capture.trackEndedHandler = null;
+    capture.trackId = "";
+    capture.generation = 0;
+    capture.ringChunks = [];
+    capture.ringSamples = 0;
+    capture.activeSegment = null;
+    capture.bindToken = null;
+  }
+
+  function primeSignalContext() {
+    if (!Signal) return Promise.resolve(null);
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return Promise.resolve(null);
+    const capture = state.signalCapture;
+    if (!capture.context || capture.context.state === "closed") {
+      capture.context = new AudioContextClass({ latencyHint: "interactive" });
+      capture.workletReady = false;
+    }
+    return capture.context.resume().catch(() => null).then(() => (
+      capture.context?.state === "running" ? capture.context : null
+    ));
+  }
+
+  function ingestSignalChunk(rawChunk, generation, trackId) {
+    const capture = state.signalCapture;
+    if (!state.micLive || generation !== state.connectionGeneration || capture.generation !== generation || capture.trackId !== trackId) return;
+    const chunk = rawChunk instanceof Float32Array ? rawChunk : new Float32Array(rawChunk || 0);
+    if (!chunk.length) return;
+    const copy = chunk.slice();
+    capture.ringChunks.push(copy);
+    capture.ringSamples += copy.length;
+    const preRollLimit = Math.max(1, Math.round((capture.context?.sampleRate || 48000) * 0.25));
+    while (capture.ringSamples > preRollLimit && capture.ringChunks.length > 1) {
+      capture.ringSamples -= capture.ringChunks.shift().length;
+    }
+    const segment = capture.activeSegment;
+    if (!segment) return;
+    const maxSamples = Math.round((capture.context?.sampleRate || 48000) * 45);
+    if (segment.sampleCount >= maxSamples) {
+      segment.truncated = true;
+      return;
+    }
+    const available = Math.min(copy.length, maxSamples - segment.sampleCount);
+    segment.chunks.push(available === copy.length ? copy : copy.slice(0, available));
+    segment.sampleCount += available;
+    if (available < copy.length) segment.truncated = true;
+  }
+
+  async function bindLocalSignalTrack(call, generation) {
+    if (!Signal || !state.micLive || !connectionIsCurrent(generation, call)) return false;
+    const track = localAudioTrack(call);
+    if (!track || track.readyState === "ended") return false;
+    const capture = state.signalCapture;
+    if (capture.trackId === track.id && capture.source) {
+      await primeSignalContext();
+      return true;
+    }
+    resetSignalNodes();
+    const bindToken = {};
+    capture.bindToken = bindToken;
+    const context = await primeSignalContext();
+    if (!context || capture.bindToken !== bindToken || !connectionIsCurrent(generation, call) || !state.micLive) return false;
+
+    const analysisTrack = track;
+    let source = null;
+    let processor = null;
+    let silentGain = null;
+    try {
+      source = context.createMediaStreamSource(new MediaStream([analysisTrack]));
+      try {
+        if (!context.audioWorklet || typeof window.AudioWorkletNode !== "function") throw new Error("AudioWorklet unavailable");
+        if (!capture.workletReady) {
+          await context.audioWorklet.addModule("/static/speech-capture-worklet.js?v=1");
+          capture.workletReady = true;
+        }
+        processor = new window.AudioWorkletNode(context, "fluent-me-speech-capture");
+        processor.port.onmessage = event => ingestSignalChunk(event.data, generation, track.id);
+      } catch {
+        processor = context.createScriptProcessor(2048, 1, 1);
+        processor.onaudioprocess = event => {
+          const channel = event.inputBuffer?.getChannelData?.(0);
+          if (channel) ingestSignalChunk(channel, generation, track.id);
+        };
+      }
+      if (capture.bindToken !== bindToken || !connectionIsCurrent(generation, call) || !state.micLive) throw new Error("Signal binding superseded");
+      silentGain = context.createGain();
+      silentGain.gain.value = 0;
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(context.destination);
+      if (capture.bindToken !== bindToken || !connectionIsCurrent(generation, call) || !state.micLive) throw new Error("Signal binding superseded");
+      capture.source = source;
+      capture.processor = processor;
+      capture.silentGain = silentGain;
+      capture.analysisTrack = analysisTrack;
+      capture.ownsAnalysisTrack = false;
+      capture.trackEndedHandler = () => {
+        if (capture.trackId === track.id) {
+          resetSignalNodes();
+          setText("sentence-studio-status", "Microphone changed; reconnecting voice signal…");
+          void waitForLocalAudio(call, 1500)
+            .then(() => bindLocalSignalTrack(call, generation))
+            .then(rebound => {
+              if (!rebound) throw new Error("Replacement microphone track unavailable");
+              setText("sentence-studio-status", "Voice signal ready");
+            })
+            .catch(() => {
+              if (!connectionIsCurrent(generation, call)) return;
+              state.micLive = false;
+              updateMediaControls();
+              setCoachState("thinking", "Microphone disconnected");
+              setText("sentence-studio-status", "Microphone disconnected; transcript-only mode");
+            });
+        }
+      };
+      analysisTrack.addEventListener?.("ended", capture.trackEndedHandler, { once: true });
+      capture.trackId = track.id;
+      capture.generation = generation;
+      return true;
+    } catch {
+      try { source?.disconnect(); } catch {}
+      try { processor?.disconnect(); } catch {}
+      try { silentGain?.disconnect(); } catch {}
+      if (processor?.port) processor.port.onmessage = null;
+      if (processor && "onaudioprocess" in processor) processor.onaudioprocess = null;
+      if (capture.bindToken === bindToken) capture.bindToken = null;
+      return false;
+    }
+  }
+
+  function beginUserSignal(message) {
+    const capture = state.signalCapture;
+    if (!Signal || !state.micLive || !capture.source || capture.context?.state !== "running") {
+      setText("sentence-studio-status", "Transcript available; browser signal is not active");
+      return;
+    }
+    const keys = timingKeys(message);
+    if (capture.activeSegment) {
+      const sameSegment = keys.length && keys.some(key => capture.activeSegment.keys.includes(key));
+      if (sameSegment) return;
+      capture.activeSegment = null;
+    }
+    const chunks = capture.ringChunks.map(chunk => chunk.slice());
+    capture.activeSegment = {
+      keys,
+      chunks,
+      sampleCount: chunks.reduce((sum, chunk) => sum + chunk.length, 0),
+      startedAt: performance.now(),
+      truncated: false,
+    };
+    setText("sentence-studio-status", "Capturing this speaking turn…");
+  }
+
+  function finishUserSignal(message) {
+    const capture = state.signalCapture;
+    const segment = capture.activeSegment;
+    if (!segment || !capture.context) return null;
+    const stopKeys = timingKeys(message);
+    if (segment.keys.length && stopKeys.length && !stopKeys.some(key => segment.keys.includes(key))) return null;
+    capture.activeSegment = null;
+    const samples = concatenateSamples(segment.chunks, segment.sampleCount);
+    const result = analyzeSpeechSamples(samples, capture.context.sampleRate, segment.truncated);
+    result.keys = [...new Set([...segment.keys, ...stopKeys])];
+    result.receivedAt = Date.now();
+    return result;
+  }
+
+  async function teardownSpeechCapture({ closeContext = true } = {}) {
+    const capture = state.signalCapture;
+    resetSignalNodes();
+    if (closeContext && capture.context) {
+      const context = capture.context;
+      capture.context = null;
+      capture.workletReady = false;
+      try { await context.close(); } catch {}
+    }
   }
 
   function waitForLocalAudio(call, timeoutMs = 5000) {
@@ -908,6 +1523,7 @@
           if (!connectionIsCurrent(generation, call)) return;
           if (participant?.local) {
             attachLocalMedia(participant);
+            if (state.micLive) void bindLocalSignalTrack(call, generation).catch(() => {});
             return;
           }
           if (!attachRemoteMedia(participant)) return;
@@ -946,6 +1562,10 @@
           if (!connectionIsCurrent(generation, call)) throw Object.assign(new Error("Connection cancelled."), { cancelled: true });
           microphoneUnavailable = true;
           state.micLive = false;
+        }
+        if (state.micLive) {
+          const signalReady = await bindLocalSignalTrack(call, generation).catch(() => false);
+          if (!signalReady) setText("sentence-studio-status", "Conversation ready; toggle mic to enable signal");
         }
         state.cameraLive = false;
         updateMediaControls();
@@ -1026,6 +1646,7 @@
     state.remoteReady = false;
     state.micLive = false;
     state.cameraLive = false;
+    await teardownSpeechCapture({ closeContext: true });
     if (state.interaction) cancelInteraction("The conversation ended before that response arrived.");
     if (!preserveWorkflow) resetLiveWorkflow();
     stopTimer();
@@ -1099,13 +1720,32 @@
   async function toggleMicrophone() {
     if (!state.call || state.baseMode !== "live") return;
     const next = !state.micLive;
-    try {
-      await Promise.resolve(state.call.setLocalAudio(next));
-      if (next) await waitForLocalAudio(state.call);
-      state.micLive = next;
+    if (!next) {
+      state.micLive = false;
+      resetSignalNodes();
+      setText("sentence-studio-status", "Microphone off; transcript-only mode");
       updateMediaControls();
-      setCoachState(next ? "ready" : "thinking", next ? "Your turn" : "Mic is off");
+      setCoachState("thinking", "Mic is off");
+      try {
+        await Promise.resolve(state.call.setLocalAudio(false));
+      } catch {
+        state.micLive = localAudioReady(state.call);
+        if (state.micLive) void bindLocalSignalTrack(state.call, state.connectionGeneration).catch(() => {});
+        updateMediaControls();
+        setCaption("coach", "The microphone did not mute. Please try again or block microphone access in your browser.");
+      }
+      return;
+    }
+    try {
+      await Promise.resolve(state.call.setLocalAudio(true));
+      await waitForLocalAudio(state.call);
+      state.micLive = true;
+      updateMediaControls();
+      setCoachState("ready", "Your turn");
     } catch {
+      state.micLive = false;
+      resetSignalNodes();
+      updateMediaControls();
       if (state.interaction) {
         completeInteraction(
           state.interaction.id,
@@ -1115,7 +1755,10 @@
         );
       }
       setCaption("coach", "Microphone access was blocked. Allow it in your browser or type below.");
+      return;
     }
+    const signalReady = await bindLocalSignalTrack(state.call, state.connectionGeneration).catch(() => false);
+    setText("sentence-studio-status", signalReady ? "Voice signal ready" : "Microphone on; voice signal unavailable");
   }
 
   async function toggleCamera() {
@@ -1148,9 +1791,9 @@
 
   const PRACTICE_FOCUS_COPY = {
     whole: "overall clarity and natural delivery",
-    sounds: "sound clarity and mouth placement; do not claim a phoneme error unless there is dedicated acoustic evidence",
+    sounds: "sound clarity and mouth placement; do not claim a phoneme error unless there is provider-aligned phoneme evidence",
     rhythm: "thought groups, linking, sentence stress, and rhythm",
-    intonation: "a useful model for pitch movement and speaker intention; do not claim the learner's actual pitch was measured"
+    intonation: "a useful model for pitch movement and speaker intention; use browser pitch evidence only when present, and never turn it into an intonation-correctness score"
   };
 
   async function beginPractice() {
@@ -1268,6 +1911,7 @@
 
   async function startConversation() {
     if (!state.configured || state.finalizing || state.sessionComplete) return;
+    void primeSignalContext();
     state.starter = $("starter-input")?.value.trim() || "";
     state.ending = false;
     state.finalizing = false;
@@ -1433,7 +2077,12 @@
   $("tavus-video").addEventListener("click", unmuteCoach);
   $("unmute-coach").addEventListener("click", unmuteCoach);
 
-  window.addEventListener("beforeunload", () => {
+  let pageExitHandled = false;
+
+  function endConversationOnPageExit() {
+    if (pageExitHandled) return;
+    pageExitHandled = true;
+    void teardownSpeechCapture({ closeContext: true });
     if (!state.conversationId) return;
     fetch(`/api/tavus/conversations/${encodeURIComponent(state.conversationId)}/end`, {
       method: "POST",
@@ -1441,6 +2090,13 @@
       body: "{}",
       keepalive: true
     }).catch(() => {});
+  }
+
+  window.addEventListener("beforeunload", endConversationOnPageExit);
+  window.addEventListener("pagehide", endConversationOnPageExit);
+
+  window.addEventListener("pageshow", event => {
+    if (event.persisted && pageExitHandled) window.location.reload();
   });
 
   window.addEventListener("fluentme:personalization-change", () => {

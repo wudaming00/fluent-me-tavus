@@ -11,7 +11,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <title>Fluent Me — your personal English coach</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b10'/%3E%3Cpath d='M8 17v-4m5 9V8m6 17V5m5 16V9' stroke='%239a8cff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/live.css?v=19">
+  <link rel="stylesheet" href="/static/live.css?v=20">
   <script src="/static/daily-0.91.0.js"></script>
 </head>
 <body data-view="welcome" data-coach-mode="checking">
@@ -144,6 +144,54 @@
                 </details>
               </article>
 
+              <section class="sentence-studio" id="sentence-studio" data-state="waiting" aria-labelledby="sentence-studio-title">
+                <header class="sentence-studio-heading">
+                  <div>
+                    <span>TURN STUDIO</span>
+                    <h3 id="sentence-studio-title">Your latest speaking turn</h3>
+                  </div>
+                  <i id="sentence-studio-status" role="status" aria-live="polite">Waiting for a complete turn</i>
+                </header>
+
+                <article class="latest-sentence" id="latest-sentence" data-state="waiting">
+                  <div class="sentence-waveform" id="sentence-waveform-wrap" data-state="waiting">
+                    <canvas id="sentence-waveform" width="640" height="96" role="img" aria-label="Waveform for the latest completed speaking turn"></canvas>
+                    <span id="sentence-waveform-empty">Waveform appears after a complete speaking turn.</span>
+                    <div class="sentence-chart-key" aria-hidden="true"><span><i></i>Waveform</span><span id="sentence-pitch-key"><i></i>Pitch movement</span></div>
+                  </div>
+
+                  <blockquote id="sentence-transcript" hidden>Your latest complete speaking turn will appear here.</blockquote>
+
+                  <div class="sentence-metrics" aria-label="Latest turn microphone evidence">
+                    <div><span>Pauses</span><b id="sentence-pauses">—</b><small id="sentence-pauses-source">Audio timing</small></div>
+                    <div><span>Mic level variation</span><b id="sentence-energy">—</b><small id="sentence-energy-source">Audio evidence</small></div>
+                    <div><span>Pitch movement</span><b id="sentence-pitch-movement">—</b><small id="sentence-pitch-source">Pitch contour</small></div>
+                  </div>
+                  <span id="sentence-duration" hidden>—</span><span id="sentence-duration-source" hidden>Turn timing</span>
+                  <span id="sentence-pace" hidden>—</span><span id="sentence-pace-source" hidden>Needs enough words</span>
+
+                  <details class="sentence-evidence-notes" id="sentence-evidence-notes">
+                    <summary><span>Evidence notes</span><i id="sentence-evidence-status">Not available yet</i></summary>
+                    <div id="sentence-evidence-copy">
+                      <p id="sentence-timing-note">No turn-level timing evidence has arrived.</p>
+                      <p id="sentence-energy-note">No microphone-level evidence has arrived.</p>
+                      <p id="sentence-pitch-note">No pitch evidence has arrived.</p>
+                      <small>Microphone samples are processed transiently and discarded after the chart is generated. These signals are not a pronunciation, fluency, or emotion score. A compact derived summary is sent to your coach only when you request feedback or a comparison.</small>
+                    </div>
+                  </details>
+                </article>
+
+                <details class="sentence-timeline" id="sentence-timeline">
+                  <summary><span>Speaking-turn timeline</span><i id="sentence-timeline-count">0</i></summary>
+                  <ol id="sentence-timeline-list" data-state="empty" aria-label="Completed speaking turns from this conversation">
+                    <li class="sentence-timeline-empty" id="sentence-timeline-empty">
+                      <b>No complete turns yet</b>
+                      <span>Each completed turn will appear here with its available evidence.</span>
+                    </li>
+                  </ol>
+                </details>
+              </section>
+
               <div class="quick-actions">
                 <button class="coach-tool" type="button" data-coach-request="natural">
                   <span>WORDS</span><b>Make it natural</b><small>Improve grammar, word choice, or phrasing</small><i>→</i>
@@ -173,8 +221,12 @@
                 </div>
                 <div class="media-controls">
                   <button id="mic-toggle" type="button" aria-pressed="true"><span class="media-icon">●</span><b>Mute mic</b></button>
-                  <button id="camera-toggle" type="button" aria-pressed="false"><span class="media-icon">◎</span><b>Share camera</b></button>
                 </div>
+                <details class="visual-delivery-mode">
+                  <summary>Optional visual delivery mode</summary>
+                  <p>Use this only when you want feedback on eye contact, expression, or presentation presence. Everyday speaking practice does not need your camera.</p>
+                  <button id="camera-toggle" type="button" aria-pressed="false"><span class="media-icon">◎</span><b>Enable visual coaching</b></button>
+                </details>
                 <small>No mystery score: every signal is labelled by source. Detailed sound accuracy needs a dedicated phrase assessment.</small>
               </div>
 
@@ -234,7 +286,7 @@
 
               <div class="evidence-boundary">
                 <span>WHAT IS MEASURED HERE</span>
-                <p>Transcript match, words, speaking time, pace, filled pauses, repeats, and optional coach observations. Phoneme and syllable accuracy appear only when a dedicated pronunciation provider is connected.</p>
+                <p>Transcript match, speaking time, pace, filled pauses, repeats, waveform, pauses, microphone-level variation, and pitch movement. Phoneme and syllable accuracy appear only when a dedicated pronunciation provider is connected.</p>
               </div>
 
               <div class="attempt-stack">
@@ -289,7 +341,7 @@
 
               <details class="evidence-guide">
                 <summary>How Fluent Me knows what it knows</summary>
-                <p><b>Transcript analysis</b> supports words, grammar, filled pauses, and repeated words. <b>Tavus timing</b> supports duration and pace. <b>Raven</b> may add tentative audio or visual observations. Phonemes, syllables, and pitch contours are not inferred from text.</p>
+                <p><b>Transcript analysis</b> supports words, grammar, filled pauses, and repeated words. <b>Tavus timing</b> supports duration and pace. <b>Browser microphone signal</b> supports waveform, estimated pauses, microphone-level variation, and pitch candidates without retaining raw audio. <b>Raven</b> may add tentative observations. Phoneme and syllable accuracy require a dedicated assessment provider.</p>
               </details>
 
               <p class="log-privacy">This view stays in this browser tab. Fluent Me does not create a second server-side transcript log.</p>
@@ -569,7 +621,8 @@
   </dialog>
 
   <script src="/static/personalize.js?v=4" defer></script>
+  <script src="/static/speech-signal.js?v=1" defer></script>
   <script src="/static/analysis-core.js?v=1" defer></script>
-  <script src="/static/live.js?v=15" defer></script>
+  <script src="/static/live.js?v=17" defer></script>
 </body>
 </html>
