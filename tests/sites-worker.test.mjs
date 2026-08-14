@@ -65,7 +65,7 @@ test("Sites Worker enables explicit microphone and optional camera access", asyn
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'");
   const html = await response.text();
-  assert.match(html, /Start conversation/);
+  assert.match(html, /Start session/);
   assert.match(html, /VOICE DETAILS/);
   assert.match(html, /Camera &amp; signal settings/);
   assert.match(html, /id="open-feedback"/);
@@ -164,9 +164,10 @@ test("Sites Worker serves bounded Language Review and evidence-based progress mo
   assert.match(html, /No video room or API credits used/);
   assert.match(html, /latest 12 learner turns are sent to your live Tavus coach/);
   const languageIndex = html.indexOf("/static/language-review.js");
+  const recapVisualIndex = html.indexOf("/static/recap-visual.js");
   const progressIndex = html.indexOf("/static/progress-core.js");
   const liveIndex = html.indexOf("/static/live.js");
-  assert.ok(languageIndex >= 0 && languageIndex < progressIndex && progressIndex < liveIndex);
+  assert.ok(languageIndex >= 0 && languageIndex < recapVisualIndex && recapVisualIndex < progressIndex && progressIndex < liveIndex);
 
   const languageResponse = await worker.fetch(new Request("https://fluent-me.test/static/language-review.js"), {});
   assert.equal(languageResponse.status, 200);
@@ -183,6 +184,14 @@ test("Sites Worker serves bounded Language Review and evidence-based progress mo
   assert.match(progressJavascript, /FluentMeProgressCore/);
   assert.match(progressJavascript, /isMeasuredMemoryCurve: false/);
   assert.doesNotMatch(progressJavascript, /percent improved|ability score|punitive streak/i);
+
+  const recapVisualResponse = await worker.fetch(new Request("https://fluent-me.test/static/recap-visual.js"), {});
+  assert.equal(recapVisualResponse.status, 200);
+  assert.match(recapVisualResponse.headers.get("content-type"), /text\/javascript/);
+  const recapVisualJavascript = await recapVisualResponse.text();
+  assert.match(recapVisualJavascript, /FluentMeRecapVisual/);
+  assert.match(recapVisualJavascript, /buildRecapVisual/);
+  assert.doesNotMatch(recapVisualJavascript, /ability score|percent improved/i);
 
   const liveResponse = await worker.fetch(new Request("https://fluent-me.test/static/live.js"), {});
   const liveJavascript = await liveResponse.text();

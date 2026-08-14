@@ -11,7 +11,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <title>Fluent Me — your personal English coach</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b10'/%3E%3Cpath d='M8 17v-4m5 9V8m6 17V5m5 16V9' stroke='%239a8cff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/live.css?v=26">
+  <link rel="stylesheet" href="/static/live.css?v=28">
   <script src="/static/daily-0.91.0.js"></script>
 </head>
 <body data-view="welcome" data-coach-mode="checking">
@@ -46,68 +46,84 @@
     <main>
       <section class="welcome" id="welcome" aria-labelledby="welcome-title">
         <div class="welcome-copy">
-          <p class="eyebrow">PERSONAL ENGLISH COACH</p>
-          <h1 id="welcome-title">Speak English with a coach who listens.</h1>
-          <p class="welcome-lede">Have a real conversation. Ask for one useful correction whenever you want it.</p>
+          <p class="eyebrow">YOUR PERSONAL ENGLISH COACH</p>
+          <h1 id="welcome-title">Talk naturally.<br>Leave with better English.</h1>
+          <p class="welcome-lede">A face-to-face coach that listens, responds, and helps you improve one useful moment at a time.</p>
+          <button class="primary-button welcome-start" id="start-conversation" type="button" aria-controls="session-setup-sheet" aria-expanded="false">
+            <span>Start session</span><i aria-hidden="true">→</i>
+          </button>
+        </div>
+      </section>
 
-          <div class="starter-card">
-            <label for="starter-input">What would you like to talk about?</label>
-            <input id="starter-input" type="text" maxlength="180" autocomplete="off" placeholder="Anything is fine — or leave this blank">
-            <div class="starter-chips" aria-label="Conversation starters">
-              <button type="button" data-starter="Let's have a relaxed, open conversation.">Chat freely</button>
-              <button type="button" data-starter="Help me prepare and improve an answer.">Prepare an answer</button>
-              <button type="button" data-starter="I want to practice a useful English phrase.">Practice a phrase</button>
-            </div>
+      <section class="session-setup-sheet" id="session-setup-sheet" role="dialog" aria-modal="false" aria-labelledby="session-setup-title" hidden>
+        <header class="session-setup-header">
+          <div>
+            <p class="eyebrow">OPTIONAL SESSION SETUP</p>
+            <h2 id="session-setup-title">Make this session yours.</h2>
+            <p>Your coach is already joining. Adjust anything you want, or skip these choices.</p>
+          </div>
+          <button class="session-setup-close" id="close-session-setup" type="button" aria-label="Skip session setup">Skip</button>
+        </header>
 
-            <fieldset class="session-length-picker" id="session-length-picker" aria-describedby="session-length-help">
-              <legend><span>Session length</span></legend>
-              <div class="session-length-options">
-                <label for="session-length-5">
-                  <input id="session-length-5" name="session-length" type="radio" value="5" data-session-minutes="5">
-                  <span><b>5</b><small>MIN</small></span>
-                </label>
-                <label class="recommended" for="session-length-10">
-                  <input id="session-length-10" name="session-length" type="radio" value="10" data-session-minutes="10" checked>
-                  <span><b>10</b><small>MIN</small></span>
-                </label>
-                <label for="session-length-15">
-                  <input id="session-length-15" name="session-length" type="radio" value="15" data-session-minutes="15">
-                  <span><b>15</b><small>MIN</small></span>
-                </label>
-                <label for="session-length-25">
-                  <input id="session-length-25" name="session-length" type="radio" value="25" data-session-minutes="25">
-                  <span><b>25</b><small>MIN</small></span>
-                </label>
-                <label class="open-ended" for="session-length-open">
-                  <input id="session-length-open" name="session-length" type="radio" value="open" data-session-minutes="0">
-                  <span><b>No timer</b></span>
-                </label>
-              </div>
-              <p class="sr-only" id="session-length-help">Timed sessions give you a one-minute warning, then close with a recap. You can still finish early.</p>
-            </fieldset>
-            <div class="coach-readiness" id="welcome-readiness" aria-live="polite">
-              <span class="status-dot"></span>
-              <div><b id="welcome-status">Getting your coach ready…</b><small id="welcome-status-detail">Video and voice begin when you start.</small></div>
-            </div>
-            <button class="primary-button welcome-start" id="start-conversation" type="button">
-              <span>Start conversation</span><i aria-hidden="true">→</i>
-            </button>
-            <label class="history-opt-in" for="history-enabled">
-              <input id="history-enabled" name="history-enabled" type="checkbox">
-              <span aria-hidden="true"></span>
-              <span><b>Save a short recap on this device</b><small>Optional · never the full transcript, audio, or video.</small></span>
-            </label>
+        <div class="starter-card">
+          <label for="starter-input">What would you like to talk about?</label>
+          <input id="starter-input" type="text" maxlength="180" autocomplete="off" placeholder="Anything is fine — or leave this blank">
+          <div class="starter-chips" aria-label="Conversation starters">
+            <button type="button" data-starter="Let's have a relaxed, open conversation.">Chat freely</button>
+            <button type="button" data-starter="Help me prepare and improve an answer.">Prepare an answer</button>
+            <button type="button" data-starter="I want to practice a useful English phrase.">Practice a phrase</button>
           </div>
 
-          <p class="welcome-note">Microphone on when you enter · camera off by default.</p>
+          <fieldset class="session-length-picker" id="session-length-picker" aria-describedby="session-length-help">
+            <legend><span>Session length</span></legend>
+            <div class="session-length-options">
+              <label for="session-length-5">
+                <input id="session-length-5" name="session-length" type="radio" value="5" data-session-minutes="5">
+                <span><b>5</b><small>MIN</small></span>
+              </label>
+              <label class="recommended" for="session-length-10">
+                <input id="session-length-10" name="session-length" type="radio" value="10" data-session-minutes="10" checked>
+                <span><b>10</b><small>MIN</small></span>
+              </label>
+              <label for="session-length-15">
+                <input id="session-length-15" name="session-length" type="radio" value="15" data-session-minutes="15">
+                <span><b>15</b><small>MIN</small></span>
+              </label>
+              <label for="session-length-25">
+                <input id="session-length-25" name="session-length" type="radio" value="25" data-session-minutes="25">
+                <span><b>25</b><small>MIN</small></span>
+              </label>
+              <label class="open-ended" for="session-length-open">
+                <input id="session-length-open" name="session-length" type="radio" value="open" data-session-minutes="0">
+                <span><b>No timer</b></span>
+              </label>
+            </div>
+            <p class="sr-only" id="session-length-help">Timed sessions give you a one-minute warning, then close with a recap. You can still finish early.</p>
+          </fieldset>
+
+          <label class="history-opt-in" for="history-enabled">
+            <input id="history-enabled" name="history-enabled" type="checkbox">
+            <span aria-hidden="true"></span>
+            <span><b>Save a short recap on this device</b><small>Optional · never the full transcript, audio, or video.</small></span>
+          </label>
         </div>
+
+        <footer class="session-setup-footer">
+          <div class="coach-readiness" id="welcome-readiness" aria-live="polite">
+            <span class="status-dot"></span>
+            <div><b id="welcome-status">Getting your coach ready…</b><small id="welcome-status-detail">Your coach is already joining.</small></div>
+          </div>
+          <button class="primary-button" id="confirm-session-setup" type="button">
+            <span>Use these settings</span><i aria-hidden="true">→</i>
+          </button>
+        </footer>
       </section>
 
       <section class="conversation" id="conversation" data-mode="live" hidden aria-label="Live English conversation">
         <div class="conversation-grid">
           <section class="coach-stage" aria-label="Live video coach">
             <div class="waiting-canvas coach-still" id="coach-still" aria-label="Waiting for your video coach">
-              <span>JOINING</span><i></i><b>YOUR COACH IS ON THE WAY</b>
+              <span>Connecting</span><i aria-hidden="true"></i><b>Your coach is joining the conversation</b>
             </div>
             <div class="daily-stage" id="daily-stage" hidden>
               <video id="tavus-video" autoplay playsinline aria-label="Live personal English coach"></video>
@@ -429,33 +445,45 @@
                     <i id="recap-status" role="status" aria-live="polite">Ready after a real turn</i>
                   </header>
 
-                  <div class="session-recap-grid">
-                    <article class="session-recap-overview" id="recap-overview-section">
-                      <span>OVERVIEW</span>
-                      <p id="recap-overview">Keep talking. A short, evidence-based recap will appear here when you ask for it.</p>
-                      <p id="session-summary-text" hidden>Keep talking. A short, evidence-based recap will appear here when you ask for it.</p>
-                    </article>
-
-                    <article id="recap-worked-section">
-                      <span>WHAT WORKED</span>
-                      <p id="recap-worked">Your strongest moment will appear here.</p>
-                    </article>
-
-                    <article class="session-recap-focus" id="recap-focus-section">
-                      <span>ONE NEXT REP</span>
-                      <p id="recap-focus">One specific 30–60 second action for your next conversation will appear here.</p>
-                    </article>
-
-                    <article class="session-recap-phrase" id="recap-phrase-section">
-                      <span>PHRASE TO KEEP</span>
-                      <p id="recap-phrase">A useful phrase from this session will appear here when one is supported.</p>
-                    </article>
-
-                    <article class="session-recap-evidence" id="recap-evidence-section">
-                      <span>EVIDENCE</span>
-                      <p id="recap-evidence">The recap will cite the spoken turn or observable signal behind each suggestion.</p>
-                    </article>
+                  <div class="recap-visual" id="recap-visual" data-state="waiting" aria-label="Visual session recap">
+                    <div class="recap-visual-empty" data-recap-visual-role="empty">
+                      <div class="recap-visual-empty-labels" aria-hidden="true">
+                        <span>Pace</span><span>Pauses &amp; rhythm</span><span>Grammar</span><span>Wording</span><span>Next practice</span>
+                      </div>
+                      <p>Complete a few speaking turns to build your visual recap.</p>
+                    </div>
                   </div>
+
+                  <details class="session-recap-notes">
+                    <summary><span>Coach notes &amp; evidence</span><i aria-hidden="true"></i></summary>
+                    <div class="session-recap-grid">
+                      <article class="session-recap-overview" id="recap-overview-section">
+                        <span>OVERVIEW</span>
+                        <p id="recap-overview">Keep talking. A short, evidence-based recap will appear here when you ask for it.</p>
+                        <p id="session-summary-text" hidden>Keep talking. A short, evidence-based recap will appear here when you ask for it.</p>
+                      </article>
+
+                      <article id="recap-worked-section">
+                        <span>WHAT WORKED</span>
+                        <p id="recap-worked">Your strongest moment will appear here.</p>
+                      </article>
+
+                      <article class="session-recap-focus" id="recap-focus-section">
+                        <span>ONE NEXT REP</span>
+                        <p id="recap-focus">One specific 30–60 second action for your next conversation will appear here.</p>
+                      </article>
+
+                      <article class="session-recap-phrase" id="recap-phrase-section">
+                        <span>PHRASE TO KEEP</span>
+                        <p id="recap-phrase">A useful phrase from this session will appear here when one is supported.</p>
+                      </article>
+
+                      <article class="session-recap-evidence" id="recap-evidence-section">
+                        <span>EVIDENCE</span>
+                        <p id="recap-evidence">The recap will cite the spoken turn or observable signal behind each suggestion.</p>
+                      </article>
+                    </div>
+                  </details>
 
                   <div class="session-recap-actions" aria-label="Session recap actions">
                     <button class="session-recap-primary" id="recap-generate" type="button" disabled>Generate recap <span aria-hidden="true">→</span></button>
@@ -945,6 +973,7 @@
   <script src="/static/learning-memory.js?v=2" defer></script>
   <script src="/static/session-history.js?v=1" defer></script>
   <script src="/static/language-review.js?v=1" defer></script>
+  <script src="/static/recap-visual.js?v=1" defer></script>
   <script src="/static/progress-core.js?v=1" defer></script>
   <script src="/static/live.js?v=23" defer></script>
 </body>

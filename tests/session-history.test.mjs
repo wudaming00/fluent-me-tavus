@@ -97,7 +97,7 @@ test("untrusted text and counts are normalized, bounded, and internally consiste
     recap: {
       overview: `  ${"o".repeat(500)}  `,
       worked: "Used\u0000 a clear example.",
-      focus: "Never reveal sk_123456789012345678901234567890 or 7bc1f2e3c8d6408bb59a18673128653f.",
+      focus: "Never reveal sk_123456789012345678901234567890 or aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.",
       phrase: "  Put   it into practice.  ",
     },
   }));

@@ -18,8 +18,12 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     response = client.get("/")
     assert response.status_code == 200
     assert "PERSONAL ENGLISH COACH" in response.text
-    assert "Speak English with a coach who listens." in response.text
-    assert "Start conversation" in response.text
+    assert "Talk naturally." in response.text
+    assert "Leave with better English." in response.text
+    assert "Start session" in response.text
+    assert 'id="session-setup-sheet"' in response.text
+    assert 'id="session-setup-sheet" role="dialog" aria-modal="false" aria-labelledby="session-setup-title" hidden' in response.text
+    assert 'id="confirm-session-setup"' in response.text
     assert ">History<" in response.text
     assert "No video room or API credits used" in response.text
     assert "Live personal English coach" in response.text
