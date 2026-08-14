@@ -1322,14 +1322,13 @@
     );
     state.sessionSetupOpen = next;
     if (sheet) {
-      sheet.hidden = !next;
       sheet.setAttribute("aria-hidden", String(!next));
-      if (next) sheet.setAttribute("tabindex", "-1");
-      else sheet.removeAttribute("tabindex");
+      if (next && typeof sheet.showModal === "function" && !sheet.open) sheet.showModal();
+      if (!next && typeof sheet.close === "function" && sheet.open) sheet.close();
     }
     if (start) start.setAttribute("aria-expanded", String(next));
     syncSessionLengthControls();
-    if (next && focus) queueMicrotask(() => sheet?.focus());
+    if (next && focus) queueMicrotask(() => $("starter-input")?.focus());
     if (!next && focus && document.body.dataset.view === "conversation") {
       const target = state.remoteReady ? $("mic-toggle") : $("end-session");
       queueMicrotask(() => target?.focus());
@@ -1356,7 +1355,7 @@
     return sent;
   }
 
-  function applySessionSetup() {
+  async function applySessionSetup() {
     state.starter = $("starter-input")?.value.trim() || "";
     state.sessionDurationMinutes = selectedSessionMinutes();
     state.sessionWarningAnnounced = false;
@@ -1365,13 +1364,18 @@
       state.history.sessionOptedIn = Boolean(state.history.enabled);
     }
     const prompt = sessionDirectionPrompt(state.starter);
-    if (prompt) state.pendingSessionDirection = prompt;
+    state.pendingSessionDirection = prompt && (state.call || state.connecting) ? prompt : "";
     renderSessionClock(
       sessionClockSnapshot(currentSessionElapsedMs(), state.sessionDurationMinutes),
       state.startedAt ? "running" : state.sessionDurationMinutes == null ? "open" : "ready",
     );
     setSessionSetupOpen(false, { focus: true });
-    if (prompt) void flushPendingSessionDirection();
+    if (!state.call && !state.connecting && document.body.dataset.view === "conversation") {
+      setCaption("coach", "Your coach is joining the conversation.");
+      await connectCoach();
+    } else if (prompt) {
+      void flushPendingSessionDirection();
+    }
   }
 
   function setView(view) {
@@ -2149,6 +2153,19 @@
     return wrap;
   }
 
+  function recapVisualTimeline(timelineData) {
+    if (!timelineData?.items?.length) return null;
+    const wrap = recapVisualElement("div", "recap-timeline");
+    wrap.setAttribute("role", "img");
+    wrap.setAttribute("aria-label", timelineData.tooltip || timelineData.label || "Observed turn order");
+    timelineData.items.forEach(item => {
+      const node = recapVisualElement("div", "recap-timeline-item");
+      node.append(recapVisualElement("b", "", item.label), recapVisualElement("span", "", item.valueLabel || ""));
+      wrap.appendChild(node);
+    });
+    return wrap;
+  }
+
   function renderRecapVisual() {
     const container = $("recap-visual");
     if (!container || !RecapVisual) return;
@@ -2181,13 +2198,16 @@
       const header = recapVisualElement("header", "recap-visual-section-header");
       header.append(recapVisualElement("span", "recap-visual-section-label", section.title), recapVisualElement("b", "recap-visual-value", section.valueLabel));
       article.append(header, recapVisualChart(section));
-      if (section.id === "next-practice" && section.summary) article.appendChild(recapVisualElement("p", "recap-visual-summary", section.summary));
-      if (["grammar", "wording"].includes(section.id) && section.items?.[0]?.text) {
-        article.appendChild(recapVisualElement("p", "recap-visual-summary", section.items[0].text));
-      }
+      const conciseSummary = ["grammar", "wording"].includes(section.id) && section.items?.[0]?.text
+        ? section.items[0].text
+        : section.summary;
+      if (conciseSummary) article.appendChild(recapVisualElement("p", "recap-visual-summary", conciseSummary));
+      const observedTimeline = recapVisualTimeline(section.turnTimeline);
+      if (observedTimeline) article.appendChild(observedTimeline);
+      if (section.source) article.appendChild(recapVisualElement("small", "recap-visual-source", section.source));
       grid.appendChild(article);
     });
-    container.appendChild(grid);
+    container.append(grid, recapVisualElement("small", "recap-visual-boundary", "Descriptive evidence only · chart size is not a grade."));
   }
 
   function resetRecap() {
@@ -4099,10 +4119,15 @@
     }
     showTab(queuedPracticeTarget ? "practice" : "tools");
     setView("conversation");
-    if (!queuedPracticeTarget && !state.queuedRecall) setSessionSetupOpen(true, { focus: true });
+    const needsSetup = !queuedPracticeTarget && !state.queuedRecall;
+    if (needsSetup) {
+      setCoachStill("READY", "CHOOSE A FOCUS OR SKIP");
+      setCoachState("ready", "Ready when you are");
+      setSessionSetupOpen(true, { focus: true });
+    }
     if (queuedPracticeTarget) setCoachConsoleOpen(true);
-    setCaption("coach", "Your coach is joining. You can choose a focus while you wait.");
-    const connected = await connectCoach();
+    setCaption("coach", needsSetup ? "Choose a focus or skip. Your room starts when you continue." : "Your coach is joining the conversation.");
+    const connected = needsSetup ? false : await connectCoach();
     if (connected && state.queuedRecall) {
       state.queuedRecall = false;
       void startDueRecall();
@@ -4252,8 +4277,12 @@
   }
 
   $("start-conversation").addEventListener("click", startConversation);
-  $("confirm-session-setup")?.addEventListener("click", applySessionSetup);
-  $("close-session-setup")?.addEventListener("click", () => setSessionSetupOpen(false, { focus: true }));
+  $("confirm-session-setup")?.addEventListener("click", () => void applySessionSetup());
+  $("close-session-setup")?.addEventListener("click", () => void applySessionSetup());
+  $("session-setup-sheet")?.addEventListener("cancel", event => {
+    event.preventDefault();
+    void applySessionSetup();
+  });
   $("open-progress-history").addEventListener("click", () => {
     if (state.call || state.connecting || state.finalizing) return;
     state.reviewOnly = true;

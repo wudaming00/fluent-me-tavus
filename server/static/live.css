@@ -66,7 +66,8 @@ body[data-coach-mode="speaking"] .status-dot { background: var(--violet-bright);
 .welcome-start { width: min(290px, 100%); margin: 34px auto 0; }
 .welcome-note { margin: 13px 0 0; color: var(--quiet); font-size: 12px; line-height: 1.5; text-align: center; }
 
-.session-setup-sheet { position: fixed; z-index: 74; right: clamp(18px, 3vw, 42px); bottom: max(22px, env(safe-area-inset-bottom)); width: min(570px, calc(100vw - 36px)); max-height: min(760px, calc(100dvh - 44px)); padding: 22px; overflow-y: auto; border: 1px solid rgba(160,146,255,.25); border-radius: 22px; background: rgba(13,16,23,.97); box-shadow: 0 30px 95px rgba(0,0,0,.58); backdrop-filter: blur(24px); scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.session-setup-sheet { position: fixed; z-index: 74; inset: auto clamp(18px, 3vw, 42px) max(22px, env(safe-area-inset-bottom)) auto; width: min(570px, calc(100vw - 36px)); max-height: min(760px, calc(100dvh - 44px)); margin: 0; padding: 22px; overflow-y: auto; border: 1px solid rgba(160,146,255,.25); border-radius: 22px; background: rgba(13,16,23,.97); box-shadow: 0 30px 95px rgba(0,0,0,.58); color: var(--ink); backdrop-filter: blur(24px); scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+.session-setup-sheet::backdrop { background: rgba(3,5,9,.36); backdrop-filter: blur(2px); }
 .session-setup-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
 .session-setup-header > div { min-width: 0; }
 .session-setup-header .eyebrow { margin-bottom: 7px; color: var(--mint); }
@@ -498,26 +499,28 @@ body[data-recall-lock="true"] #learning-recall-strip { margin-top: 0; }
 .recap-visual-section[data-section="next-practice"] .recap-visual-section-label, .recap-visual-section--next-practice .recap-visual-section-label { color: var(--mint); }
 .recap-visual-value { flex: 0 0 auto; color: var(--ink); font-size: 13px; font-weight: 780; font-variant-numeric: tabular-nums; }
 .recap-visual-summary { display: -webkit-box; max-height: 2.9em; margin: 9px 0 0; overflow: hidden; color: var(--muted); -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 10px; line-height: 1.45; }
-.recap-visual-source { display: block; margin-top: 8px; overflow: hidden; color: var(--quiet); font-size: 8px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.recap-visual-source { display: block; margin-top: 8px; color: var(--quiet); font-size: 9px; line-height: 1.4; }
+.recap-visual-boundary { display: block; margin-top: 9px; color: var(--quiet); font-size: 9px; line-height: 1.4; text-align: center; }
 .recap-visual-chart { margin-top: 11px; }
 
 /* Neutral measurement gauge: position is descriptive, never a score. */
 .recap-gauge { position: relative; height: 9px; overflow: visible; border-radius: 99px; background: #202633; }
-.recap-gauge-fill { width: var(--recap-value, 0%); height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--violet-solid), var(--mint)); opacity: .68; }
+.recap-gauge-fill { width: var(--recap-value, 0%); height: 100%; border-radius: inherit; background: rgba(160,146,255,.62); }
 .recap-gauge-marker { position: absolute; top: 50%; left: var(--recap-value, 0%); width: 3px; height: 17px; transform: translate(-50%, -50%); border-radius: 99px; background: var(--ink); box-shadow: 0 0 0 3px rgba(245,246,248,.08); }
 .recap-gauge-scale { display: flex; justify-content: space-between; margin-top: 6px; color: var(--quiet); font-size: 8px; }
 
 /* Bounded item-count bar for grammar and wording suggestions. */
 .recap-bar { height: 7px; overflow: hidden; border-radius: 99px; background: #202633; }
 .recap-bar-fill { width: var(--recap-value, 0%); height: 100%; border-radius: inherit; background: var(--violet-bright); }
-.recap-visual-section[data-section="wording"] .recap-bar-fill { background: var(--mint); }
+.recap-visual-section[data-section="wording"] .recap-bar-fill { background: #777d8d; }
 
 /* One dot per observed event, capped by the data model. */
 .recap-dot-chart { display: grid; gap: 8px; }
 .recap-dot-row { display: grid; grid-template-columns: minmax(70px, 1fr) auto; align-items: center; gap: 7px; }
 .recap-dot-label { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .recap-dots { display: flex; justify-content: flex-end; gap: 4px; }
-.recap-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--mint); box-shadow: 0 0 0 2px rgba(67,220,176,.06); }
+.recap-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--violet-bright); box-shadow: 0 0 0 2px rgba(160,146,255,.06); }
+.recap-dot.is-empty { border: 1px solid #5f6675; background: transparent; box-shadow: none; }
 .recap-dot.is-overflow, .recap-dot-overflow { background: var(--violet-bright); }
 
 /* Ordered turns or practice steps; spacing does not imply elapsed time. */

@@ -178,7 +178,7 @@
       title: "Pauses & rhythm evidence",
       valueLabel: `${visibleItems.length} signal${visibleItems.length === 1 ? "" : "s"}`,
       summary: spokenTurns
-        ? `Observed across ${spokenTurns} spoken turn${spokenTurns === 1 ? "" : "s"}; open a row to see its source.`
+        ? `Observed across ${spokenTurns} spoken turn${spokenTurns === 1 ? "" : "s"}; dots are counts, not scores.`
         : "Only rows with available evidence are shown.",
       tooltip,
       source: "Transcript counts and available browser signal",

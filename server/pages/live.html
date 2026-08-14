@@ -55,12 +55,12 @@
         </div>
       </section>
 
-      <section class="session-setup-sheet" id="session-setup-sheet" role="dialog" aria-modal="false" aria-labelledby="session-setup-title" hidden>
+      <dialog class="session-setup-sheet" id="session-setup-sheet" aria-labelledby="session-setup-title">
         <header class="session-setup-header">
           <div>
             <p class="eyebrow">OPTIONAL SESSION SETUP</p>
             <h2 id="session-setup-title">Make this session yours.</h2>
-            <p>Your coach is already joining. Adjust anything you want, or skip these choices.</p>
+            <p>Choose anything you want, or skip. Your coach joins when you continue.</p>
           </div>
           <button class="session-setup-close" id="close-session-setup" type="button" aria-label="Skip session setup">Skip</button>
         </header>
@@ -111,13 +111,13 @@
         <footer class="session-setup-footer">
           <div class="coach-readiness" id="welcome-readiness" aria-live="polite">
             <span class="status-dot"></span>
-            <div><b id="welcome-status">Getting your coach ready…</b><small id="welcome-status-detail">Your coach is already joining.</small></div>
+            <div><b id="welcome-status">Your coach is ready</b><small id="welcome-status-detail">No room time starts until you continue.</small></div>
           </div>
           <button class="primary-button" id="confirm-session-setup" type="button">
             <span>Use these settings</span><i aria-hidden="true">→</i>
           </button>
         </footer>
-      </section>
+      </dialog>
 
       <section class="conversation" id="conversation" data-mode="live" hidden aria-label="Live English conversation">
         <div class="conversation-grid">
