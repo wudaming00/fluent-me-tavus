@@ -6,6 +6,7 @@
     "test:worker": "node --test tests/sites-worker.test.mjs",
     "test:analysis": "node --test tests/live-analysis.test.mjs",
     "test:signal": "node --test tests/speech-signal.test.mjs",
-    "test": "npm run test:analysis && npm run test:signal && npm run test:worker"
+    "test:memory": "node --test tests/learning-memory.test.mjs",
+    "test": "npm run test:analysis && npm run test:signal && npm run test:memory && npm run test:worker"
   }
 }

@@ -90,6 +90,34 @@ test("Sites Worker serves the client-side speech signal module", async () => {
   assert.doesNotMatch(javascript, /pronunciationScore|emotionScore/);
 });
 
+test("Sites Worker serves the opt-in on-device learning-memory loop", async () => {
+  const home = await worker.fetch(new Request("https://fluent-me.test/"), {});
+  const html = await home.text();
+  assert.match(html, /\/static\/learning-memory\.js/);
+  assert.match(html, /LEARNING MEMORY/);
+  assert.match(html, /Save for later/);
+  assert.match(html, /I used it/);
+  assert.match(html, /Saved on this device; no recordings or full transcripts/);
+  assert.match(html, /Starting recall sends the selected phrase and short cue to the live coach/);
+
+  const response = await worker.fetch(new Request("https://fluent-me.test/static/learning-memory.js"), {});
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/javascript/);
+  const javascript = await response.text();
+  assert.match(javascript, /FluentMeLearningMemory/);
+  assert.match(javascript, /confirmation_required/);
+  assert.match(javascript, /SUCCESS_INTERVAL_DAYS/);
+  assert.match(javascript, /recordReviewExpected/);
+  assert.match(javascript, /buildRecallPrompt/);
+  assert.doesNotMatch(javascript, /window\.localStorage|globalThis\.localStorage|MediaStream|AudioContext/);
+
+  const liveResponse = await worker.fetch(new Request("https://fluent-me.test/static/live.js"), {});
+  const liveJavascript = await liveResponse.text();
+  assert.match(liveJavascript, /navigator\?\.locks/);
+  assert.match(liveJavascript, /recordReviewExpected/);
+  assert.match(liveJavascript, /if \(!state\.learning\.storageAvailable\)/);
+});
+
 test("Sites Worker serves the same-origin speech capture worklet", async () => {
   const response = await worker.fetch(new Request("https://fluent-me.test/static/speech-capture-worklet.js"), {});
   assert.equal(response.status, 200);

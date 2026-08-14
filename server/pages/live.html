@@ -11,7 +11,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <title>Fluent Me — your personal English coach</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b10'/%3E%3Cpath d='M8 17v-4m5 9V8m6 17V5m5 16V9' stroke='%239a8cff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/live.css?v=20">
+  <link rel="stylesheet" href="/static/live.css?v=22">
   <script src="/static/daily-0.91.0.js"></script>
 </head>
 <body data-view="welcome" data-coach-mode="checking">
@@ -245,6 +245,22 @@
                 <span class="practice-step" id="practice-step" aria-live="polite">Choose a phrase</span>
               </div>
 
+              <section class="learning-recall-strip" id="learning-recall-strip" data-state="waiting" aria-labelledby="learning-recall-title" hidden>
+                <div class="learning-recall-mark" aria-hidden="true"><span></span></div>
+                <div class="learning-recall-copy">
+                  <span id="learning-recall-label">READY TO RECALL</span>
+                  <b id="learning-recall-title">One saved phrase is ready.</b>
+                  <small id="learning-recall-detail">Starting recall sends one saved phrase and its short cue to your live coach, while keeping the phrase hidden from you.</small>
+                </div>
+                <button class="learning-recall-start" id="learning-recall-start" type="button">Start recall <span aria-hidden="true">→</span></button>
+                <p class="learning-recall-status" id="learning-recall-status" role="status" aria-live="polite">Ready when you are.</p>
+                <form class="learning-recall-text-form" id="learning-recall-text-form" hidden>
+                  <label class="sr-only" for="learning-recall-text">Type your recall answer</label>
+                  <input id="learning-recall-text" type="text" maxlength="500" autocomplete="off" placeholder="Or type your answer…">
+                  <button type="submit">Send</button>
+                </form>
+              </section>
+
               <ol class="practice-flow" aria-label="Phrase practice progress">
                 <li class="active" data-practice-step="choose"><span>1</span><b>Choose</b></li>
                 <li data-practice-step="hear"><span>2</span><b>Hear</b></li>
@@ -316,6 +332,22 @@
                 <p id="comparison-text">Your coach will highlight one useful change after both attempts.</p>
               </section>
               <button class="transfer-button" id="practice-transfer" type="button" disabled>Use this phrase in conversation <span aria-hidden="true">→</span></button>
+
+              <section class="transfer-evidence-card" id="transfer-evidence-card" data-state="waiting" aria-labelledby="transfer-evidence-title" hidden>
+                <header>
+                  <div>
+                    <span>TRANSFER CHECK</span>
+                    <h3 id="transfer-evidence-title">Did the phrase make it into a real answer?</h3>
+                  </div>
+                  <i id="transfer-evidence-source">Transcript evidence</i>
+                </header>
+                <p id="transfer-evidence-text">Answer your coach’s next question. Fluent Me will check only whether the target words appeared in the transcript.</p>
+                <small id="transfer-evidence-note">This does not measure pronunciation, fluency, or mastery.</small>
+                <div class="transfer-save-row">
+                  <button class="quiet-button learning-save-button" id="learning-save-button" type="button" disabled>Save for later</button>
+                  <span id="learning-save-status" role="status" aria-live="polite">Not saved</span>
+                </div>
+              </section>
             </section>
 
             <section class="log-panel" id="log-panel" role="tabpanel" aria-labelledby="log-tab" hidden>
@@ -327,6 +359,47 @@
               <section class="session-summary-card" id="session-summary-card" data-state="waiting" aria-live="polite">
                 <div><span>WRAP-UP</span><i>After your session</i></div>
                 <p id="session-summary-text">Keep talking. A short, evidence-based wrap-up will appear here when the session ends.</p>
+              </section>
+
+              <section class="learning-memory-section" id="learning-memory-section" data-state="empty" aria-labelledby="learning-memory-title">
+                <header class="learning-memory-heading">
+                  <div>
+                    <span>LEARNING MEMORY</span>
+                    <h3 id="learning-memory-title">Phrases worth bringing back.</h3>
+                  </div>
+                  <dl class="learning-memory-counts" aria-label="Saved phrase counts">
+                    <div><dt>Due</dt><dd id="learning-memory-due-count">—</dd></div>
+                    <div><dt>Total</dt><dd id="learning-memory-total-count">—</dd></div>
+                  </dl>
+                </header>
+
+                <div class="learning-memory-list" id="learning-memory-list">
+                  <p class="learning-memory-empty" id="learning-memory-empty">No saved phrases on this device yet. Complete a transfer check, then choose Save for later.</p>
+                </div>
+
+                <template id="learning-memory-item-template">
+                  <article class="learning-memory-item" data-memory-id="">
+                    <header>
+                      <div>
+                        <span data-memory-role="state">SAVED PHRASE</span>
+                        <p data-memory-role="phrase"></p>
+                      </div>
+                      <button class="learning-memory-forget" type="button" data-memory-action="forget">Forget</button>
+                    </header>
+                    <div class="learning-memory-meta">
+                      <span data-memory-role="focus"></span>
+                      <time data-memory-role="due"></time>
+                    </div>
+                    <p class="learning-memory-result" data-memory-role="result"></p>
+                    <div class="learning-memory-outcomes" data-memory-role="outcomes" aria-label="Recall outcome" hidden>
+                      <button type="button" data-memory-action="used">I used it</button>
+                      <button type="button" data-memory-action="again">Not quite</button>
+                      <button type="button" data-memory-action="show">Show &amp; practise</button>
+                    </div>
+                  </article>
+                </template>
+
+                <p class="learning-memory-privacy">Saved on this device; no recordings or full transcripts. Starting recall sends the selected phrase and short cue to the live coach. Forget removes only the local saved copy.</p>
               </section>
 
               <section class="session-evidence" aria-labelledby="session-evidence-title">
@@ -623,6 +696,7 @@
   <script src="/static/personalize.js?v=4" defer></script>
   <script src="/static/speech-signal.js?v=1" defer></script>
   <script src="/static/analysis-core.js?v=1" defer></script>
-  <script src="/static/live.js?v=17" defer></script>
+  <script src="/static/learning-memory.js?v=2" defer></script>
+  <script src="/static/live.js?v=19" defer></script>
 </body>
 </html>

@@ -49,6 +49,10 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert "No mystery score" in response.text
     assert "/static/analysis-core.js" in response.text
     assert "/static/speech-signal.js" in response.text
+    assert "/static/learning-memory.js" in response.text
+    assert "LEARNING MEMORY" in response.text
+    assert "Save for later" in response.text
+    assert "Saved on this device; no recordings or full transcripts" in response.text
     assert "TURN STUDIO" in response.text
     assert "Optional visual delivery mode" in response.text
     assert "Kai" not in response.text
@@ -67,6 +71,14 @@ def test_speech_signal_module_is_served_from_the_same_origin():
     response = client.get("/static/speech-signal.js")
     assert response.status_code == 200
     assert "FluentMeSpeechSignal" in response.text
+
+
+def test_learning_memory_module_is_served_from_the_same_origin():
+    response = client.get("/static/learning-memory.js")
+    assert response.status_code == 200
+    assert "FluentMeLearningMemory" in response.text
+    assert "confirmation_required" in response.text
+    assert "window.localStorage" not in response.text
 
 
 def test_speech_capture_worklet_is_served_from_the_same_origin():
@@ -107,6 +119,22 @@ def test_browser_publishes_daily_audio_and_supports_conversational_tools():
     assert "comparisonPrompt" in response.text
     assert "capturePracticeAttempt" in response.text
     assert "requestSessionSummary" in response.text
+    assert "captureLearningTurn" in response.text
+    assert "startDueRecall" in response.text
+    assert "savePracticeTarget" in response.text
+    assert "buildRecallPrompt" in response.text
+    assert "recordReviewExpected" in response.text
+    assert "window.navigator?.locks" in response.text
+    assert "if (learningCaptureMode()) captureLearningTurn(turn)" in response.text
+    assert "captureTypedLearningTurn" in response.text
+    assert "preserveLearningResult" in response.text
+    assert 'name !== "practice"' in response.text
+    assert "normalizeLearningAfterDisconnect" in response.text
+    assert "clearPersistedLearningMemory" in response.text
+    assert "canStartLearningRecall" in response.text
+    assert "coachSpeechStarted" in response.text
+    assert "coachSpeechKeys" in response.text
+    assert "learning-recall-text-form" in response.text
     assert "Transcript received; no timing" in response.text
     assert "createCallObject" in response.text
     assert "persistentTrack" in response.text

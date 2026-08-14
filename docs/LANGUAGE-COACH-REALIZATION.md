@@ -39,9 +39,49 @@ The primary loop is short enough to repeat naturally during a conversation:
 4. **Hear a model.** The coach gives a natural version, optionally split into syllables, stressed words, and thought groups.
 5. **Try again.** The learner repeats or recasts only the relevant phrase. The comparison uses available evidence and does not invent a composite score.
 6. **Use it.** The learner puts the pattern into a fresh, meaningful sentence or continues the conversation with it.
-7. **Recall later.** The phrase and target enter learning memory and return in a future conversation. Retrieval and spacing improve durable learning ([retrieval practice](https://doi.org/10.1111/j.1467-9280.2006.01693.x), [spacing](https://doi.org/10.1111/j.1467-9280.2008.02209.x)).
+7. **Recall later, if saved.** After a real transfer check, the learner may explicitly choose **Save for later**. That approved target can then return naturally in a future conversation. Retrieval and spacing improve durable learning ([retrieval practice](https://doi.org/10.1111/j.1467-9280.2006.01693.x), [spacing](https://doi.org/10.1111/j.1467-9280.2008.02209.x)).
 
 The coach may enter the focused loop automatically after a turn, or the learner may invoke it conversationally: “Make that natural,” “Help with the rhythm,” “Did I sound confident?”, or “Let me try that again.”
+
+## Learning Memory MVP contract
+
+This section describes the implemented MVP boundary. Learning Memory is a small phrase-recall system, not a conversation-history or learner-model service.
+
+### Consent and control
+
+- There is no global enable toggle. Consent happens per target: nothing is saved merely because a conversation, Voice Lab attempt, or comparison occurred.
+- **Save for later** becomes available only after the learner has completed a real transfer answer. Transcript coverage shows whether the target wording appeared as supporting evidence, not as proof of pronunciation, meaning, or mastery.
+- Pressing **Save for later** is the explicit persistence action. Leaving the target unsaved creates no durable learning item.
+- Saved items are visible in the Session tab. The learner can inspect each phrase and remove it with its individual **Forget** action.
+- The MVP has no **Clear all**, export, editable item, global memory toggle, or episode-memory control. It saves approved phrase targets, not past conversations.
+
+### Minimal on-device record
+
+The durable record is a compact, learner-approved learning item: model phrase or pattern, focus, short cue, source, fixed review step, due time, and last-review timestamps. It is not a conversation archive.
+
+Fluent Me must not persist the learner's turn transcript, raw or processed audio, video, waveform samples, pitch contour, per-frame acoustic features, Raven observations, or a copy of the coach conversation as part of Learning Memory. Those signals may be used transiently during the live turn and must be discarded when the in-tab analysis no longer needs them. A learner-approved model phrase is stored as the learning object; the original turn that produced it is not.
+
+The browser writes this record to `localStorage`. If durable browser storage is unavailable, the same record remains only in the current tab and the UI says so. The MVP has no account sync and no Fluent Me server-side learner-history database. When a due item is practiced, the browser passes only that approved phrase/pattern and its short cue into the active Tavus conversation so the coach can create the recall opportunity. This network use must be disclosed even though the durable source of truth remains on the device.
+
+### Natural recall, not a flash-card interruption
+
+- At the start of a conversation, the client checks due items on device and exposes a **Start recall** action when one is ready.
+- When the learner starts recall, the client hides at most one due target and instructs the coach to weave it into a relevant follow-up or role-play prompt without revealing the answer. For example, a saved tradeoff pattern can return while discussing a different product decision.
+- The learner may answer naturally or cancel while waiting for an answer. After an answer, **Show & practise** can reveal the target without advancing it. Recall must never block the open conversation.
+- After the attempt, the learner—not the model—confirms the outcome: **I used it** or **Not quite**. Transcript matching can support the UI but cannot silently advance the item.
+- **Show & practise** reveals the phrase and moves it into Voice Lab without advancing its review schedule.
+
+### Fixed review schedule
+
+The MVP uses a transparent fixed schedule rather than fitted FSRS or inferred memory parameters. A saved item is eligible for recall immediately. Each learner-confirmed **I used it** outcome schedules the next recall after 1, 3, 7, 21, and 60 days in sequence. **Not quite** resets the item to the first review step and makes it due again in 10 minutes.
+
+The implementation must not claim to estimate stability, retrievability, difficulty, or an optimal personal forgetting curve. Adaptive scheduling is a later experiment that requires enough consented outcome data and separate validation.
+
+### Rehearsal is not mastery
+
+Listening to the model, choosing **Show & practise**, revealing the phrase, shadowing it, or reading and repeating while it remains visible counts as **rehearsal**. These actions can be useful, but they are not evidence of independent recall and do not advance the review step.
+
+Producing the target without seeing it in a changed context, followed by **I used it**, is recorded as learner-confirmed independent recall. The MVP may describe later items as established for scheduling purposes, but it must not tell the learner that revealing, rehearsing, or completing one recall proves mastery of English.
 
 ## Product modes and information architecture
 
@@ -127,7 +167,7 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 4. PAL receives the actual transcript plus labeled evidence. Its response schema requests: understood meaning, one target, natural version, short explanation, model phrase, and transfer prompt.
 5. Raven audio/visual output is passed through as tentative evidence, not converted into numeric certainty.
 6. A provider adapter can later add phoneme/syllable/prosody results without changing the UI contract. Unsupported or missing fields remain absent rather than being estimated.
-7. Learning memory stores a compact record: learner phrase, target category, corrected/model phrase, evidence source, attempt result, confidence, and review date.
+7. The Learning Memory adapter stores learner-approved items in `localStorage` with a tab-only fallback, reads due items locally, injects the minimum due-item context into the active conversation, and advances scheduling only from learner-confirmed outcomes. It does not persist transcripts or acoustic evidence.
 
 ## Safety, honesty, and learner trust
 
@@ -136,8 +176,8 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 - Never present transcript-based estimates as acoustic measurements.
 - Avoid a gamified 0–100 overall score. Show the communication outcome, the evidence, and a next action.
 - Explain microphone/camera use before starting and keep visible device controls during the call.
-- Retain raw audio/video only when required and explicitly consented to; prefer derived learning records for memory.
-- Let learners view, edit, or delete saved phrases and perception notes.
+- Do not persist transcript, audio, video, waveform, or pitch data in Learning Memory. Persist only an explicitly approved model phrase/pattern and compact scheduling metadata on device.
+- Let learners inspect each saved phrase and remove it with **Forget**. Editing, bulk deletion, export, and episode memory are outside the implemented MVP.
 - When confidence is low or signals disagree, say so and ask the learner to repeat instead of fabricating feedback.
 
 ## Delivery scope
@@ -151,7 +191,17 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 - Qualitative Raven delivery feedback with explicit **Coach perception** labeling.
 - One-fix → model → retry → transfer loop.
 - Voice Lab that teaches syllables, stress, rhythm, and intonation without claiming acoustic scoring.
-- Session recap and lightweight learning memory.
+- Session recap and the bounded Learning Memory implementation described above.
+
+### MVP: on-device Learning Memory
+
+- Explicit per-target **Save for later** after a completed transfer check; there is no global memory toggle.
+- `localStorage` persistence with an honest current-tab fallback when browser storage is unavailable.
+- Inspectable saved phrases and individual **Forget** actions; no Clear all, export, editing, or episode memory.
+- Natural hidden-target recall inside conversation, followed by learner-owned **I used it** or **Not quite** confirmation.
+- Fixed 1, 3, 7, 21, and 60-day success intervals; **Not quite** schedules another try in 10 minutes.
+- **Show & practise**, reveal, and rehearsal do not advance review and do not claim mastery.
+- No transcript, audio, waveform, pitch, video, or Raven-observation persistence in the learning item.
 
 ### Next stage: acoustic depth
 
@@ -159,9 +209,11 @@ For calibration, analytic speaking rubrics such as ETS’s separate dimensions a
 - Phoneme and syllable alignment, word accuracy, completeness, stress, and prosody where supported.
 - Robust word timestamps for pause location, pause ratio, and articulation rate.
 - Personalized baselines by task type, not a population-wide pace target.
-- Spaced-retrieval scheduling and progress views across sessions.
+- Validated adaptive scheduling and cross-session progress views, only after the fixed-schedule MVP has been evaluated.
 - User-created face/voice replica onboarding with explicit consent and status visibility.
 
 ## Product acceptance criteria
 
 The realization is successful when a first-time learner can start talking without learning the interface; always see and hear the coach; ask a free-form coaching question; understand what evidence produced each insight; improve one phrase; use it in a new sentence; and leave with one memorable next action. No visible score or claim may imply phoneme, syllable, stress, emotion, or prosody precision that the connected evidence source cannot support.
+
+Learning Memory acceptance additionally requires that no item persists before its post-transfer **Save for later** action; durable storage contains only the approved learning item and fixed scheduling metadata; storage failure falls back honestly to the current tab; for a due item, the client hides the target and instructs the coach not to reveal it before the learner answers; **Show & practise** and other rehearsal do not advance review; only **I used it** advances the 1/3/7/21/60-day schedule; **Not quite** schedules a 10-minute retry; and every saved item has an individual **Forget** action. The UI must not imply that global enable/disable, Clear all, export, editing, or episode memory exists.
