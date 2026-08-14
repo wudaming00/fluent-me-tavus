@@ -4,9 +4,9 @@ Do not mark an item complete because the UI exists or a mocked test passes. Fina
 
 ## Submission package
 
-- [ ] Replace `ADD_PUBLIC_DEMO_URL` in `README.md` with a public, signed-out-accessible recording.
-- [ ] Replace `ADD_REVIEWER_BUILD_URL` with a reviewer-accessible build, or state clearly that the video is the primary artifact.
-- [ ] Replace `ADD_COMMIT_SHA` with the exact submitted Git commit.
+- [ ] Verify the public walkthrough URL in `README.md` from a signed-out browser.
+- [x] State clearly that the static case study and video are public while API-powered product access is controlled.
+- [x] Link the exact submitted product-code commit (`031fb20c4245`).
 - [ ] Confirm `README.md`, `DEMO_SCRIPT.md`, `ARCHITECTURE.md`, and this checklist are included.
 - [ ] Confirm every relative Markdown link resolves.
 - [ ] Confirm the final materials contain no API key, meeting token, signed preview handle, private recording URL, or biometric sample.

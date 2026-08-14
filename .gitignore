@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 .env
 .venv/
+.sites/
+.demo-qa/
+.pdf-qa/
+tmp/
+submission/media/*-narration.wav
+submission/media/live-sequence/

@@ -8,10 +8,12 @@ This submission focuses on a simple product thesis: **the face is not decoration
 
 ## Submission links
 
-- Demo video: `ADD_PUBLIC_DEMO_URL`
-- Reviewer-accessible build: `ADD_REVIEWER_BUILD_URL`
-- Exact submitted commit: `ADD_COMMIT_SHA`
-- [90-second demo narration](DEMO_SCRIPT.md)
+- Demo video: https://fluent-me-tavus-case-study.wudaming00.chatgpt.site/demo/fluent-me-demo.mp4
+- Public case study: https://fluent-me-tavus-case-study.wudaming00.chatgpt.site
+- Downloadable PDF: https://fluent-me-tavus-case-study.wudaming00.chatgpt.site/downloads/fluent-me-case-study.pdf
+- API-powered product: controlled reviewer access is available on request
+- Exact submitted product-code commit: [`031fb20c4245`](https://github.com/wudaming00/fluent-me-hacknight/commit/031fb20c4245e526f9f9f40401a74099036250af)
+- [92-second demo narration](DEMO_SCRIPT.md)
 - [Architecture diagram and technical notes](ARCHITECTURE.md)
 - [Delivery checklist](DELIVERY_CHECKLIST.md)
 
@@ -156,4 +158,4 @@ This path is consent-gated and provider-dependent. Account entitlement, credits,
 
 ## Reviewer note
 
-The strongest evidence for this submission is a continuous recording that shows a live Tavus Face, one real learner turn, a relevant response, one focused coaching action, the review artifact, and an explicit end-session cleanup. Expected UI text, mocked provider responses, or the presence of integration code should not be narrated as if they were live results.
+The public walkthrough is a narrated tour built from real session captures and includes a short continuous Tavus Face motion sequence. It demonstrates the product surfaces and a grounded returned transcript, but it does not claim to prove learner-audio transport or remote cleanup. Controlled access to the exact API-powered build is available for a continuous evaluator run; expected UI text, mocked responses, and integration code are never presented as live-provider proof.

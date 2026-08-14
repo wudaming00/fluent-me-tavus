@@ -1,0 +1,31 @@
+Fluent Me - 92-second narrated tour of real session captures
+
+This tour uses real session captures, including one short continuous coach-motion sequence. It explains the product path but does not by itself prove learner audio transport or remote-room cleanup.
+
+[00:00:00.000] 01  START WITH ONE ACTION
+Fluent Me is a conversation-first English coach.
+This narrated tour uses real session captures to explain one focused feedback loop.
+
+[00:00:10.000] 02  CONTINUE TO START THE ROOM
+The Tavus room starts only after the learner selects Continue.
+Topic, time box, and compact local recap remain optional choices.
+
+[00:00:22.000] 03  CAPTURE THE TAVUS ROOM
+This chapter uses a short, continuous frame sequence captured while the Tavus coach was responding.
+The sequence shows visible coach motion in that interval, not learner-audio transport or cleanup.
+The interface keeps the Face dominant while detailed tools stay in a drawer.
+
+[00:00:45.000] 04  READ THE TAVUS TRANSCRIPT
+After a captured turn, Feedback shows only evidence that exists:
+the Tavus transcript, timing, counted pauses or repeats, and available microphone or Raven signals.
+None becomes an opaque English score.
+
+[00:01:01.000] 05  GROUND ONE USEFUL CHANGE
+The grounded review turns available evidence into one useful change.
+Grammar and wording stay separate from pace and rhythm observations.
+Missing evidence stays hidden rather than guessed.
+
+[00:01:18.000] 06  DOCUMENT THE BOUNDARIES
+History is opt-in and stored on this device.
+The case study documents product, evidence, privacy, and lifecycle boundaries.
+The captured motion does not prove learner audio transport or remote-room cleanup.
