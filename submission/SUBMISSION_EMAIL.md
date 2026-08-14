@@ -26,12 +26,13 @@ Submission links:
 
 The materials cover the requested areas:
 
-1. **The project in action.** The narrated tour uses real captures from a Tavus
-   session: the simplified entry and optional setup, an active Tavus Face,
-   returned learner transcript, a contextually relevant coach correction,
-   focused feedback, and the grounded visual review. The case study labels the
-   explicit end path separately rather than presenting a screenshot montage as
-   proof of transport or cleanup.
+1. **The project in action.** The narrated tour opens with five real captures
+   from a Tavus session — the simplified entry and optional setup, an active
+   Tavus Face, the returned learner transcript, a contextually relevant coach
+   correction, and the grounded visual review — and closes on the public case
+   study page while narrating the product's boundaries. The case study labels
+   the explicit end path separately rather than presenting a screenshot montage
+   as proof of transport or cleanup.
 2. **High-level architecture.** The browser owns the custom learning experience
    and joins a Tavus-created private Daily room. A server boundary creates and
    ends conversations while keeping provider credentials out of the browser.
