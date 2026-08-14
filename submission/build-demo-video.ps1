@@ -45,6 +45,16 @@ param(
   [ValidateNotNullOrEmpty()]
   [string]$VoiceName = "Microsoft David Desktop",
 
+  # Directory of pre-synthesized narration chapters named "<key>-raw.wav"
+  # (24 kHz 16-bit mono PCM), e.g. produced by synthesize-narration.py with an
+  # ElevenLabs voice clone. When set, System.Speech is not used at all; the
+  # per-chapter atempo fitting still guarantees the editorial durations.
+  [string]$PrebuiltVoiceDir = "",
+
+  # Write the chapter narration (key, seconds, text) as JSON to this path and
+  # exit. This is the single source of truth handed to an external synthesizer.
+  [string]$ExportNarration = "",
+
   [switch]$ValidateOnly,
 
   [switch]$KeepBuildArtifacts
@@ -74,8 +84,8 @@ $chapters = @(
     Seconds = 10.0
     Title = "01  START WITH ONE ACTION"
     Captions = @(
-      "Fluent Me is a conversation-first English coach.",
-      "This narrated tour uses real session captures to explain one focused feedback loop."
+      "Fluent Me is a conversation-first English coach built on Tavus.",
+      "This narrated tour uses real session captures to show one focused loop."
     )
   },
   [pscustomobject]@{
@@ -84,8 +94,8 @@ $chapters = @(
     Seconds = 12.0
     Title = "02  CONTINUE TO START THE ROOM"
     Captions = @(
-      "The Tavus room starts only after the learner selects Continue.",
-      "Topic, time box, and compact local recap remain optional choices."
+      "A Tavus room starts only after the learner selects Continue.",
+      "Topic and time box stay optional, and the coach itself can be created from your own face and voice."
     )
   },
   [pscustomobject]@{
@@ -94,9 +104,9 @@ $chapters = @(
     Seconds = 23.0
     Title = "03  CAPTURE THE TAVUS ROOM"
     Captions = @(
-      "This chapter uses a short, continuous frame sequence captured while the Tavus coach was responding.",
-      "The sequence shows visible coach motion in that interval, not learner-audio transport or cleanup.",
-      "The interface keeps the Face dominant while detailed tools stay in a drawer."
+      "This is a live Tavus conversation, captured while the coach was responding: Phoenix renders the Face, Sparrow keeps the turns natural, and detailed tools wait in a drawer.",
+      "The end state is immersion: talking with yourself, in your own face and your own cloned voice, so imitation collapses into repetition.",
+      "The sequence shows visible coach motion in that interval, not learner-audio transport."
     )
   },
   [pscustomobject]@{
@@ -107,7 +117,7 @@ $chapters = @(
     Captions = @(
       "After a captured turn, Feedback shows only evidence that exists:",
       "the Tavus transcript, timing, counted pauses or repeats, and available microphone or Raven signals.",
-      "None becomes an opaque English score."
+      "None of it becomes an opaque English score."
     )
   },
   [pscustomobject]@{
@@ -118,7 +128,7 @@ $chapters = @(
     Captions = @(
       "The grounded review turns available evidence into one useful change.",
       "Grammar and wording stay separate from pace and rhythm observations.",
-      "Missing evidence stays hidden rather than guessed."
+      "A phrase worth keeping moves to spaced review, and missing evidence stays hidden rather than guessed."
     )
   },
   [pscustomobject]@{
@@ -128,7 +138,7 @@ $chapters = @(
     Title = "06  DOCUMENT THE BOUNDARIES"
     Captions = @(
       "History is opt-in and stored on this device.",
-      "The case study documents product, evidence, privacy, and lifecycle boundaries.",
+      "A session also survives its video room: after a provider time cap, the client reconnects and the coach continues the same conversation.",
       "The captured motion does not prove learner audio transport or remote-room cleanup."
     )
   }
@@ -332,6 +342,23 @@ if ($totalSeconds -lt 80 -or $totalSeconds -gt 100) {
   throw "Editorial timing is $totalSeconds seconds; it must remain between 80 and 100 seconds."
 }
 
+if ($ExportNarration) {
+  $narrationDoc = [pscustomobject]@{
+    total_seconds = $totalSeconds
+    chapters = @($chapters | ForEach-Object {
+      [pscustomobject]@{
+        key = $_.Key
+        seconds = $_.Seconds
+        text = ($_.Captions -join " ")
+      }
+    })
+  }
+  $exportPath = [System.IO.Path]::GetFullPath($ExportNarration)
+  [System.IO.File]::WriteAllText($exportPath, ($narrationDoc | ConvertTo-Json -Depth 4), [System.Text.UTF8Encoding]::new($false))
+  Write-Host "[demo] Narration exported to $exportPath"
+  return
+}
+
 $missingImages = @(
   $chapters |
     ForEach-Object { Join-Path $mediaDir $_.Image } |
@@ -415,15 +442,27 @@ foreach ($requiredEncoder in @("libx264", "aac")) {
   }
 }
 
-Add-Type -AssemblyName System.Speech
-$voiceProbe = [System.Speech.Synthesis.SpeechSynthesizer]::new()
-try {
-  $englishVoices = @($voiceProbe.GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -like "en-*" } | ForEach-Object { $_.VoiceInfo.Name })
-} finally {
-  $voiceProbe.Dispose()
-}
-if ($VoiceName -notin $englishVoices) {
-  throw "English System.Speech voice '$VoiceName' is not installed. Available English voices: $($englishVoices -join ', ')"
+if ($PrebuiltVoiceDir) {
+  $PrebuiltVoiceDir = [System.IO.Path]::GetFullPath($PrebuiltVoiceDir)
+  $missingChapterAudio = @(
+    $chapters |
+      ForEach-Object { Join-Path $PrebuiltVoiceDir "$($_.Key)-raw.wav" } |
+      Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) }
+  )
+  if ($missingChapterAudio.Count -gt 0) {
+    throw "PrebuiltVoiceDir is missing chapter narration: $($missingChapterAudio -join ', '). Run synthesize-narration.py first."
+  }
+} else {
+  Add-Type -AssemblyName System.Speech
+  $voiceProbe = [System.Speech.Synthesis.SpeechSynthesizer]::new()
+  try {
+    $englishVoices = @($voiceProbe.GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -like "en-*" } | ForEach-Object { $_.VoiceInfo.Name })
+  } finally {
+    $voiceProbe.Dispose()
+  }
+  if ($VoiceName -notin $englishVoices) {
+    throw "English System.Speech voice '$VoiceName' is not installed. Available English voices: $($englishVoices -join ', ')"
+  }
 }
 
 $sequenceStatus = if ($liveSequenceFrames.Count -gt 0) {
@@ -442,24 +481,30 @@ New-Item -ItemType Directory -Path $workDir | Out-Null
 
 $buildSucceeded = $false
 try {
-  $speechFormat = [System.Speech.AudioFormat.SpeechAudioFormatInfo]::new(
-    24000,
-    [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen,
-    [System.Speech.AudioFormat.AudioChannel]::Mono
-  )
-  $synth = [System.Speech.Synthesis.SpeechSynthesizer]::new()
-  try {
-    $synth.SelectVoice($VoiceName)
-    $synth.Rate = $SpeechRate
-    $synth.Volume = 100
+  if ($PrebuiltVoiceDir) {
     foreach ($chapter in $chapters) {
-      $rawWave = Join-Path $workDir "$($chapter.Key)-raw.wav"
-      $synth.SetOutputToWaveFile($rawWave, $speechFormat)
-      $synth.Speak(($chapter.Captions -join " "))
-      $synth.SetOutputToNull()
+      Copy-Item -LiteralPath (Join-Path $PrebuiltVoiceDir "$($chapter.Key)-raw.wav") -Destination (Join-Path $workDir "$($chapter.Key)-raw.wav")
     }
-  } finally {
-    $synth.Dispose()
+  } else {
+    $speechFormat = [System.Speech.AudioFormat.SpeechAudioFormatInfo]::new(
+      24000,
+      [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen,
+      [System.Speech.AudioFormat.AudioChannel]::Mono
+    )
+    $synth = [System.Speech.Synthesis.SpeechSynthesizer]::new()
+    try {
+      $synth.SelectVoice($VoiceName)
+      $synth.Rate = $SpeechRate
+      $synth.Volume = 100
+      foreach ($chapter in $chapters) {
+        $rawWave = Join-Path $workDir "$($chapter.Key)-raw.wav"
+        $synth.SetOutputToWaveFile($rawWave, $speechFormat)
+        $synth.Speak(($chapter.Captions -join " "))
+        $synth.SetOutputToNull()
+      }
+    } finally {
+      $synth.Dispose()
+    }
   }
 
   foreach ($chapter in $chapters) {

@@ -10,3 +10,5 @@ __pycache__/
 tmp/
 submission/media/*-narration.wav
 submission/media/live-sequence/
+submission/media/.narration.json
+submission/media/.eleven-voice/
