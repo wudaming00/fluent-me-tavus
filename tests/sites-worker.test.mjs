@@ -202,6 +202,16 @@ test("Sites Worker serves bounded Language Review and evidence-based progress mo
   assert.match(liveJavascript, /progress-review-start/);
   assert.match(liveJavascript, /shouldRefreshLanguageReviewAtEnd/);
   assert.match(liveJavascript, /prepareEvidenceRecapFromLanguageReview/);
+  assert.match(liveJavascript, /INTERNAL_INTERACTION_KINDS/);
+  assert.match(liveJavascript, /transcriptVisibility: interactionTranscriptVisibility\(kind\)/);
+  assert.match(liveJavascript, /if \(!isEvidenceEligibleTurn\(turn\)\) return false/);
+  assert.match(liveJavascript, /enqueuePendingTypedOutbound\(state\.pendingTypedOutbounds, text/);
+  assert.match(liveJavascript, /const typedOutbound = consumePendingTypedOutbound\(state\.pendingTypedOutbounds, speech\)/);
+  assert.match(liveJavascript, /typedOutbound: true, linkedTurnId: turn\?\.id \|\| ""/);
+  assert.match(
+    liveJavascript,
+    /if \(internalInteraction\) \{[\s\S]{0,300}captureCoachResult\(speech, message\)[\s\S]{0,300}return;/,
+  );
   const evidenceRecapBody = liveJavascript.slice(
     liveJavascript.indexOf("function prepareEvidenceRecapFromLanguageReview"),
     liveJavascript.indexOf("async function startConversation"),

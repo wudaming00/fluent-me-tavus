@@ -18,6 +18,108 @@
       .slice(0, limit);
   }
 
+  const INTERNAL_INTERACTION_KINDS = Object.freeze(["language-review", "summary", "recap"]);
+
+  function interactionTranscriptVisibility(kind) {
+    return INTERNAL_INTERACTION_KINDS.includes(String(kind || "")) ? "internal" : "conversation";
+  }
+
+  function normalizeInteractionUtterance(value) {
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function internalUtteranceMatches(expected, actual) {
+    const left = normalizeInteractionUtterance(expected);
+    const right = normalizeInteractionUtterance(actual);
+    if (!left || !right) return false;
+    if (left === right) return true;
+    return Math.min(left.length, right.length) >= 80
+      && (left.startsWith(right) || right.startsWith(left));
+  }
+
+  function shouldExcludeInteractionUtterance(interaction, role, speech, { captured = false } = {}) {
+    if (interaction?.transcriptVisibility !== "internal") return false;
+    const normalizedRole = String(role || "").toLowerCase();
+    if (normalizedRole === "user") {
+      return internalUtteranceMatches(interaction.requestText, speech);
+    }
+    if (normalizedRole === "coach") return Boolean(captured || normalizeInteractionUtterance(speech));
+    return false;
+  }
+
+  function isEvidenceEligibleTurn(turn) {
+    return Boolean(turn)
+      && turn.evidenceEligible !== false
+      && turn.interactionVisibility !== "internal";
+  }
+
+  function evidenceConversationTurns(turns = []) {
+    return turns.filter(isEvidenceEligibleTurn);
+  }
+
+  const DEFAULT_TYPED_OUTBOUND_TTL_MS = 30_000;
+  const DEFAULT_TYPED_OUTBOUND_LIMIT = 12;
+
+  function typedOutboundMatchKey(value) {
+    return normalizeInteractionUtterance(value)
+      .normalize("NFKC")
+      .toLocaleLowerCase("en-US")
+      .replace(/[.!?]+$/g, "")
+      .trim();
+  }
+
+  function prunePendingTypedOutbounds(queue, now = Date.now()) {
+    if (!Array.isArray(queue)) return [];
+    for (let index = queue.length - 1; index >= 0; index -= 1) {
+      if (Number(queue[index]?.expiresAt) <= now) queue.splice(index, 1);
+    }
+    return queue;
+  }
+
+  function enqueuePendingTypedOutbound(queue, text, {
+    id = "",
+    linkedTurnId = "",
+    now = Date.now(),
+    ttlMs = DEFAULT_TYPED_OUTBOUND_TTL_MS,
+    limit = DEFAULT_TYPED_OUTBOUND_LIMIT,
+  } = {}) {
+    if (!Array.isArray(queue)) return null;
+    const matchKey = typedOutboundMatchKey(text);
+    if (!matchKey) return null;
+    prunePendingTypedOutbounds(queue, now);
+    const boundedLimit = Math.max(1, Math.floor(Number(limit) || DEFAULT_TYPED_OUTBOUND_LIMIT));
+    while (queue.length >= boundedLimit) queue.shift();
+    const record = {
+      id: String(id || `typed-${now}-${queue.length + 1}`),
+      linkedTurnId: String(linkedTurnId || ""),
+      matchKey,
+      expiresAt: now + Math.max(1_000, Number(ttlMs) || DEFAULT_TYPED_OUTBOUND_TTL_MS),
+    };
+    queue.push(record);
+    return record;
+  }
+
+  function consumePendingTypedOutbound(queue, speech, now = Date.now()) {
+    if (!Array.isArray(queue)) return null;
+    prunePendingTypedOutbounds(queue, now);
+    const matchKey = typedOutboundMatchKey(speech);
+    if (!matchKey) return null;
+    const index = queue.findIndex(record => record.matchKey === matchKey);
+    if (index < 0) return null;
+    return queue.splice(index, 1)[0] || null;
+  }
+
+  function removePendingTypedOutbound(queue, id) {
+    if (!Array.isArray(queue) || !id) return false;
+    const index = queue.findIndex(record => record.id === id);
+    if (index < 0) return false;
+    queue.splice(index, 1);
+    return true;
+  }
+
   function medianNumber(values) {
     const sorted = values.filter(Number.isFinite).slice().sort((left, right) => left - right);
     if (!sorted.length) return null;
@@ -26,7 +128,7 @@
   }
 
   function recapEvidence(turns = [], memorySummary = {}) {
-    const learnerTurns = turns.filter(turn => turn?.role === "user");
+    const learnerTurns = evidenceConversationTurns(turns).filter(turn => turn?.role === "user");
     const spokenTurns = learnerTurns.filter(turn => !turn.typed);
     const timedTurns = spokenTurns.filter(turn => Number.isFinite(turn.metrics?.durationSec) && turn.metrics.durationSec > 0);
     const paceValues = spokenTurns
@@ -293,6 +395,14 @@
     shouldFinalizeSessionHistory,
     shouldRefreshLanguageReviewAtEnd,
     sessionHistoryCandidate,
+    interactionTranscriptVisibility,
+    shouldExcludeInteractionUtterance,
+    isEvidenceEligibleTurn,
+    evidenceConversationTurns,
+    typedOutboundMatchKey,
+    prunePendingTypedOutbounds,
+    enqueuePendingTypedOutbound,
+    consumePendingTypedOutbound,
   });
   if (typeof module === "object" && module.exports) module.exports = Recap;
   if (typeof document === "undefined") return;
@@ -347,6 +457,8 @@
     pendingCoachCapture: null,
     interaction: null,
     interactionSequence: 0,
+    internalUtterances: new Map(),
+    pendingTypedOutbounds: [],
     recap: {
       data: null,
       evidence: null,
@@ -426,6 +538,48 @@
     },
     selectedSignalTurnId: null,
   };
+
+  const INTERNAL_UTTERANCE_TTL_MS = 120_000;
+  const INTERNAL_UTTERANCE_LIMIT = 24;
+
+  function pruneInternalUtterances(now = Date.now()) {
+    for (const [key, record] of state.internalUtterances) {
+      if (record.expiresAt <= now) state.internalUtterances.delete(key);
+    }
+    while (state.internalUtterances.size > INTERNAL_UTTERANCE_LIMIT) {
+      const oldest = state.internalUtterances.keys().next().value;
+      if (oldest == null) break;
+      state.internalUtterances.delete(oldest);
+    }
+  }
+
+  function rememberInternalUtterance(role, speech, now = Date.now()) {
+    const text = normalizeInteractionUtterance(speech);
+    if (!text) return;
+    pruneInternalUtterances(now);
+    const normalizedRole = String(role || "").toLowerCase();
+    const key = `${normalizedRole}|${text}`;
+    state.internalUtterances.delete(key);
+    state.internalUtterances.set(key, {
+      role: normalizedRole,
+      text,
+      expiresAt: now + INTERNAL_UTTERANCE_TTL_MS,
+    });
+    pruneInternalUtterances(now);
+  }
+
+  function isRememberedInternalUtterance(role, speech, now = Date.now()) {
+    const normalizedRole = String(role || "").toLowerCase();
+    const text = normalizeInteractionUtterance(speech);
+    if (!text) return false;
+    pruneInternalUtterances(now);
+    return [...state.internalUtterances.values()].some(record =>
+      record.role === normalizedRole && internalUtteranceMatches(record.text, text));
+  }
+
+  function learnerEvidenceTurns(turns = state.turns) {
+    return evidenceConversationTurns(turns).filter(turn => turn.role === "user");
+  }
 
   const LEARNING_FOCUS_LABELS = Object.freeze({
     whole: "Whole phrase",
@@ -1798,6 +1952,13 @@
       setText("sentence-chart-meaning-text", "The chart will describe relative microphone level, detected pauses, and pitch movement only when those signals are available. It cannot judge pronunciation or emotion.");
       return;
     }
+    if (turn.typed) {
+      card.dataset.state = "unavailable";
+      setText("sentence-chart-meaning-source", "Typed turn");
+      setText("sentence-chart-meaning-title", "Voice analysis does not apply to this message.");
+      setText("sentence-chart-meaning-text", "The text remains in the transcript and Language Review, but it is excluded from spoken-turn, timing, waveform, pause, and pitch evidence.");
+      return;
+    }
     if (!signal?.available) {
       card.dataset.state = "unavailable";
       setText("sentence-chart-meaning-source", "No browser voice signal");
@@ -1828,9 +1989,9 @@
     setText("sentence-duration", metrics?.durationSec != null
       ? `${metrics.durationSec.toFixed(1)}s`
       : signal?.durationSec != null ? `${signal.durationSec.toFixed(1)}s` : "—");
-    setText("sentence-duration-source", metrics?.durationSec != null ? "Tavus turn timing" : signal?.available ? "Browser signal timing" : "Timing unavailable");
+    setText("sentence-duration-source", turn.typed ? "Typed turn · not measured" : metrics?.durationSec != null ? "Tavus turn timing" : signal?.available ? "Browser signal timing" : "Timing unavailable");
     setText("sentence-pace", metrics?.wpm == null ? "—" : `${metrics.wpm} wpm`);
-    setText("sentence-pace-source", metrics?.wpm == null ? "Needs 5+ words and timing" : "Transcript + turn timing");
+    setText("sentence-pace-source", turn.typed ? "Typed turn · not measured" : metrics?.wpm == null ? "Needs 5+ words and timing" : "Transcript + turn timing");
 
     if (signal?.available) {
       $("sentence-waveform-wrap").dataset.state = "ready";
@@ -1868,7 +2029,7 @@
     } else {
       $("sentence-waveform-wrap").dataset.state = "waiting";
       $("sentence-pitch-key").hidden = true;
-      setText("sentence-studio-status", "Transcript evidence only");
+      setText("sentence-studio-status", turn.typed ? "Typed transcript · voice evidence excluded" : "Transcript evidence only");
       setText("sentence-pauses", "—");
       setText("sentence-pauses-source", "Browser signal unavailable");
       setText("sentence-energy", "—");
@@ -1876,10 +2037,10 @@
       setText("sentence-pitch-movement", "—");
       setText("sentence-pitch-source", "Browser signal unavailable");
       setText("sentence-evidence-status", "Signal unavailable");
-      setText("sentence-timing-note", metrics?.durationSec != null ? "Turn duration came from Tavus speaking events." : "No turn-level timing evidence arrived.");
-      setText("sentence-energy-note", signal?.reason || "The browser did not capture a usable microphone signal for this turn.");
-      setText("sentence-pitch-note", "Pitch movement is withheld when voiced-frame confidence is insufficient.");
-      $("sentence-waveform").setAttribute("aria-label", "No browser waveform is available for the selected speaking turn.");
+      setText("sentence-timing-note", turn.typed ? "Speaking duration is intentionally not measured for typed text." : metrics?.durationSec != null ? "Turn duration came from Tavus speaking events." : "No turn-level timing evidence arrived.");
+      setText("sentence-energy-note", turn.typed ? "Typed text is not attributed to the browser microphone." : signal?.reason || "The browser did not capture a usable microphone signal for this turn.");
+      setText("sentence-pitch-note", turn.typed ? "Pitch evidence does not apply to typed text." : "Pitch movement is withheld when voiced-frame confidence is insufficient.");
+      $("sentence-waveform").setAttribute("aria-label", turn.typed ? "Voice evidence does not apply to this typed turn." : "No browser waveform is available for the selected speaking turn.");
       drawSignalChart(null);
     }
     renderChartMeaning(turn);
@@ -1889,7 +2050,7 @@
     const list = $("sentence-timeline-list");
     if (!list) return;
     list.querySelectorAll(".sentence-timeline-item").forEach(node => node.remove());
-    const turns = state.turns.filter(turn => turn.role === "user");
+    const turns = learnerEvidenceTurns();
     list.dataset.state = turns.length ? "ready" : "empty";
     setText("sentence-timeline-count", String(turns.length));
     turns.slice().reverse().forEach((turn, reverseIndex) => {
@@ -1910,7 +2071,9 @@
         renderSentenceTimeline();
       });
       const evidence = document.createElement("span");
-      evidence.textContent = turn.signalAnalysis?.available
+      evidence.textContent = turn.typed
+        ? "typed"
+        : turn.signalAnalysis?.available
         ? `${turn.signalAnalysis.pauses.pauseCount} pause${turn.signalAnalysis.pauses.pauseCount === 1 ? "" : "s"}`
         : turn.metrics?.wpm != null ? `${turn.metrics.wpm} wpm` : "transcript";
       item.append(ordinal, button, evidence);
@@ -1946,7 +2109,10 @@
     renderSentenceTimeline();
   }
 
-  function measuredEvidence(metrics) {
+  function measuredEvidence(metrics, { typed = false } = {}) {
+    if (typed) {
+      return `${metrics?.wordCount || 0} typed word${metrics?.wordCount === 1 ? "" : "s"}; no speaking timing or voice signal attributed`;
+    }
     const parts = [];
     if (metrics?.wpm != null) parts.push(`${metrics.wordCount} words in ${metrics.durationSec.toFixed(1)}s (${metrics.wpm} WPM, ${metrics.paceLabel.toLowerCase()})`);
     else if (metrics?.wordCount) parts.push(`${metrics.wordCount} words; speaking duration unavailable or too short for pace`);
@@ -1967,18 +2133,20 @@
     if (!turn?.metrics) return;
     const metrics = turn.metrics;
     $("turn-feedback").dataset.state = "ready";
-    setText("turn-evidence-source", metrics.sources.join(" + ") || "Transcript analysis");
+    setText("turn-evidence-source", turn.typed ? "Typed message" : metrics.sources.join(" + ") || "Transcript analysis");
     setText("feedback-transcript", turn.text);
     setText("feedback-pace", metrics.wpm == null ? "—" : `${metrics.wpm} wpm`);
-    setText("feedback-pace-label", metrics.wpm == null ? "Needs 5+ words" : metrics.paceLabel);
+    setText("feedback-pace-label", turn.typed ? "Typed turn" : metrics.wpm == null ? "Needs 5+ words" : metrics.paceLabel);
     setText("feedback-duration", metrics.durationSec == null ? "—" : `${metrics.durationSec.toFixed(1)}s`);
-    setText("feedback-fillers", String(metrics.strongFillers));
-    setText("feedback-repeats", String(metrics.repeatedWords));
-    setText("feedback-focus", focusFor(metrics));
+    setText("feedback-fillers", turn.typed ? "—" : String(metrics.strongFillers));
+    setText("feedback-repeats", turn.typed ? "—" : String(metrics.repeatedWords));
+    setText("feedback-focus", turn.typed ? "Typed text stays available for Language Review; voice delivery is not measured." : focusFor(metrics));
     const audio = analysisText(turn.audioAnalysis);
     const visual = analysisText(turn.visualAnalysis);
     const observations = [audio && `Audio: ${audio}`, visual && `Visual: ${visual}`].filter(Boolean);
-    setText("feedback-delivery", observations.join(" · ") || "No qualitative Raven observation was provided for this turn.");
+    setText("feedback-delivery", turn.typed
+      ? "Typed message · no microphone, speaking-time, Raven audio, or visual evidence is attributed."
+      : observations.join(" · ") || "No qualitative Raven observation was provided for this turn.");
     renderSentenceStudio(turn);
     renderSentenceTimeline();
   }
@@ -1991,7 +2159,7 @@
   }
 
   function currentRecapEvidence() {
-    return recapEvidence(state.turns, currentMemorySummary());
+    return recapEvidence(evidenceConversationTurns(state.turns), currentMemorySummary());
   }
 
   function recapPreferredPhrase() {
@@ -2004,13 +2172,13 @@
   }
 
   function recapLastQuote(turns = state.turns) {
-    const turn = turns.filter(item => item.role === "user" && item.text).at(-1);
+    const turn = learnerEvidenceTurns(turns).filter(item => item.text).at(-1);
     return recapText(turn?.text, 120);
   }
 
   function recapGroundingTexts() {
     return [
-      ...state.turns.filter(turn => turn.role === "user").slice(-12).map(turn => turn.text),
+      ...learnerEvidenceTurns().slice(-12).map(turn => turn.text),
       state.practice.target,
       state.learning.pendingUse?.target,
     ].filter(Boolean);
@@ -2175,7 +2343,7 @@
       : currentEvidence;
     const model = RecapVisual.buildRecapVisual({
       evidence,
-      turns: state.turns,
+      turns: evidenceConversationTurns(state.turns),
       languageReview: state.languageReview,
       currentLearnerTurns: currentEvidence.learnerTurns,
       recap: state.recap.data,
@@ -2235,8 +2403,7 @@
   }
 
   function recapPrompt(evidence) {
-    const learnerTurns = state.turns
-      .filter(turn => turn.role === "user")
+    const learnerTurns = learnerEvidenceTurns()
       .slice(-12)
       .map(turn => recapText(turn.text, 500));
     return [
@@ -2290,8 +2457,8 @@
   }
 
   function learnerTurnsForLanguageReview() {
-    return state.turns
-      .filter(turn => turn?.role === "user" && String(turn.text || "").trim())
+    return learnerEvidenceTurns()
+      .filter(turn => String(turn.text || "").trim())
       .map(turn => ({ role: "user", text: String(turn.text).slice(0, (LanguageReview?.MAX_TURN_CHARS || 400) + 1) }));
   }
 
@@ -2631,13 +2798,13 @@
     }
     if ($("request-summary")) $("request-summary").disabled = !live || !state.lastUserTurn || pending || coachBusy || locked || learningAwaiting;
     if ($("recap-generate")) {
-      const recapTurns = state.turns.filter(turn => turn.role === "user").length;
+      const recapTurns = learnerEvidenceTurns().length;
       $("recap-generate").disabled = !recapTurns || pending || (live && coachBusy) || learningAwaiting;
     }
     if ($("recap-practice")) $("recap-practice").disabled = !state.recap.data?.phrase || recallLocked;
     if ($("recap-copy")) $("recap-copy").disabled = !state.recap.data;
     if ($("language-review-generate")) {
-      const reviewTurns = state.turns.filter(turn => turn.role === "user").length;
+      const reviewTurns = learnerEvidenceTurns().length;
       $("language-review-generate").disabled = !live || !reviewTurns || pending || coachBusy || locked || learningAwaiting;
     }
     if ($("language-review-copy")) $("language-review-copy").disabled = !state.languageReview.data;
@@ -2698,6 +2865,9 @@
     if (!interaction || interaction.id !== id) return false;
     clearTimeout(interaction.timer);
     state.interaction = null;
+    if (!succeeded && interaction.typedOutboundId) {
+      removePendingTypedOutbound(state.pendingTypedOutbounds, interaction.typedOutboundId);
+    }
 
     if (succeeded) {
       if (interaction.kind === "comparison") {
@@ -2788,7 +2958,18 @@
               : "Your coach did not answer in time. Please try again.",
       );
     }, timeoutMs);
-    state.interaction = { id, kind, meta, promise, resolve, timer, coachSpeechStarted: false, coachSpeechKeys: [] };
+    state.interaction = {
+      id,
+      kind,
+      meta,
+      promise,
+      resolve,
+      timer,
+      coachSpeechStarted: false,
+      coachSpeechKeys: [],
+      transcriptVisibility: interactionTranscriptVisibility(kind),
+      requestText: "",
+    };
     updateWorkflowControls();
     return state.interaction;
   }
@@ -2828,6 +3009,7 @@
   function resetLiveWorkflow() {
     state.lastUserTurn = null;
     state.pendingTimingTurns = [];
+    state.pendingTypedOutbounds = [];
     state.speechStops.clear();
     state.keylessStops = [];
     state.lastUserStop = null;
@@ -2875,21 +3057,26 @@
   }
 
   function captureCoachResult(speech, message) {
-    if (!state.interaction?.coachSpeechStarted) return;
-    const startedKeys = state.interaction.coachSpeechKeys || [];
+    const interaction = state.interaction;
+    if (!interaction) return false;
+    const internal = interaction.transcriptVisibility === "internal";
+    if (!interaction.coachSpeechStarted && !internal) return false;
+    const startedKeys = interaction.coachSpeechKeys || [];
     const finalKeys = timingKeys(message);
     const comparableFinalKeys = finalKeys.filter(key => {
       const type = key.split(":", 1)[0];
       return startedKeys.some(started => started.startsWith(`${type}:`));
     });
-    if (comparableFinalKeys.length && !comparableFinalKeys.some(key => startedKeys.includes(key))) return;
-    completeInteraction(state.interaction.id, true, speech);
+    if (!internal && comparableFinalKeys.length && !comparableFinalKeys.some(key => startedKeys.includes(key))) return false;
+    if (internal) rememberInternalUtterance("coach", speech);
+    return completeInteraction(interaction.id, true, speech);
   }
 
   function appendTurn(turn) {
+    if (!isEvidenceEligibleTurn(turn)) return false;
     const { role, text, timestamp, audioAnalysis, visualAnalysis, metrics, signalAnalysis } = turn;
     const speech = String(text || "").trim();
-    if (!speech) return;
+    if (!speech) return false;
     if (!turn.id) turn.id = `turn-${++state.turnSequence}`;
     turn.text = speech;
     $("empty-log").hidden = true;
@@ -2917,7 +3104,7 @@
       details.appendChild(summary);
       if (metrics) {
         const line = document.createElement("p");
-        line.textContent = `Measured: ${measuredEvidence(metrics)}`;
+        line.textContent = `Measured: ${measuredEvidence(metrics, { typed: Boolean(turn.typed) })}`;
         details.appendChild(line);
       }
       if (audio) {
@@ -2944,6 +3131,7 @@
     if (role === "user") markLanguageReviewStale();
     renderSessionEvidence({ userTurnAdded: role === "user" });
     article.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    return true;
   }
 
   function clearLogView() {
@@ -3046,7 +3234,12 @@
     }
 
     if (type === "conversation.utterance.streaming") {
-      if (speech) setCaption(role || "coach", speech);
+      const streamingRole = role === "user" ? "user" : "coach";
+      if (speech
+        && !isRememberedInternalUtterance(streamingRole, speech)
+        && !shouldExcludeInteractionUtterance(state.interaction, streamingRole, speech)) {
+        setCaption(streamingRole, speech);
+      }
       return;
     }
 
@@ -3057,31 +3250,61 @@
     state.seenEvents.add(key);
 
     const safeRole = role === "user" ? "user" : "coach";
-    setCaption(safeRole, speech);
     if (safeRole === "user") {
-      const timing = timingFor(message);
+      if (isRememberedInternalUtterance(safeRole, speech)
+        || shouldExcludeInteractionUtterance(state.interaction, safeRole, speech)) {
+        rememberInternalUtterance(safeRole, speech);
+        return;
+      }
+      const typedOutbound = consumePendingTypedOutbound(state.pendingTypedOutbounds, speech);
+      if (typedOutbound?.linkedTurnId) {
+        const linkedTurn = state.turns.find(turn => turn.id === typedOutbound.linkedTurnId);
+        if (linkedTurn) {
+          state.lastUserTurn = linkedTurn;
+          return;
+        }
+      }
+      setCaption(safeRole, speech);
+      const typed = Boolean(typedOutbound);
+      const timing = typed
+        ? { durationSec: null, interrupted: false, signalAnalysis: null, consumed: true }
+        : timingFor(message);
       const turn = {
         id: `turn-${++state.turnSequence}`,
         role: safeRole,
         text: speech,
         timestamp: message.timestamp,
         receivedAt: Date.now(),
+        typed,
         timingKeys: timingKeys(message),
         durationSec: timing.durationSec,
         interrupted: timing.interrupted,
         signalAnalysis: timing.signalAnalysis,
-        audioAnalysis: properties.user_audio_analysis,
-        visualAnalysis: properties.user_visual_analysis
+        audioAnalysis: typed ? null : properties.user_audio_analysis,
+        visualAnalysis: typed ? null : properties.user_visual_analysis
       };
       turn.metrics = Analysis?.summarizeTurn(turn) || null;
-      if (!timing.consumed) state.pendingTimingTurns.push(turn);
+      if (!typed && !timing.consumed) state.pendingTimingTurns.push(turn);
       state.lastUserTurn = turn;
       appendTurn(turn);
       renderTurnFeedback(turn);
       if (learningCaptureMode()) captureLearningTurn(turn);
-      else capturePracticeAttempt(turn);
+      else if (!typed) capturePracticeAttempt(turn);
       updateWorkflowControls();
     } else {
+      if (isRememberedInternalUtterance(safeRole, speech)) return;
+      const internalInteraction = state.interaction?.transcriptVisibility === "internal"
+        ? state.interaction
+        : null;
+      if (internalInteraction) {
+        const kind = internalInteraction.kind;
+        const captured = captureCoachResult(speech, message);
+        if (captured) {
+          setCaption("coach", kind === "language-review" ? "Your language review is ready." : "Your recap is ready.");
+        }
+        return;
+      }
+      setCaption(safeRole, speech);
       appendTurn({
         role: safeRole,
         text: speech,
@@ -3729,7 +3952,7 @@
     state.failureInProgress = true;
     try {
       const preserveLearningResult = normalizeLearningAfterDisconnect();
-      const preserveSessionEvidence = state.turns.some(turn => turn.role === "user");
+      const preserveSessionEvidence = learnerEvidenceTurns().length > 0;
       await destroyCall(true, { preserveWorkflow: preserveLearningResult || preserveSessionEvidence });
       if (preserveLearningResult) renderLearningMemory();
       if (preserveSessionEvidence) {
@@ -3800,9 +4023,23 @@
     }
   }
 
-  async function askCoach(text, visibleText = text, { kind = "coach", meta = {} } = {}) {
+  async function askCoach(text, visibleText = text, {
+    kind = "coach",
+    meta = {},
+    typedOutbound = false,
+    linkedTurnId = "",
+  } = {}) {
     const interaction = beginInteraction(kind, meta);
     if (!interaction) return false;
+    interaction.requestText = normalizeInteractionUtterance(text);
+    if (interaction.transcriptVisibility === "internal") rememberInternalUtterance("user", text);
+    if (typedOutbound && interaction.transcriptVisibility === "conversation") {
+      const pendingTyped = enqueuePendingTypedOutbound(state.pendingTypedOutbounds, text, {
+        id: `interaction-${interaction.id}`,
+        linkedTurnId,
+      });
+      interaction.typedOutboundId = pendingTyped?.id || "";
+    }
     setCaption("user", visibleText);
     setCoachState("thinking", "Thinking…");
     const sent = await sendInteraction("conversation.respond", text);
@@ -4110,6 +4347,7 @@
     $("end-session").textContent = "End session";
     state.seenEvents.clear();
     clearLogView();
+    state.internalUtterances.clear();
     resetLiveWorkflow();
     if (queuedPracticeTarget) {
       state.queuedPracticeTarget = queuedPracticeTarget;
@@ -4410,8 +4648,8 @@
     const text = input.value.trim();
     if (!text) return;
     input.value = "";
-    captureTypedLearningTurn(text);
-    void askCoach(text);
+    const turn = captureTypedLearningTurn(text);
+    void askCoach(text, text, { typedOutbound: true, linkedTurnId: turn?.id || "" });
   });
   $("learning-memory-list").addEventListener("click", event => {
     const button = event.target.closest("[data-memory-action]");
@@ -4455,8 +4693,8 @@
     const text = $("chat-input").value.trim();
     if (!text) return;
     $("chat-input").value = "";
-    if (learningCaptureMode()) captureTypedLearningTurn(text);
-    void askCoach(text);
+    const turn = learningCaptureMode() ? captureTypedLearningTurn(text) : null;
+    void askCoach(text, text, { typedOutbound: true, linkedTurnId: turn?.id || "" });
   });
 
   document.querySelectorAll("[data-practice-focus]").forEach(button => {
