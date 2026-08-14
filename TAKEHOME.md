@@ -16,7 +16,7 @@ Optionally open **Create your coach** for a short product preview. Show that Fac
 
 Click **Start talking**. Wait for the live Tavus Face and the AI disclosure/greeting to finish. Do not speak over the custom greeting.
 
-Briefly point out the visible state changes—connecting, coach speaking, listening, thinking, and your turn—then introduce the three surfaces: **Coach** for open conversation, **Practice** for a two-attempt loop, and **Session** for the evidence and wrap-up.
+Briefly point out the visible state changes—connecting, coach speaking, listening, thinking, and your turn—then introduce the three surfaces: **Coach** for open conversation, **Voice Lab** for a two-attempt loop, and **Session** for the evidence and wrap-up.
 
 If the Face, audible greeting, or microphone does not work, stop the recording and diagnose it. Do not present a placeholder or edited screenshot as a successful live run.
 
@@ -30,7 +30,7 @@ Let the coach respond naturally. This demonstrates that the microphone is reachi
 
 Briefly open **Session** to show the real user utterance and PAL reply received through `conversation.utterance`. If Tavus supplied `user_audio_analysis` or `user_visual_analysis`, expand **Observable delivery signals** and describe it as an uncertain model observation—not ground truth. Do not claim a signal that is absent.
 
-### 1:20–2:30 — Practice: model, attempt twice, compare
+### 1:20–2:30 — Voice Lab: model, attempt twice, compare
 
 Open **Practice** and enter this exact target phrase:
 
@@ -129,7 +129,7 @@ The lesson from both iterations is that a convincing CVI integration depends on 
 - [ ] Typed input receives a natural response.
 - [ ] Autoplay fallback can be recovered by clicking the video.
 - [ ] **End session**, connection failure, and page exit attempt to end the remote Tavus conversation.
-- [ ] No stale v3/v4 PAL is used; the verified published v5 PAL is pinned with `TAVUS_CONVERSATION_PAL_V5_ID`.
+- [ ] No stale PAL is used; the verified published v6 PAL is pinned with `TAVUS_CONVERSATION_PAL_V6_ID`.
 
 ### Optional personalization verification
 
@@ -168,7 +168,7 @@ Do not check these items based on mocked tests or UI presence alone. Run them wi
 - **Manual E2E proof:** mocked tests cover request payloads and client contracts, but they do not prove microphone publication, Face playback, correct pairing of two learner attempts with their Raven evidence, the comparison response, the three-part wrap-up, or end-to-end conversational behavior in the deployed browser.
 - **Personalization provider setup:** the deployed site does not yet have a verified `ELEVENLABS_API_KEY` plus an active ElevenLabs IVC plan/grant. The optional cloned-voice path therefore cannot be called end-to-end complete.
 - **Face upload and training:** local browser capture does not create the public or signed HTTPS URL Tavus requires. The user must supply a 24-hour URL from their own storage or use PAL Maker, and Phoenix-4 training takes roughly 3–4 hours. No successful Face-to-personal-PAL browser run has been proven yet.
-- **PAL reproducibility:** reusing a PAL by name does not update an older prompt. Pin and verify the published v5 PAL with `TAVUS_CONVERSATION_PAL_V5_ID`; v4 lacks the two-attempt and wrap-up contract.
+- **PAL reproducibility:** reusing a PAL by name does not update an older prompt. Pin and verify the published v6 PAL with `TAVUS_CONVERSATION_PAL_V6_ID`; older PALs lack the evidence-source and acoustic-boundary contract.
 - **Loom link:** no public recording URL has been supplied yet.
 
 Do not mark any of these complete without direct evidence from the final deployed commit.

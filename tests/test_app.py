@@ -18,12 +18,12 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     response = client.get("/")
     assert response.status_code == 200
     assert "YOUR PERSONAL ENGLISH COACH" in response.text
-    assert "Talk freely." in response.text
-    assert "Start talking" in response.text
+    assert "Practice the English" in response.text
+    assert "Start video conversation" in response.text
     assert "Live personal English coach" in response.text
-    assert "How did I sound?" in response.text
-    assert "What did you notice?" in response.text
-    assert "Practice a phrase" in response.text
+    assert "Make it natural" in response.text
+    assert "How did I come across?" in response.text
+    assert "Hear it. Try it. Compare." in response.text
     assert "Compare attempts" in response.text
     assert "Wrap up this session" in response.text
     assert "Create your coach" in response.text
@@ -35,7 +35,7 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert "Your video coach will appear here" in response.text
     assert "id=\"tavus-video\"" in response.text
     assert "/static/daily-0.91.0.js" in response.text
-    assert "/static/og-personal-coach-v2.png" in response.text
+    assert "/static/og-language-coach-v3.png" in response.text
     assert "unpkg.com" not in response.text
     assert "Hear the model" not in response.text
     assert "Match the rhythm" not in response.text
@@ -45,8 +45,9 @@ def test_home_is_a_clear_personal_english_coaching_experience():
     assert "digital face" not in response.text
     assert ">TAVUS<" not in response.text
     assert not re.search(r"[\u4e00-\u9fff]", response.text)
-    assert "Pace" not in response.text
-    assert "Fillers" not in response.text
+    assert "speaking evidence" in response.text.lower()
+    assert "No mystery score" in response.text
+    assert "/static/analysis-core.js" in response.text
     assert "Kai" not in response.text
     assert "/static/live.js" in response.text
     assert response.headers["x-frame-options"] == "DENY"
@@ -91,7 +92,7 @@ def test_browser_publishes_daily_audio_and_supports_conversational_tools():
     assert "comparisonPrompt" in response.text
     assert "capturePracticeAttempt" in response.text
     assert "requestSessionSummary" in response.text
-    assert "No delivery analysis was provided" in response.text
+    assert "Transcript received; no timing" in response.text
     assert "createCallObject" in response.text
     assert "persistentTrack" in response.text
     assert "startAudioOff: true" in response.text
@@ -102,8 +103,9 @@ def test_browser_publishes_daily_audio_and_supports_conversational_tools():
     assert "videoSource: false" not in response.text
     assert "createFrame" not in response.text
     assert "Listen, Repeat, Fix, Recall, and Use" not in response.text
-    assert "observable signals" in response.text
-    assert "fillers" not in response.text.lower()
+    assert "labelled evidence" in response.text
+    assert "strongFillers" in response.text
+    assert "rememberStop" in response.text
     assert "const SAMPLE" not in response.text
     assert "guided preview" not in response.text.lower()
     assert "phrase-lab" not in response.text

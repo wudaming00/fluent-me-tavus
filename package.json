@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build-sites-preview.mjs",
-    "test:worker": "node --test tests/sites-worker.test.mjs"
+    "test:worker": "node --test tests/sites-worker.test.mjs",
+    "test:analysis": "node --test tests/live-analysis.test.mjs",
+    "test": "npm run test:analysis && npm run test:worker"
   }
 }

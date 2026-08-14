@@ -340,7 +340,7 @@ def _report_snapshot(session: dict) -> dict:
 
 @app.get("/api/tavus/status")
 def tavus_status():
-    cache_ready = bool(os.environ.get("TAVUS_CONVERSATION_PAL_V5_ID")) or (BASE / "data" / "tavus_pal_v5.json").exists()
+    cache_ready = bool(os.environ.get("TAVUS_CONVERSATION_PAL_V6_ID")) or (BASE / "data" / "tavus_pal_v6.json").exists()
     return {
         "configured": tavus.configured(),
         "mode": "live" if tavus.configured() else "tavus_required",
@@ -349,7 +349,9 @@ def tavus_status():
         "mirror_voice_ready": bool(tts._eleven_voices().get("user")) or tts.USER_REF.exists(),
         "capabilities": {
             "face": "Phoenix",
-            "perception": "Raven-1",
+            "perception": "Raven-1 qualitative",
+            "timing": "turn duration",
+            "pronunciation": "provider required",
             "turn_taking": "Sparrow-1",
             "emotion_recognition": "limited_on_managed_pal",
         },

@@ -5,7 +5,7 @@
 Fluent Me should feel like talking to a responsive person, with English coaching available whenever the learner asks for it. It is one continuous conversation, not a state machine dressed up as video.
 
 ```text
-Start talking → open conversation ───────────────→ keep talking
+Choose a topic → video conversation ────────────→ keep talking
                          │
                          ├─ ask for English feedback
                          ├─ ask about delivery signals
@@ -29,10 +29,11 @@ Start talking → open conversation ──────────────�
 | Request | Coach behavior |
 |---|---|
 | Open conversation | Respond to meaning first; ask at most one natural follow-up. |
-| How did I sound? | Give one specific English note and one natural recast. |
-| Say it naturally | Speak a concise improved version, then invite a retry. |
-| What did you notice? | Cite only observable cues, preserve uncertainty, and ask whether the impression matches. |
-| Practice a phrase | Model the exact supplied phrase once; capture two learner attempts in the same conversation. |
+| Make it natural | Quote one useful grammar, word-choice, or naturalness change and speak a concise recast. |
+| Fix one thing | Choose the highest-impact clarity change and offer one short retry. |
+| Break it into beats | Teach thought groups, selective stress, linking, and a model without claiming acoustic diagnosis. |
+| How did I come across? | Cite only labelled transcript, timing, or Raven cues; preserve uncertainty and ask whether the impression matches. |
+| Voice Lab | Model an exact phrase and capture two learner attempts using a chosen Whole phrase, Sounds, Stress & rhythm, or Intonation lens. |
 | Compare attempts | Use only the two captured transcripts and available delivery analyses; name one improvement and one next detail. |
 | Wrap up | Return one communication win, one useful phrase, and one next practice grounded in this session. |
 
@@ -75,11 +76,13 @@ The Tavus private-voice TTS layer requires the ElevenLabs `api_key` alongside th
 
 Tavus provides the full conversational video pipeline: Phoenix Face, Raven-1 perception, Sparrow-1 turn-taking, STT, LLM, and spoken response. Native speech uses the full pipeline. Typed user requests use `conversation.respond`. Only exact phrase modeling uses `conversation.echo`.
 
-Raven is configured with `emotion_recognition: limited` for an education product. Feedback may mention words, pace, pauses, clarity, tone, background audio, and visible delivery cues when a camera is shared. It must not claim to know an inner emotion or infer ability, personality, protected traits, mental health, or hiring suitability.
+Raven is configured with `emotion_recognition: limited` for an education product. Its audio and visual output stays a qualitative coach observation. It must not claim to know an inner emotion or infer ability, personality, protected traits, mental health, or hiring suitability.
+
+The browser correlates `conversation.stopped_speaking` with final `conversation.utterance` events by `inference_id` or `turn_idx`. It may deterministically show whole-turn duration, WPM for sufficiently long samples, high-confidence filled pauses, adjacent repeated words, interruptions, ordered target-phrase transcript coverage, and personal session aggregates. It cannot derive within-turn pause location, phoneme accuracy, syllable stress, or pitch contour from these events. Those acoustic fields remain unavailable until an explicitly consented specialist pronunciation provider returns them. Transcript coverage is never labelled pronunciation accuracy.
 
 ## Logging and privacy
 
-The `Session` view reconstructs turns from live `conversation.utterance` events and de-duplicates replica/PAL aliases by inference and content. Optional `user_audio_analysis` and `user_visual_analysis` appear as expandable observable signals when Tavus provides them. The `Practice` view holds the current target, two captured attempts, their observable evidence, and the coach's grounded comparison in the current browser tab.
+The `Session` view reconstructs turns from live `conversation.utterance` events and de-duplicates replica/PAL aliases by inference and content. Optional `user_audio_analysis` and `user_visual_analysis` appear as expandable observable signals when Tavus provides them. The `Voice Lab` view holds the current target, two captured attempts, deterministic transcript/timing evidence, and the coach's grounded comparison in the current browser tab.
 
 The hosted Worker records room creation/end lifecycle events but does not create an extra server-side speech log. Fluent Me does not save raw audio or video. A future durable learning-memory feature requires a separate retention choice and explicit user-facing privacy design.
 

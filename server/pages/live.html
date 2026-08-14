@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090b10">
-  <meta name="description" content="Have a real English conversation with a personal AI video coach.">
-  <meta property="og:title" content="Fluent Me — talk freely, get better as you go">
-  <meta property="og:description" content="Talk naturally, ask how you sounded, and practice any phrase face to face.">
-  <meta property="og:image" content="/static/og-personal-coach-v2.png">
+  <meta name="description" content="Talk with a personal AI video coach, improve one real English moment, and try it again.">
+  <meta property="og:title" content="Fluent Me — practice the English you actually use">
+  <meta property="og:description" content="A face-to-face English coach for your words, voice, rhythm, and presence.">
+  <meta property="og:image" content="/static/og-language-coach-v3.png">
   <meta name="twitter:card" content="summary_large_image">
   <title>Fluent Me — your personal English coach</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23090b10'/%3E%3Cpath d='M8 17v-4m5 9V8m6 17V5m5 16V9' stroke='%239a8cff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/live.css?v=14">
+  <link rel="stylesheet" href="/static/live.css?v=15">
   <script src="/static/daily-0.91.0.js"></script>
 </head>
 <body data-view="welcome" data-coach-mode="checking">
@@ -39,19 +39,28 @@
       <section class="welcome" id="welcome" aria-labelledby="welcome-title">
         <div class="welcome-copy">
           <p class="eyebrow">YOUR PERSONAL ENGLISH COACH</p>
-          <h1 id="welcome-title">Talk freely.<br>Get better<br>as you go.</h1>
-          <p class="welcome-lede">Have a real conversation. Ask how you sounded, see how you came across, or practice any phrase—whenever you want.</p>
+          <h1 id="welcome-title">Practice the English<br>you actually use.</h1>
+          <p class="welcome-lede">Talk face to face about anything. Your coach responds to your meaning first, then helps you improve one useful moment at a time.</p>
 
-          <div class="capability-grid" aria-label="What your coach can do">
-            <div><span>01</span><b>Just talk</b><small>Talk about anything</small></div>
-            <div><span>02</span><b>English feedback</b><small>Ask how you sounded</small></div>
-            <div><span>03</span><b>Delivery signals</b><small>Explore what came across</small></div>
-            <div><span>04</span><b>Phrase practice</b><small>Hear it, then say it</small></div>
-            <div><span>05</span><b>Compare attempts</b><small>Notice what changed</small></div>
+          <div class="starter-card">
+            <label for="starter-input">What would you like to talk about?</label>
+            <input id="starter-input" type="text" maxlength="180" autocomplete="off" placeholder="Anything is fine — or leave this blank">
+            <div class="starter-chips" aria-label="Conversation starters">
+              <button type="button" data-starter="Let's have a relaxed, open conversation.">Chat freely</button>
+              <button type="button" data-starter="I want to practice a useful English phrase.">Practice a phrase</button>
+              <button type="button" data-starter="Help me prepare and improve an answer.">Prepare an answer</button>
+            </div>
+          </div>
+
+          <div class="learning-lenses" aria-label="What your coach can help with">
+            <span><i>W</i><b>Words</b></span>
+            <span><i>S</i><b>Sounds</b></span>
+            <span><i>R</i><b>Rhythm</b></span>
+            <span><i>P</i><b>Presence</b></span>
           </div>
 
           <button class="primary-button welcome-start" id="start-conversation" type="button">
-            <span>Start talking</span><i aria-hidden="true">→</i>
+            <span>Start video conversation</span><i aria-hidden="true">→</i>
           </button>
           <p class="welcome-note">Your microphone starts when you enter. Camera sharing is optional and stays off.</p>
         </div>
@@ -84,6 +93,7 @@
             <div class="daily-stage" id="daily-stage" hidden>
               <video id="tavus-video" autoplay playsinline aria-label="Live personal English coach"></video>
             </div>
+            <button class="unmute-coach" id="unmute-coach" type="button" hidden><span aria-hidden="true">▶</span> Turn on coach audio</button>
             <video class="self-view" id="self-video" autoplay muted playsinline hidden aria-label="Your camera preview"></video>
 
             <div class="coach-state">
@@ -106,29 +116,49 @@
           <aside class="coach-console" aria-label="Conversation controls">
             <div class="console-tabs" role="tablist" aria-label="Coach console">
               <button id="tools-tab" class="console-tab active" type="button" role="tab" aria-selected="true" aria-controls="tools-panel">Coach</button>
-              <button id="practice-tab" class="console-tab" type="button" role="tab" aria-selected="false" aria-controls="practice-panel">Practice</button>
+              <button id="practice-tab" class="console-tab" type="button" role="tab" aria-selected="false" aria-controls="practice-panel">Voice Lab</button>
               <button id="log-tab" class="console-tab" type="button" role="tab" aria-selected="false" aria-controls="log-panel">Session <span id="log-count">0</span></button>
             </div>
 
             <section class="tools-panel" id="tools-panel" role="tabpanel" aria-labelledby="tools-tab">
               <div class="console-intro">
-                <p class="eyebrow">OPEN CONVERSATION</p>
-                <h2>Stay in the conversation.</h2>
-                <p>Speak naturally. Ask for help whenever you want, or use a shortcut after any turn.</p>
+                <p class="eyebrow">YOUR COACH</p>
+                <h2>Talk first. Notice one thing.</h2>
+                <p>Your meaning comes first. After a turn, choose the kind of help you want.</p>
               </div>
 
+              <article class="turn-feedback" id="turn-feedback" data-state="waiting" aria-live="polite">
+                <header><span>LAST TURN</span><i id="turn-evidence-source">Waiting for your voice</i></header>
+                <p id="feedback-transcript">Say something naturally. Your latest words and available evidence will appear here.</p>
+                <div class="turn-metrics" aria-label="Last turn speaking evidence">
+                  <div><span>PACE</span><b id="feedback-pace">—</b><small id="feedback-pace-label">Needs 5+ words</small></div>
+                  <div><span>TIME</span><b id="feedback-duration">—</b><small>Speaking event</small></div>
+                  <div><span>FILLED PAUSES</span><b id="feedback-fillers">—</b><small>Transcript count</small></div>
+                  <div><span>REPEATS</span><b id="feedback-repeats">—</b><small>Adjacent words</small></div>
+                </div>
+                <div class="turn-focus"><span>ONE USEFUL FOCUS</span><b id="feedback-focus">Finish one real turn to get a suggestion.</b></div>
+                <details class="delivery-note" id="delivery-note">
+                  <summary>Qualitative delivery observation</summary>
+                  <p id="feedback-delivery">No Raven audio or visual observation has arrived yet.</p>
+                  <small>Coach perception · tentative, not an emotion diagnosis</small>
+                </details>
+              </article>
+
               <div class="quick-actions">
-                <button class="coach-tool" type="button" data-coach-request="sound">
-                  <span>ENGLISH</span><b>How did I sound?</b><small>One useful note + a natural version</small><i>→</i>
-                </button>
                 <button class="coach-tool" type="button" data-coach-request="natural">
-                  <span>REPHRASE</span><b>Say it naturally</b><small>Recast my last thought in natural English</small><i>→</i>
+                  <span>WORDS</span><b>Make it natural</b><small>Improve grammar, word choice, or phrasing</small><i>→</i>
+                </button>
+                <button class="coach-tool" type="button" data-coach-request="clarity">
+                  <span>CLARITY</span><b>Fix one thing</b><small>Choose the most useful change from this turn</small><i>→</i>
+                </button>
+                <button class="coach-tool" type="button" data-coach-request="rhythm">
+                  <span>RHYTHM</span><b>Break it into beats</b><small>Thought groups, stress, linking, and pauses</small><i>→</i>
                 </button>
                 <button class="coach-tool" type="button" data-coach-request="signals">
-                  <span>DELIVERY</span><b>What did you notice?</b><small>Ask about tone, pace, pauses, and visible cues</small><i>→</i>
+                  <span>PRESENCE</span><b>How did I come across?</b><small>Explore available voice and camera cues</small><i>→</i>
                 </button>
                 <button class="coach-tool" id="open-practice" type="button">
-                  <span>PRACTICE</span><b>Practice a phrase</b><small>Choose exactly what your coach should model</small><i>→</i>
+                  <span>VOICE LAB</span><b>Hear it. Try it. Compare.</b><small>Practice one exact phrase with your coach</small><i>→</i>
                 </button>
               </div>
 
@@ -139,13 +169,13 @@
               <div class="media-card">
                 <div class="media-copy">
                   <p>What your coach can use</p>
-                  <span id="signal-scope">Your words, pacing, pauses, and tone. Camera is off.</span>
+                  <span id="signal-scope">Your words and turn timing. Camera is off.</span>
                 </div>
                 <div class="media-controls">
                   <button id="mic-toggle" type="button" aria-pressed="true"><span class="media-icon">●</span><b>Mute mic</b></button>
                   <button id="camera-toggle" type="button" aria-pressed="false"><span class="media-icon">◎</span><b>Share camera</b></button>
                 </div>
-                <small>Delivery feedback is an AI impression from observable signals—not a fact about how you feel.</small>
+                <small>No mystery score: every signal is labelled by source. Detailed sound accuracy needs a dedicated phrase assessment.</small>
               </div>
 
               <form class="chat-box" id="chat-form">
@@ -157,7 +187,7 @@
             <section class="practice-panel" id="practice-panel" role="tabpanel" aria-labelledby="practice-tab" hidden>
               <div class="practice-heading">
                 <div>
-                  <p class="eyebrow">VOICE PRACTICE</p>
+                  <p class="eyebrow">VOICE LAB</p>
                   <h2>Hear it. Try it. Compare.</h2>
                 </div>
                 <span class="practice-step" id="practice-step" aria-live="polite">Choose a phrase</span>
@@ -170,6 +200,16 @@
                 <li data-practice-step="attempt-two"><span>4</span><b>Attempt 2</b></li>
                 <li data-practice-step="compare"><span>5</span><b>Compare</b></li>
               </ol>
+
+              <fieldset class="practice-focus" id="practice-focus">
+                <legend>What should we work on?</legend>
+                <div>
+                  <button type="button" class="active" data-practice-focus="whole">Whole phrase</button>
+                  <button type="button" data-practice-focus="sounds">Sounds</button>
+                  <button type="button" data-practice-focus="rhythm">Stress &amp; rhythm</button>
+                  <button type="button" data-practice-focus="intonation">Intonation</button>
+                </div>
+              </fieldset>
 
               <form class="practice-form" id="practice-form">
                 <label for="practice-input">What do you want to practice?</label>
@@ -188,7 +228,13 @@
 
               <div class="practice-model-actions" aria-label="Phrase playback controls">
                 <button class="quiet-button" id="practice-hear-again" type="button" disabled><span class="play-mark" aria-hidden="true">▶</span> Hear model</button>
-                <button class="quiet-button" id="practice-reset" type="button" disabled>Choose another phrase</button>
+                <button class="quiet-button" id="practice-coach" type="button" disabled>Break it down</button>
+              </div>
+              <button class="text-link-button" id="practice-reset" type="button" disabled>Choose another phrase</button>
+
+              <div class="evidence-boundary">
+                <span>WHAT IS MEASURED HERE</span>
+                <p>Transcript match, words, speaking time, pace, filled pauses, repeats, and optional coach observations. Phoneme and syllable accuracy appear only when a dedicated pronunciation provider is connected.</p>
               </div>
 
               <div class="attempt-stack">
@@ -217,6 +263,7 @@
                 <h3>Your two attempts, side by side.</h3>
                 <p id="comparison-text">Your coach will highlight one useful change after both attempts.</p>
               </section>
+              <button class="transfer-button" id="practice-transfer" type="button" disabled>Use this phrase in conversation <span aria-hidden="true">→</span></button>
             </section>
 
             <section class="log-panel" id="log-panel" role="tabpanel" aria-labelledby="log-tab" hidden>
@@ -229,6 +276,21 @@
                 <div><span>WRAP-UP</span><i>After your session</i></div>
                 <p id="session-summary-text">Keep talking. A short, evidence-based wrap-up will appear here when the session ends.</p>
               </section>
+
+              <section class="session-evidence" aria-labelledby="session-evidence-title">
+                <header><span id="session-evidence-title">YOUR SPEAKING EVIDENCE</span><i>In this browser tab</i></header>
+                <div>
+                  <article><span>TURNS</span><b id="session-turns">0</b><small>Spoken turns</small></article>
+                  <article><span>TALK TIME</span><b id="session-talk-time">0s</b><small>Timed speech</small></article>
+                  <article><span>MEDIAN PACE</span><b id="session-pace">—</b><small>WPM when available</small></article>
+                  <article><span>FILLED PAUSES</span><b id="session-fillers">0</b><small>High-confidence count</small></article>
+                </div>
+              </section>
+
+              <details class="evidence-guide">
+                <summary>How Fluent Me knows what it knows</summary>
+                <p><b>Transcript analysis</b> supports words, grammar, filled pauses, and repeated words. <b>Tavus timing</b> supports duration and pace. <b>Raven</b> may add tentative audio or visual observations. Phonemes, syllables, and pitch contours are not inferred from text.</p>
+              </details>
 
               <p class="log-privacy">This view stays in this browser tab. Fluent Me does not create a second server-side transcript log.</p>
               <div class="event-log" id="event-log" aria-live="polite">
@@ -434,6 +496,7 @@
   </dialog>
 
   <script src="/static/personalize.js?v=2" defer></script>
-  <script src="/static/live.js?v=13" defer></script>
+  <script src="/static/analysis-core.js?v=1" defer></script>
+  <script src="/static/live.js?v=15" defer></script>
 </body>
 </html>

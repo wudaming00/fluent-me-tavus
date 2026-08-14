@@ -22,7 +22,7 @@ for (const [label, faceId, expected] of [
     globalThis.fetch = async (url, options = {}) => {
       if (String(url).endsWith("/pals?limit=100")) {
         return responseJson({
-          data: [{ pal_name: "Fluent Me Conversation Coach v5", pal_id: "pal-existing" }],
+          data: [{ pal_name: "Fluent Me Conversation Coach v6", pal_id: "pal-existing" }],
         });
       }
       if (String(url).endsWith("/conversations")) {
@@ -65,8 +65,17 @@ test("Sites Worker enables explicit microphone and optional camera access", asyn
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'");
   const html = await response.text();
-  assert.match(html, /Start talking/);
+  assert.match(html, /Start video conversation/);
   assert.doesNotMatch(html, /Step 1 of 5|Hear the model/);
+});
+
+test("Sites Worker serves the deterministic speaking-evidence module", async () => {
+  const response = await worker.fetch(new Request("https://fluent-me.test/static/analysis-core.js"), {});
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type"), /text\/javascript/);
+  const javascript = await response.text();
+  assert.match(javascript, /summarizeTurn/);
+  assert.match(javascript, /phonemes: false/);
 });
 
 test("Sites Worker does not reuse the old scripted v3 PAL", async () => {
@@ -78,14 +87,14 @@ test("Sites Worker does not reuse the old scripted v3 PAL", async () => {
     }
     if (String(url).endsWith("/pals")) {
       createdPal = JSON.parse(options.body);
-      return responseJson({ pal_id: "pal-v5" });
+      return responseJson({ pal_id: "pal-v6" });
     }
     if (String(url).endsWith("/conversations")) {
       const body = JSON.parse(options.body);
-      assert.equal(body.pal_id, "pal-v5");
+      assert.equal(body.pal_id, "pal-v6");
       return responseJson({
-        conversation_id: "c-v5",
-        conversation_url: "https://tavus.daily.co/c-v5",
+        conversation_id: "c-v6",
+        conversation_url: "https://tavus.daily.co/c-v6",
         meeting_token: "short-lived-token",
       });
     }
@@ -98,7 +107,7 @@ test("Sites Worker does not reuse the old scripted v3 PAL", async () => {
       { method: "POST" },
     ), { TAVUS_API_KEY: "server-secret" });
     assert.equal(response.status, 200);
-    assert.equal(createdPal.pal_name, "Fluent Me Conversation Coach v5");
+    assert.equal(createdPal.pal_name, "Fluent Me Conversation Coach v6");
     assert.match(createdPal.system_prompt, /learner-led conversation/);
     assert.match(createdPal.system_prompt, /compare two attempts/);
     assert.match(createdPal.system_prompt, /compact session reflection/);
@@ -112,7 +121,7 @@ test("Sites Worker returns an actionable Tavus credit error", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async url => {
     if (String(url).endsWith("/pals?limit=100")) {
-      return responseJson({ data: [{ pal_name: "Fluent Me Conversation Coach v5", pal_id: "pal-existing" }] });
+      return responseJson({ data: [{ pal_name: "Fluent Me Conversation Coach v6", pal_id: "pal-existing" }] });
     }
     if (String(url).endsWith("/conversations")) {
       return new Response(JSON.stringify({ message: "payment required" }), {
@@ -315,9 +324,9 @@ test("Sites Worker starts a conversation with saved personal face and PAL ids", 
   }
 });
 
-test("Sites Worker serves the v2 social image and keeps the old route compatible", async () => {
+test("Sites Worker serves the v3 social image and keeps the old routes compatible", async () => {
   const current = await worker.fetch(new Request(
-    "https://fluent-me.test/static/og-personal-coach-v2.png",
+    "https://fluent-me.test/static/og-language-coach-v3.png",
   ), {});
   const legacy = await worker.fetch(new Request(
     "https://fluent-me.test/static/og-personal-coach.png",
@@ -329,7 +338,7 @@ test("Sites Worker serves the v2 social image and keeps the old route compatible
   assert.deepEqual(
     Buffer.from(await legacy.arrayBuffer()),
     Buffer.from(await (await worker.fetch(new Request(
-      "https://fluent-me.test/static/og-personal-coach-v2.png",
+      "https://fluent-me.test/static/og-language-coach-v3.png",
     ), {})).arrayBuffer()),
   );
 });

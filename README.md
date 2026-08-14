@@ -13,15 +13,15 @@ Do not treat the staging URL as proof of a completed live test. Before submissio
 
 ## What the prototype does
 
-- **Coach — open conversation:** the learner speaks through a live microphone and the coach responds to meaning instead of forcing a lesson sequence.
-- **Coach — help on demand:** **How did I sound?**, **Say it naturally**, and **What did you notice?** request a focused note, recast, or bounded observation after a real turn.
-- **Practice — exact phrase modeling:** the learner chooses a target and `conversation.echo` makes the Tavus Face speak that wording exactly.
-- **Practice — two real attempts:** the product captures two subsequent learner `conversation.utterance` events, including each transcript and any available Raven audio/visual analysis.
-- **Practice — evidence-based comparison:** after both attempts exist, `conversation.respond` asks the PAL to identify one improvement, one next detail, and the strongest version using only the supplied evidence.
+- **Coach — open conversation:** the learner speaks through a live microphone and the coach responds to meaning instead of forcing a lesson sequence. The latest real turn shows source-labelled duration, WPM, high-confidence filled pauses, adjacent repeats, and optional Raven observations.
+- **Coach — help on demand:** **Make it natural**, **Fix one thing**, **Break it into beats**, and **How did I come across?** request a focused recast or bounded observation after a real turn.
+- **Voice Lab — exact phrase modeling:** the learner chooses a target and `conversation.echo` makes the Tavus Face speak that wording exactly. Whole phrase, Sounds, Stress & rhythm, and Intonation lenses provide teaching models without pretending transcript data is acoustic assessment.
+- **Voice Lab — two real attempts:** the product captures two subsequent learner `conversation.utterance` events, including each transcript, deterministic timing evidence, and any available Raven audio/visual analysis.
+- **Voice Lab — evidence-based comparison:** after both attempts exist, `conversation.respond` asks the PAL to identify one improvement, one next detail, and the strongest version using only the supplied evidence.
 - **Session — grounded wrap-up:** the product requests three parts from the conversation that actually happened: one thing communicated well, one useful natural phrase, and one specific thing to practice next.
 - **Optional identity setup:** **Create your coach** separates a roughly 60-second face-training recording from a 60–90-second clean voice sample, then combines a Tavus Phoenix-4 Face and an ElevenLabs Instant Voice Clone in a personal PAL.
 
-**Coach**, **Practice**, and **Session** organize one continuous Tavus call. Coach shortcuts can also be requested out loud; Practice adds an explicit capture contract so attempt one and attempt two are real learner turns rather than generated sample data.
+**Coach**, **Voice Lab**, and **Session** organize one continuous Tavus call. Coach shortcuts can also be requested out loud; Voice Lab adds an explicit capture contract so attempt one and attempt two are real learner turns rather than generated sample data.
 
 ### Optional: Create your coach
 
@@ -46,7 +46,7 @@ The default coach is the Tavus stock Face **Nathan – Bookshelf** (Phoenix-4). 
 ## Architecture
 
 ```text
-Browser: custom Fluent Me UI — Coach / Practice / Session
+Browser: custom Fluent Me UI — Coach / Voice Lab / Session
   ├─ Daily call object ─ microphone + optional camera ───────────┐
   ├─ Coach ───── conversation.respond for typed turns/tools       │
   ├─ Practice ── conversation.echo(target)                        │
@@ -108,21 +108,21 @@ TAVUS_API_KEY=...
 ELEVENLABS_API_KEY=...
 
 # Recommended for a reproducible evaluator build: pin the verified,
-# published v5 conversation/practice PAL rather than an older PAL.
-TAVUS_CONVERSATION_PAL_V5_ID=...
+# published v6 evidence-aware PAL rather than an older PAL.
+TAVUS_CONVERSATION_PAL_V6_ID=...
 
 # Optional; defaults to Nathan – Bookshelf.
 TAVUS_FACE_ID=
 ```
 
-If `TAVUS_CONVERSATION_PAL_V5_ID` is empty, the app creates or reuses **Fluent Me Conversation Coach v5**. The local FastAPI path keeps this generation in `data/tavus_pal_v5.json`, separate from older PAL caches. Never point the v5 override at the earlier scripted lesson PAL or the v4 PAL, whose prompt does not contain the two-attempt comparison and three-part wrap-up contract. For Sites, set credentials as secret runtime environment variables; never put them in browser code or commit them.
+If `TAVUS_CONVERSATION_PAL_V6_ID` is empty, the app creates or reuses **Fluent Me Conversation Coach v6**. The local FastAPI path keeps this generation in `data/tavus_pal_v6.json`, separate from older PAL caches. Never point the v6 override at an earlier scripted PAL: v6 contains the source-labelled timing contract, explicit acoustic-evidence boundary, two-attempt comparison, and three-part wrap-up behavior. For Sites, set credentials as secret runtime environment variables; never put them in browser code or commit them.
 
 ### Checks
 
 ```powershell
 python -m pytest -q
 npm run build
-npm run test:worker
+npm test
 ```
 
 These tests validate application and Worker behavior with mocks. They do **not** replace the manual Tavus/Daily end-to-end test described in [TAKEHOME.md](TAKEHOME.md).
@@ -146,6 +146,7 @@ These tests validate application and Worker behavior with mocks. They do **not**
 
 - [server/pages/live.html](server/pages/live.html) — evaluator-visible conversation UI.
 - [server/static/live.js](server/static/live.js) — Daily media lifecycle and Tavus interaction events.
+- [server/static/analysis-core.js](server/static/analysis-core.js) — deterministic turn, attempt, and session evidence without a fake overall score.
 - [server/static/live.css](server/static/live.css) — responsive product styling.
 - [server/tavus.py](server/tavus.py) — FastAPI-side PAL and conversation integration.
 - [server/personalization.py](server/personalization.py) — server-only ElevenLabs IVC, Phoenix-4 Face, status, validation, and personal PAL helpers.
@@ -155,3 +156,4 @@ These tests validate application and Worker behavior with mocks. They do **not**
 - [tests/test_app.py](tests/test_app.py) and [tests/test_tavus.py](tests/test_tavus.py) — local integration contracts.
 - [DESIGN.md](DESIGN.md) — product, coaching, perception, and privacy decisions.
 - [TAKEHOME.md](TAKEHOME.md) — demo talk track and final submission checklist.
+- [docs/LANGUAGE-COACH-REALIZATION.md](docs/LANGUAGE-COACH-REALIZATION.md) — research-backed product model, evidence contract, UI realization, and pronunciation-provider path.
